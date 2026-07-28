@@ -501,6 +501,152 @@ body.diagram2-edit-mode-active #app {
   display: none;
 }
 
+.diagram2-editor-objects-pane,
+.diagram2-template-pane {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.diagram2-editor-objects-pane .image-annotation-object-tree-actions,
+.diagram2-template-pane .image-annotation-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.diagram2-editor-objects-pane .image-annotation-object-tree-actions button,
+.diagram2-template-pane .image-annotation-template-actions button,
+.diagram2-template-card button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.diagram2-layer-actions {
+  padding-top: var(--space-2);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.diagram2-editor-objects-pane .image-annotation-object-tree-search {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.diagram2-editor-objects-pane .image-annotation-object-tree-search span,
+.diagram2-template-pane .image-annotation-template-status {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.diagram2-editor-objects-pane .image-annotation-object-tree-search input {
+  width: 100%;
+}
+
+.diagram2-editor-objects-pane .image-annotation-object-tree-root-drop {
+  width: 100%;
+  justify-content: center;
+}
+
+.diagram2-object-tree {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-height: 120px;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+}
+
+.diagram2-object-tree .image-annotation-object-tree-row.is-selected,
+.diagram2-object-tree .image-annotation-object-tree-row.is-partially-selected {
+  border-color: color-mix(in srgb, var(--color-accent, #2563eb) 38%, var(--color-border));
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-accent, #2563eb) 9%, var(--color-surface));
+}
+
+.diagram2-object-tree .image-annotation-object-tree-row.is-hidden {
+  opacity: 0.55;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-group-children {
+  margin-left: var(--space-4);
+  border-left: var(--border-width) solid var(--color-border-subtle);
+  padding-left: var(--space-2);
+}
+
+.diagram2-object-tree .image-annotation-object-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-row-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.diagram2-object-tree .image-annotation-object-tree-row-actions button,
+.diagram2-object-tree .image-annotation-object-tree-visibility {
+  width: var(--control-height-sm);
+  min-width: var(--control-height-sm);
+  min-height: var(--control-height-sm);
+  padding: 0;
+}
+
+.diagram2-object-tree .is-drop-before {
+  border-top-color: var(--color-accent, #2563eb);
+}
+
+.diagram2-object-tree .is-drop-after {
+  border-bottom-color: var(--color-accent, #2563eb);
+}
+
+.diagram2-object-tree .is-drop-inside,
+.diagram2-editor-objects-pane .is-drop-target {
+  outline: 2px solid color-mix(in srgb, var(--color-accent, #2563eb) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.diagram2-template-pane .image-annotation-template-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.diagram2-template-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.diagram2-template-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagram2-template-card .image-annotation-template-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .diagram2-empty-selection {
   min-height: 0;
 }

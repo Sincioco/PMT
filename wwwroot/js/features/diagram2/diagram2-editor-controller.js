@@ -1,10 +1,30 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v1";
+import {
+  createDiagram2StructureStateCommand,
+  diagram2ExpandGroupSelectionIds,
+  diagram2GroupSelectionPlan,
+  diagram2LayerActionLabel as diagram2StructureLayerActionLabel,
+  diagram2LayerOrderPlan,
+  diagram2ObjectTreeNodeSelectionIds,
+  diagram2RenameStructurePlan,
+  diagram2ReorderStructurePlan,
+  diagram2SetStructureVisibilityPlan,
+  diagram2UngroupSelectionPlan,
+  pruneDiagram2GroupMetadata
+} from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v1";
+import {
+  applyDiagram2DrawingDefault,
+  applyDiagram2TemplateFormat,
+  diagram2DrawingDefaultFromObject,
+  instantiateDiagram2TemplateObjects,
+  normalizeDiagram2DrawingDefaults
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
@@ -108,12 +128,12 @@ export function createDiagram2DefaultObject(typeInput, centerInput = {}, options
       opacity: defaultDiagram2DrawingStyles.opacity
     };
     if (type === "arrow") object.arrowSize = defaultDiagram2DrawingStyles.arrowSize;
-    return object;
+    return applyDiagram2DrawingDefault(object, options.drawingDefaults);
   }
 
   const width = type === "rich-text" ? 520 : type === "textbox" ? 320 : type === "circle" ? 180 : 240;
   const height = type === "rich-text" ? 260 : type === "circle" ? 180 : 140;
-  return {
+  const object = {
     ...base,
     x: center.x - (width / 2),
     y: center.y - (height / 2),
@@ -134,6 +154,7 @@ export function createDiagram2DefaultObject(typeInput, centerInput = {}, options
     textAlign: defaultDiagram2DrawingStyles.textAlign,
     textVerticalAlign: defaultDiagram2DrawingStyles.textVerticalAlign
   };
+  return applyDiagram2DrawingDefault(object, options.drawingDefaults);
 }
 
 export function createDiagram2EditorController(options = {}) {
@@ -146,6 +167,7 @@ export function createDiagram2EditorController(options = {}) {
   let selectedObjectIds = [];
   let activeTool = "select";
   let formatPainterStyles = null;
+  let drawingDefaults = normalizeDiagram2DrawingDefaults(options.drawingDefaults || options.templateLibrary?.defaults);
   let pasteSequence = 0;
   let busy = false;
   let destroyed = false;
@@ -213,7 +235,7 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function setSelection(ids = []) {
-    selectedObjectIds = existingObjectIds(ids);
+    selectedObjectIds = diagram2ExpandGroupSelectionIds(canonicalState, existingObjectIds(ids));
     const diagnostics = renderer?.setSelectedIds?.(selectedObjectIds);
     emit("selection", { diagnostics });
     return selectedObjectIds.slice();
@@ -427,6 +449,8 @@ export function createDiagram2EditorController(options = {}) {
 
     const command = createDiagram2AddObjectsCommand({
       objects,
+      groupNames: commandOptions.groupNames,
+      groupVisibility: commandOptions.groupVisibility,
       label: commandOptions.label || "Add objects",
       reason: commandOptions.reason || "add objects"
     });
@@ -500,7 +524,9 @@ export function createDiagram2EditorController(options = {}) {
     assignUniqueDiagram2ObjectNames(objects, canonicalState.objects);
     return addObjects(objects, {
       label: commandOptions.label || "Paste objects",
-      reason: commandOptions.reason || "paste objects"
+      reason: commandOptions.reason || "paste objects",
+      groupNames: remapped?.selection?.groupNames || {},
+      groupVisibility: remapped?.selection?.groupVisibility || {}
     });
   }
 
@@ -598,23 +624,188 @@ export function createDiagram2EditorController(options = {}) {
 
   async function arrangeSelectedObjects(actionInput) {
     if (busy || destroyed || !canMutate()) return false;
-    const action = normalizeDiagram2LayerAction(actionInput);
-    if (!action || !selectedObjectIds.length) return false;
-    const selection = selectedObjectIds.map(getObjectById).filter(Boolean);
+    const plan = diagram2LayerOrderPlan(canonicalState, selectedObjectIds, actionInput);
+    if (!plan) return false;
+    const selection = plan.objectIds.map(getObjectById).filter(Boolean);
     if (!selection.length || selection.some(object =>
       object.locked === true || objectPositionFixed(object))) return false;
 
-    const previousOrder = canonicalState.objects.map(object => object.id);
-    const nextOrder = diagram2LayerOrder(previousOrder, selectedObjectIds, action);
-    if (previousOrder.every((id, index) => id === nextOrder[index])) return false;
-
     await history.execute(createDiagram2ArrangeObjectsCommand({
-      objectIds: selectedObjectIds,
-      previousOrder,
-      nextOrder,
-      label: diagram2LayerActionLabel(action),
-      reason: `arrange objects ${action}`
+      objectIds: plan.objectIds,
+      previousOrder: plan.previousOrder,
+      nextOrder: plan.nextOrder,
+      label: diagram2StructureLayerActionLabel(plan.action),
+      reason: `arrange objects ${plan.action}`
     }), commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function groupSelectedObjects(commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const ids = selectedObjectIds.filter(id => {
+      const object = getObjectById(id);
+      return object && object.locked !== true && !objectPositionFixed(object);
+    });
+    const plan = diagram2GroupSelectionPlan(canonicalState, ids);
+    if (!plan) return false;
+    await history.execute(createDiagram2StructureStateCommand({
+      nextState: plan.nextState,
+      affectedObjectIds: plan.affectedObjectIds,
+      selectionAfter: plan.selectionAfter,
+      label: commandOptions.label || "Group objects",
+      reason: commandOptions.reason || "group objects"
+    }), commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function ungroupSelectedObjects(commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2UngroupSelectionPlan(canonicalState, selectedObjectIds);
+    if (!plan || plan.affectedObjectIds.some(id => {
+      const object = getObjectById(id);
+      return object?.locked === true || objectPositionFixed(object);
+    })) return false;
+    await history.execute(createDiagram2StructureStateCommand({
+      nextState: plan.nextState,
+      affectedObjectIds: plan.affectedObjectIds,
+      selectionAfter: plan.selectionAfter,
+      label: commandOptions.label || "Ungroup objects",
+      reason: commandOptions.reason || "ungroup objects"
+    }), commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function renameStructureNode(kind, id, name, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2RenameStructurePlan(canonicalState, kind, id, name);
+    if (!plan || plan.affectedObjectIds.some(objectId => objectPositionFixed(getObjectById(objectId)))) return false;
+    await history.execute(createDiagram2StructureStateCommand({
+      nextState: plan.nextState,
+      affectedObjectIds: plan.affectedObjectIds,
+      selectionAfter: plan.selectionAfter,
+      label: commandOptions.label || "Rename object",
+      reason: commandOptions.reason || "rename object"
+    }), commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function setStructureNodeVisibility(kind, id, visible = null, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2SetStructureVisibilityPlan(canonicalState, kind, id, visible);
+    if (!plan || plan.affectedObjectIds.some(objectId => objectPositionFixed(getObjectById(objectId)))) return false;
+    await history.execute(createDiagram2StructureStateCommand({
+      nextState: plan.nextState,
+      affectedObjectIds: plan.affectedObjectIds,
+      selectionAfter: plan.selectionAfter,
+      label: commandOptions.label || "Change visibility",
+      reason: commandOptions.reason || "change visibility"
+    }), commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function reorderStructureNode(move, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2ReorderStructurePlan(canonicalState, move);
+    if (!plan || plan.affectedObjectIds.some(id => {
+      const object = getObjectById(id);
+      return object?.locked === true || objectPositionFixed(object);
+    })) return false;
+    await history.execute(createDiagram2StructureStateCommand({
+      nextState: plan.nextState,
+      affectedObjectIds: plan.affectedObjectIds,
+      selectionAfter: plan.selectionAfter,
+      label: commandOptions.label || "Reorder objects",
+      reason: commandOptions.reason || "reorder objects"
+    }), commandContext());
+    emit("history");
+    return true;
+  }
+
+  function selectStructureNode(kind, id) {
+    return setSelection(diagram2ObjectTreeNodeSelectionIds(canonicalState, kind, id));
+  }
+
+  function createDefaultObject(type, centerInput = {}, options = {}) {
+    return createDiagram2DefaultObject(type, centerInput, {
+      ...options,
+      drawingDefaults
+    });
+  }
+
+  function setDrawingDefaults(defaultsInput = {}) {
+    drawingDefaults = normalizeDiagram2DrawingDefaults(defaultsInput);
+    emit("drawing-defaults");
+    return currentDrawingDefaults();
+  }
+
+  function currentDrawingDefaults() {
+    return cloneDiagram2Value(drawingDefaults);
+  }
+
+  function setDrawingDefaultFromSelection(typeInput) {
+    const type = String(typeInput || "").trim().toLowerCase();
+    if (!["arrow", "rectangle"].includes(type)) return null;
+    const object = selectedObjectIds
+      .map(id => getObjectById(id))
+      .find(candidate => candidate?.type === type && candidate.locked !== true && !objectPositionFixed(candidate));
+    if (!object || object.type !== type || object.locked === true || objectPositionFixed(object)) return null;
+    const value = diagram2DrawingDefaultFromObject(object);
+    if (!value) return null;
+    drawingDefaults = normalizeDiagram2DrawingDefaults({
+      ...drawingDefaults,
+      [type]: value
+    });
+    emit("drawing-defaults");
+    return cloneDiagram2Value(value);
+  }
+
+  function resetDrawingDefault(typeInput) {
+    const type = String(typeInput || "").trim().toLowerCase();
+    if (!["arrow", "rectangle"].includes(type)) return false;
+    drawingDefaults = normalizeDiagram2DrawingDefaults({
+      ...drawingDefaults,
+      [type]: null
+    });
+    emit("drawing-defaults");
+    return true;
+  }
+
+  async function applyTemplate(template, centerInput = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const instance = instantiateDiagram2TemplateObjects(
+      template,
+      snapPoint(centerInput),
+      canonicalState.objects.map(object => object.id)
+    );
+    const objects = uniqueDiagram2Objects(instance.objects);
+    if (!objects.length) return false;
+    assignUniqueDiagram2ObjectNames(objects, canonicalState.objects);
+    return addObjects(objects, {
+      label: commandOptions.label || "Apply template",
+      reason: commandOptions.reason || "apply template",
+      groupNames: instance.groupNames,
+      groupVisibility: instance.groupVisibility
+    });
+  }
+
+  async function applyTemplateFormatting(template, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const targets = getObjectsByIds(selectedObjectIds)
+      .filter(object => object.locked !== true && !objectPositionFixed(object));
+    if (!targets.length) return false;
+    const { result, objects } = applyDiagram2TemplateFormat(template, targets);
+    if (!result?.changedCount) return false;
+    const command = createDiagram2PatchObjectsCommand({
+      objects,
+      label: commandOptions.label || "Apply template formatting",
+      reason: commandOptions.reason || "apply template formatting"
+    });
+    await history.execute(command, commandContext());
     emit("history");
     return true;
   }
@@ -711,6 +902,7 @@ export function createDiagram2EditorController(options = {}) {
       addObjectsCanonical,
       removeObjectsCanonical,
       setObjectOrderCanonical,
+      setStructureStateCanonical,
       setCanvasOptionCanonical,
       setState(nextState) {
         canonicalState = normalizeDiagram2CanonicalState(nextState);
@@ -927,8 +1119,17 @@ export function createDiagram2EditorController(options = {}) {
       });
     canonicalState = {
       ...canonicalState,
-      objects: nextObjects
+      objects: nextObjects,
+      groupNames: {
+        ...(canonicalState.groupNames || {}),
+        ...plainDiagram2Record(addOptions.groupNames)
+      },
+      groupVisibility: {
+        ...(canonicalState.groupVisibility || {}),
+        ...plainDiagram2BooleanRecord(addOptions.groupVisibility)
+      }
     };
+    canonicalState = pruneDiagram2GroupMetadata(canonicalState);
     rebuildCanonicalObjectIndex();
     objects.forEach(object => {
       canonicalRelationshipCount += diagram2ObjectRelationshipCount(object);
@@ -981,6 +1182,7 @@ export function createDiagram2EditorController(options = {}) {
       ...canonicalState,
       objects: nextObjects
     };
+    canonicalState = pruneDiagram2GroupMetadata(canonicalState);
     previousObjectsById.forEach(object => {
       canonicalRelationshipCount -= diagram2ObjectRelationshipCount(object);
     });
@@ -1063,6 +1265,67 @@ export function createDiagram2EditorController(options = {}) {
       fullStateSerializationCount: 0,
       canonicalObjectCount: canonicalState.objects.length,
       reason: String(orderOptions.reason || "arrange objects")
+    });
+  }
+
+  function setStructureStateCanonical(nextStateInput = {}, structureOptions = {}) {
+    const nextState = pruneDiagram2GroupMetadata({
+      ...canonicalState,
+      ...(nextStateInput && typeof nextStateInput === "object" ? nextStateInput : {})
+    });
+    const currentOrder = canonicalState.objects.map(object => object.id);
+    const nextOrder = nextState.objects.map(object => object.id);
+    const requestedAffectedIds = uniqueStrings(structureOptions.affectedObjectIds);
+    const affectedObjectIds = requestedAffectedIds.length
+      ? requestedAffectedIds
+      : uniqueStrings([
+          ...currentOrder,
+          ...nextOrder
+        ]).filter(id => {
+          const previousObject = objectById.get(id);
+          const nextObject = nextState.objects.find(object => object.id === id);
+          return JSON.stringify(previousObject || null) !== JSON.stringify(nextObject || null);
+        });
+    const groupChanged = JSON.stringify(canonicalState.groupNames || {}) !== JSON.stringify(nextState.groupNames || {})
+      || JSON.stringify(canonicalState.groupVisibility || {}) !== JSON.stringify(nextState.groupVisibility || {});
+    const orderChanged = currentOrder.length !== nextOrder.length
+      || currentOrder.some((id, index) => id !== nextOrder[index]);
+    const changed = Boolean(affectedObjectIds.length || groupChanged || orderChanged);
+    if (!changed) {
+      return recordCanonicalOperation({
+        kind: "structure-state",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: requestedAffectedIds.length,
+        objectLookupCount: requestedAffectedIds.length,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(structureOptions.reason || "structure state")
+      });
+    }
+
+    canonicalState = nextState;
+    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    rebuildCanonicalObjectIndex();
+    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    return recordCanonicalOperation({
+      kind: "structure-state",
+      changed: true,
+      affectedObjectIds,
+      requestedObjectCount: requestedAffectedIds.length,
+      objectLookupCount: requestedAffectedIds.length,
+      objectPatchCount: affectedObjectIds.length,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: orderChanged,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      canonicalRelationshipCount,
+      reason: String(structureOptions.reason || "structure state")
     });
   }
 
@@ -1154,6 +1417,7 @@ export function createDiagram2EditorController(options = {}) {
     snapMovement,
     keyboardNudgeStep,
     selectAll,
+    selectStructureNode,
     getObjectById,
     getObjectsByIds,
     updateObjectCanonical,
@@ -1161,6 +1425,7 @@ export function createDiagram2EditorController(options = {}) {
     addObjectCanonical,
     addObjectsCanonical,
     removeObjectsCanonical,
+    setStructureStateCanonical,
     addObject,
     addObjects,
     deleteSelectedObjects,
@@ -1173,10 +1438,22 @@ export function createDiagram2EditorController(options = {}) {
     applyFormatPainter,
     setSelectedObjectsLocked,
     arrangeSelectedObjects,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
+    renameStructureNode,
+    setStructureNodeVisibility,
+    reorderStructureNode,
     moveSelectedObjects,
     updateSelectedObjectsStyle,
     moveObjects,
     resizeObjects,
+    createDefaultObject,
+    setDrawingDefaults,
+    currentDrawingDefaults,
+    setDrawingDefaultFromSelection,
+    resetDrawingDefault,
+    applyTemplate,
+    applyTemplateFormatting,
     undo,
     redo,
     markSaved,
@@ -1258,6 +1535,8 @@ export function createDiagram2AddObjectCommand(options = {}) {
 export function createDiagram2AddObjectsCommand(options = {}) {
   const objects = uniqueDiagram2Objects(options.objects).map(cloneDiagram2Value);
   const objectIds = objects.map(object => object.id);
+  const groupNames = plainDiagram2Record(options.groupNames);
+  const groupVisibility = plainDiagram2BooleanRecord(options.groupVisibility);
   const reason = String(options.reason || "add objects").trim() || "add objects";
   const label = String(options.label || "Add objects").trim() || "Add objects";
   const createdAt = Date.now();
@@ -1271,23 +1550,38 @@ export function createDiagram2AddObjectsCommand(options = {}) {
     createdAt,
     apply(context) {
       previousSelection = context.selectedObjectIds();
-      const add = context.addObjectsCanonical(objects, { reason });
+      const add = context.addObjectsCanonical(objects, { groupNames, groupVisibility, reason });
       if (add.changed !== true) return false;
-      patchDiagram2RendererObjectAdd(context.renderer, objects, reason);
+      patchDiagram2RendererObjectAdd(context.renderer, objects, reason, null, {
+        groupNames,
+        groupVisibility,
+        state: context.state
+      });
       context.setSelection(objectIds);
       return true;
     },
     undo(context) {
       const remove = context.removeObjectsCanonical(objectIds, { reason: `${reason} undo` });
       if (remove.changed !== true) return false;
-      patchDiagram2RendererObjectRemove(context.renderer, objectIds, `${reason} undo`);
+      patchDiagram2RendererObjectRemove(context.renderer, objectIds, `${reason} undo`, {
+        state: context.state,
+        affectedObjectIds: objectIds
+      });
       context.setSelection(previousSelection);
       return true;
     },
     redo(context) {
-      const add = context.addObjectsCanonical(objects, { reason: `${reason} redo` });
+      const add = context.addObjectsCanonical(objects, {
+        groupNames,
+        groupVisibility,
+        reason: `${reason} redo`
+      });
       if (add.changed !== true) return false;
-      patchDiagram2RendererObjectAdd(context.renderer, objects, `${reason} redo`);
+      patchDiagram2RendererObjectAdd(context.renderer, objects, `${reason} redo`, null, {
+        groupNames,
+        groupVisibility,
+        state: context.state
+      });
       context.setSelection(objectIds);
       return true;
     }
@@ -1308,6 +1602,8 @@ export function createDiagram2DeleteObjectsCommand(options = {}) {
   const reason = String(options.reason || "delete objects").trim() || "delete objects";
   const label = String(options.label || "Delete objects").trim() || "Delete objects";
   const createdAt = Date.now();
+  let groupNames = {};
+  let groupVisibility = {};
 
   return {
     kind: "delete-objects",
@@ -1316,26 +1612,49 @@ export function createDiagram2DeleteObjectsCommand(options = {}) {
     reason,
     createdAt,
     apply(context) {
+      const groupIds = new Set(objects.map(object => object.groupId).filter(Boolean));
+      groupNames = {};
+      groupVisibility = {};
+      groupIds.forEach(groupId => {
+        if (Object.hasOwn(context.state?.groupNames || {}, groupId)) {
+          groupNames[groupId] = context.state.groupNames[groupId];
+        }
+        if (Object.hasOwn(context.state?.groupVisibility || {}, groupId)) {
+          groupVisibility[groupId] = context.state.groupVisibility[groupId] !== false;
+        }
+      });
       const remove = context.removeObjectsCanonical(objectIds, { reason });
       if (remove.changed !== true) return false;
-      patchDiagram2RendererObjectRemove(context.renderer, objectIds, reason);
+      patchDiagram2RendererObjectRemove(context.renderer, objectIds, reason, {
+        state: context.state,
+        affectedObjectIds: objectIds
+      });
       context.setSelection(selectionBefore.filter(id => !objectIds.includes(id)));
       return true;
     },
     undo(context) {
       const add = context.addObjectsCanonical(objects, {
         indexesById,
+        groupNames,
+        groupVisibility,
         reason: `${reason} undo`
       });
       if (add.changed !== true) return false;
-      patchDiagram2RendererObjectAdd(context.renderer, objects, `${reason} undo`, indexesById);
+      patchDiagram2RendererObjectAdd(context.renderer, objects, `${reason} undo`, indexesById, {
+        groupNames,
+        groupVisibility,
+        state: context.state
+      });
       context.setSelection(objectIds);
       return true;
     },
     redo(context) {
       const remove = context.removeObjectsCanonical(objectIds, { reason: `${reason} redo` });
       if (remove.changed !== true) return false;
-      patchDiagram2RendererObjectRemove(context.renderer, objectIds, `${reason} redo`);
+      patchDiagram2RendererObjectRemove(context.renderer, objectIds, `${reason} redo`, {
+        state: context.state,
+        affectedObjectIds: objectIds
+      });
       context.setSelection([]);
       return true;
     }
@@ -2227,25 +2546,38 @@ function normalizeDiagram2RichTextHtml(value) {
     .slice(0, 200000) || "<p><br></p>";
 }
 
-function patchDiagram2RendererObjectAdd(renderer, objects, reason, indexesById = null) {
+function patchDiagram2RendererObjectAdd(renderer, objects, reason, indexesById = null, options = {}) {
   if (!renderer) return;
-  if (typeof renderer.addObjects === "function") {
-    renderer.addObjects(objects, { reason, indexesById });
-    return;
-  }
   renderer.beginDiagramUpdate?.(reason);
-  objects.forEach(object => renderer.addObject?.(object));
+  if (typeof renderer.addObjects === "function") {
+    renderer.addObjects(objects, {
+      reason,
+      indexesById,
+      groupNames: options.groupNames,
+      groupVisibility: options.groupVisibility
+    });
+  } else {
+    objects.forEach(object => renderer.addObject?.(object));
+  }
+  renderer.setStructureState?.(options.state, {
+    affectedObjectIds: objects.map(object => object.id),
+    reason
+  });
   renderer.endDiagramUpdate?.(reason);
 }
 
-function patchDiagram2RendererObjectRemove(renderer, objectIds, reason) {
+function patchDiagram2RendererObjectRemove(renderer, objectIds, reason, options = {}) {
   if (!renderer) return;
+  renderer.beginDiagramUpdate?.(reason);
   if (typeof renderer.removeObjects === "function") {
     renderer.removeObjects(objectIds, { reason });
-    return;
+  } else {
+    objectIds.forEach(id => renderer.removeObject?.(id));
   }
-  renderer.beginDiagramUpdate?.(reason);
-  objectIds.forEach(id => renderer.removeObject?.(id));
+  renderer.setStructureState?.(options.state, {
+    affectedObjectIds: options.affectedObjectIds || objectIds,
+    reason
+  });
   renderer.endDiagramUpdate?.(reason);
 }
 
@@ -2260,4 +2592,18 @@ function translateDiagram2Bounds(bounds, deltaX, deltaY) {
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value || {}, key);
+}
+
+function plainDiagram2Record(input) {
+  if (!input || typeof input !== "object") return {};
+  return Object.fromEntries(Object.entries(input)
+    .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+    .filter(([key, value]) => key && value));
+}
+
+function plainDiagram2BooleanRecord(input) {
+  if (!input || typeof input !== "object") return {};
+  return Object.fromEntries(Object.entries(input)
+    .map(([key, value]) => [String(key || "").trim(), value !== false])
+    .filter(([key]) => key));
 }

@@ -394,7 +394,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     canonicalState = normalizeDiagram2CanonicalState(inputState);
     clearDirtyState(dirty);
     clearGeometryPreview({ restoreObjects: false, reason: "full render" });
-    const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
+    const visibleObjects = canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState));
     const relationships = diagram2CanonicalRelationships(canonicalState);
     mark(performanceApi, `${frameId}:canonical`);
 
@@ -561,7 +561,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
     canonicalState = normalizeDiagram2CanonicalState({
       ...canonicalState,
-      objects: nextObjects
+      objects: nextObjects,
+      groupNames: {
+        ...(canonicalState.groupNames || {}),
+        ...plainDiagram2RendererRecord(options.groupNames)
+      },
+      groupVisibility: {
+        ...(canonicalState.groupVisibility || {}),
+        ...plainDiagram2RendererBooleanRecord(options.groupVisibility)
+      }
     });
     objects.forEach(object => dirty.objectStructure.add(object.id));
     dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
@@ -635,6 +643,55 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return scheduleDiagramFlush(options.reason || "object order");
   }
 
+  function setStructureState(stateInput = null, options = {}) {
+    if (!canonicalState || !stateInput || typeof stateInput !== "object") return diagnostics();
+    const previousState = canonicalState;
+    const previousObjectsById = new Map(previousState.objects.map(object => [object.id, object]));
+    const nextObjects = Array.isArray(stateInput.objects) ? stateInput.objects : previousState.objects;
+    const nextObjectsById = new Map(nextObjects.map(object => [object.id, object]));
+    const requestedIds = [...new Set((Array.isArray(options.affectedObjectIds) ? options.affectedObjectIds : [])
+      .map(id => String(id || "").trim())
+      .filter(Boolean))];
+    const affectedIds = requestedIds.length
+      ? requestedIds
+      : [...new Set([...previousObjectsById.keys(), ...nextObjectsById.keys()])];
+    const previousOrder = previousState.objects.map(object => object.id).join("\n");
+    const nextOrder = nextObjects.map(object => object.id).join("\n");
+
+    canonicalState = {
+      ...canonicalState,
+      objects: nextObjects,
+      groupNames: plainDiagram2RendererRecord(stateInput.groupNames),
+      groupVisibility: plainDiagram2RendererBooleanRecord(stateInput.groupVisibility)
+    };
+
+    affectedIds.forEach(id => {
+      const previousObject = previousObjectsById.get(id) || null;
+      const nextObject = nextObjectsById.get(id) || null;
+      if (!previousObject && !nextObject) return;
+      const previousVisible = diagram2ObjectVisible(previousObject, previousState);
+      const nextVisible = diagram2ObjectVisible(nextObject, canonicalState);
+      const flags = diagram2ObjectPatchFlags(previousObject, nextObject);
+      if (previousVisible !== nextVisible) {
+        dirty.objectStructure.add(id);
+        const impact = impactedRelationshipIdsForObjectGeometry(
+          id,
+          previousVisible ? previousObject : null,
+          nextVisible ? nextObject : null
+        );
+        pendingSelectiveRoutingSectorsQueried += impact.sectorsQueried;
+        impact.relationshipIds.forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
+        dirty.worldBounds = true;
+        dirty.sectors = true;
+        return;
+      }
+      markObjectDirty(id, flags, previousObject, nextObject);
+    });
+
+    if (previousOrder !== nextOrder) dirty.zOrder = true;
+    return scheduleDiagramFlush(options.reason || "structure state");
+  }
+
   function updateObject(id, patchInput = {}) {
     if (!canonicalState) return diagnostics();
     const objectId = String(id || "");
@@ -704,7 +761,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return [...indexed.ids].filter(id => {
       const object = objectsById.get(id);
       return object
-        && object.visible !== false
+        && diagram2ObjectVisible(object, canonicalState)
         && boundsIntersect(diagram2ObjectContentBounds(object), bounds);
     });
   }
@@ -745,7 +802,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (!objectIds.length) return diagnostics();
     const originalObjectsById = new Map();
     objectIds.forEach(id => {
-      const object = canonicalState.objects.find(candidate => candidate.id === id && candidate.visible !== false);
+      const object = canonicalState.objects.find(candidate => candidate.id === id && diagram2ObjectVisible(candidate, canonicalState));
       if (object) originalObjectsById.set(id, cloneDiagram2Value(object));
     });
     if (!originalObjectsById.size) return diagnostics();
@@ -919,7 +976,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     patchObjectSet(dirty.objectStyle);
     patchedNodeCount += patchSelectionTargets(dirty.objectSelection);
     reconcileMountedRelationshipIds(relationships);
-    if (dirty.zOrder) reconcileObjectOrder(canonicalState.objects.filter(object => object.visible !== false));
+    if (dirty.zOrder) reconcileObjectOrder(canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState)));
     patchSelectionOverlays();
     const viewportHaloResult = viewportHalo.active
       ? reconcileViewportHalo("dirty flush", { allowSameSectorNoop: false })
@@ -1476,7 +1533,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function patchDirtyObject(id) {
     const object = canonicalState?.objects.find(candidate => candidate.id === id);
-    if (!object || object.visible === false) {
+    if (!object || !diagram2ObjectVisible(object, canonicalState)) {
       const existed = liveView.objectNodesById.has(id);
       removeObjectNode(id);
       removeRoutingObjectIndex(id);
@@ -1782,7 +1839,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       };
     }
 
-    const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
+    const visibleObjects = canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState));
     const relationships = diagram2CanonicalRelationships(canonicalState);
     const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const plan = viewportHaloPlan(visibleObjects, relationships, reason);
@@ -2131,7 +2188,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     }
 
     const frameStart = now(performanceApi);
-    const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
+    const visibleObjects = canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState));
     const relationships = diagram2CanonicalRelationships(canonicalState);
     const mountedObjects = visibleObjects.filter(object => liveView.mountedObjectIds.has(object.id));
     const mountedRelationships = relationships.filter(relationship => liveView.mountedRelationshipIds.has(relationship.id));
@@ -2477,7 +2534,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       node?.removeAttribute("data-diagram2-preview-active");
     });
     if (planes.objects && canonicalState?.objects?.length) {
-      reconcileObjectOrder(canonicalState.objects.filter(object => object.visible !== false));
+      reconcileObjectOrder(canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState)));
     }
     planes.relationships?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
     planes.overlays?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
@@ -2879,6 +2936,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     removeObject,
     removeObjects,
     setObjectOrder,
+    setStructureState,
     updateObject,
     patchObject: updateObject,
     setSelectedIds,
@@ -4323,7 +4381,7 @@ function diagnosticsFor(options) {
     ...summary,
     mountedObjectCount: Number.isFinite(Number(options.mountedObjectCount))
       ? Number(options.mountedObjectCount)
-      : options.canonicalState.objects.filter(object => object.visible !== false).length,
+      : options.canonicalState.objects.filter(object => diagram2ObjectVisible(object, options.canonicalState)).length,
     mountedRelationshipCount: Number.isFinite(Number(options.mountedRelationshipCount))
       ? Number(options.mountedRelationshipCount)
       : options.relationships.length,
@@ -4972,7 +5030,7 @@ function relationshipStyleVersion(relationship) {
 
 function diagram2CanonicalEntities(canonical) {
   return (Array.isArray(canonical?.objects) ? canonical.objects : [])
-    .filter(object => object?.type === "entity" && object.visible !== false && !diagram2IsFieldRectangle(object));
+    .filter(object => object?.type === "entity" && diagram2ObjectVisible(object, canonical) && !diagram2IsFieldRectangle(object));
 }
 
 function diagram2IsFieldRectangle(object) {
@@ -5354,6 +5412,20 @@ function cssEscape(value) {
 function cloneDiagram2Value(value) {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
   return JSON.parse(JSON.stringify(value));
+}
+
+function plainDiagram2RendererRecord(input) {
+  if (!input || typeof input !== "object") return {};
+  return Object.fromEntries(Object.entries(input)
+    .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+    .filter(([key, value]) => key && value));
+}
+
+function plainDiagram2RendererBooleanRecord(input) {
+  if (!input || typeof input !== "object") return {};
+  return Object.fromEntries(Object.entries(input)
+    .map(([key, value]) => [String(key || "").trim(), value !== false])
+    .filter(([key]) => key));
 }
 
 function normalizeZoomMode(value) {

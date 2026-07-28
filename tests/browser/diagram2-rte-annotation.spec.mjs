@@ -28,7 +28,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -39,7 +39,11 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
       originalUrl: "/uploads/original.svg",
       originalFileName: "original.svg",
       canEdit: true,
+      askForText: async () => "RTE Pair",
       notify: message => window.__diagram2RteNotifications.push(message),
+      loadTemplateLibrary: async () => ({ version: 1, templates: [], defaults: {} }),
+      loadDefaultTemplateLibrary: async () => ({ version: 1, templates: [], defaults: {} }),
+      saveTemplateLibrary: async library => library,
       apply: async annotation => {
         window.__diagram2RteApplyCount = (window.__diagram2RteApplyCount || 0) + 1;
         window.__diagram2RteUploadedSvg = annotation.svg;
@@ -53,6 +57,24 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   });
 
   await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    await controller.addObject(controller.createDefaultObject("rectangle", { x: 90, y: 70 }, { id: "rte-rect" }));
+    await controller.addObject(controller.createDefaultObject("circle", { x: 230, y: 70 }, { id: "rte-circle" }));
+    controller.setSelection(["rte-rect", "rte-circle"]);
+  });
+  await page.keyboard.press("Control+g");
+  await expect.poll(() => page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    return Boolean(controller.getObjectById("rte-rect").groupId)
+      && controller.getObjectById("rte-rect").groupId === controller.getObjectById("rte-circle").groupId;
+  })).toBe(true);
+  await page.locator("[data-diagram2-rte-host] [data-diagram2-inspector-tab='objects']").click();
+  await expect(page.locator("[data-diagram2-rte-host] [data-diagram2-tree-node-kind='group']")).toContainText("Group 1");
+  await page.locator("[data-diagram2-rte-host] [data-diagram2-inspector-tab='template']").click();
+  await page.locator("[data-diagram2-rte-host] [data-action='save-diagram2-selection-template']").click();
+  await expect(page.locator("[data-diagram2-rte-host] [data-diagram2-template-card]")).toContainText("RTE Pair");
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.markSaved());
   const toolbarRectangleId = await assertDiagram2RteToolbarObjectInsertion(page);
   await assertDiagram2RtePhase3CoreEditing(page, toolbarRectangleId);
   const movedImage = await page.evaluate(async () => {
@@ -133,7 +155,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -284,7 +306,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v1");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -329,7 +351,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v1");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -384,7 +406,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v1");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;

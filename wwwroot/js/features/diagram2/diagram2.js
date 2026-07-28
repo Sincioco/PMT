@@ -54,29 +54,38 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v1";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
-  createDiagram2DefaultObject,
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260727-diagram2-phase3-final-v2";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
   copyDiagram2SelectionArtwork,
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
+  diagram2TemplatePaneHtml,
   openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram-png-raster-v1";
+} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1";
+import {
+  captureDiagram2SelectionTemplate,
+  createDiagram2TemplateState,
+  diagram2TemplateCapacityReached,
+  diagram2TemplateDownload,
+  parseDiagram2TemplateUpload,
+  persistDiagram2TemplateLibrary,
+  restoreDiagram2DefaultTemplates
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2";
+} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -101,7 +110,12 @@ export function createDiagram2Feature({
   uploadEmbeddedImage,
   saveDiagramInfo,
   moveDiagramDocument,
-  deleteItem
+  deleteItem,
+  askForText,
+  confirm,
+  loadTemplateLibrary,
+  loadDefaultTemplateLibrary,
+  saveTemplateLibrary
 } = {}) {
   let active = false;
   let diagram2Creating = false;
@@ -146,6 +160,9 @@ export function createDiagram2Feature({
   let diagram2DocumentMode = "readonly";
   let diagram2ModeDocumentId = 0;
   let diagram2ClipboardImageBusy = false;
+  let diagram2ObjectSearch = "";
+  let diagram2TemplateState = null;
+  let diagram2ObjectTreeDrag = null;
 
   function syncDiagram2LeftNavContextFromStorage() {
     selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
@@ -322,7 +339,101 @@ export function createDiagram2Feature({
     }
     if (action === "select-diagram2-object-tree-item") {
       if (!diagram2EditModeActive()) return true;
-      setDiagram2Selection([button?.dataset?.objectId]);
+      await selectDiagram2StructureNode(button);
+      return true;
+    }
+    if (action === "group-diagram2-selection") {
+      if (!diagram2EditModeActive()) return true;
+      await groupDiagram2Selection();
+      return true;
+    }
+    if (action === "ungroup-diagram2-selection") {
+      if (!diagram2EditModeActive()) return true;
+      await ungroupDiagram2Selection();
+      return true;
+    }
+    if (action === "rename-diagram2-object") {
+      if (!diagram2EditModeActive()) return true;
+      await renameDiagram2StructureNode(button);
+      return true;
+    }
+    if (action === "toggle-diagram2-object-visibility") {
+      if (!diagram2EditModeActive()) return true;
+      await toggleDiagram2StructureVisibility(button);
+      return true;
+    }
+    if (action === "toggle-diagram2-selection-visibility") {
+      if (!diagram2EditModeActive()) return true;
+      await toggleDiagram2SelectionVisibility();
+      return true;
+    }
+    if (action === "reorder-diagram2-object-root") {
+      if (!diagram2EditModeActive()) return true;
+      await reorderDiagram2StructureNode({
+        targetKind: "root",
+        targetId: "",
+        targetPlacement: "inside"
+      });
+      return true;
+    }
+    if (action === "save-diagram2-selection-template") {
+      if (!diagram2EditModeActive()) return true;
+      await saveDiagram2SelectionTemplate();
+      return true;
+    }
+    if (action === "upload-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      app.querySelector("[data-diagram2-template-upload-input]")?.click();
+      return true;
+    }
+    if (action === "restore-diagram2-default-templates") {
+      if (!diagram2EditModeActive()) return true;
+      await restoreDiagram2Templates();
+      return true;
+    }
+    if (action === "apply-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      await applyDiagram2TemplateById(button?.dataset?.templateId);
+      return true;
+    }
+    if (action === "format-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      await formatDiagram2SelectionFromTemplate(button?.dataset?.templateId);
+      return true;
+    }
+    if (action === "rename-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      await renameDiagram2Template(button?.dataset?.templateId);
+      return true;
+    }
+    if (action === "update-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      await updateDiagram2TemplateFromSelection(button?.dataset?.templateId);
+      return true;
+    }
+    if (action === "move-diagram2-template-up" || action === "move-diagram2-template-down") {
+      if (!diagram2EditModeActive()) return true;
+      await moveDiagram2Template(button?.dataset?.templateId, action.endsWith("-up") ? -1 : 1);
+      return true;
+    }
+    if (action === "download-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      downloadDiagram2TemplateById(button?.dataset?.templateId);
+      return true;
+    }
+    if (action === "delete-diagram2-template") {
+      if (!diagram2EditModeActive()) return true;
+      await deleteDiagram2Template(button?.dataset?.templateId);
+      return true;
+    }
+    if (action === "set-diagram2-rectangle-default" || action === "set-diagram2-arrow-default") {
+      if (!diagram2EditModeActive()) return true;
+      await setDiagram2DrawingDefault(action.includes("rectangle") ? "rectangle" : "arrow");
+      return true;
+    }
+    if (action === "reset-diagram2-rectangle-default" || action === "reset-diagram2-arrow-default") {
+      if (!diagram2EditModeActive()) return true;
+      await resetDiagram2DrawingDefault(action.includes("rectangle") ? "rectangle" : "arrow");
       return true;
     }
     if (action === "set-diagram2-inspector-tab") {
@@ -459,6 +570,12 @@ export function createDiagram2Feature({
       const [file] = target.files || [];
       target.value = "";
       if (file) void importDiagram2PmtFile(file);
+      return true;
+    }
+    if (target?.matches?.("[data-diagram2-template-upload-input]")) {
+      const files = [...(target.files || [])];
+      target.value = "";
+      if (files.length) void uploadDiagram2Templates(files);
       return true;
     }
     const filter = target?.dataset?.filter || "";
@@ -925,7 +1042,9 @@ export function createDiagram2Feature({
                 history: {}
               },
               showDiagnostics: diagram2DiagnosticsVisible,
-              diagnosticsHtml: diagram2DiagnosticsHtml()
+              diagnosticsHtml: diagram2DiagnosticsHtml(),
+              objectSearch: diagram2ObjectSearch,
+              templateState: diagram2TemplateState
             }) : diagram2ReadonlyShellHtml(document)}
         </div>
       </div>
@@ -1008,6 +1127,11 @@ export function createDiagram2Feature({
     diagram2RendererState = normalizeDiagram2CanonicalState(result.state);
     diagram2SelectedObjectIds = [];
     if (isEditMode) {
+      diagram2TemplateState = await createDiagram2TemplateState({
+        loadTemplateLibrary,
+        loadDefaultTemplateLibrary
+      });
+      if (!active || token !== viewerHydrationToken || selectedDiagramDocumentId !== document.id) return;
       diagram2HostAdapter = createDiagram2DocumentHostAdapter({
         document,
         saveDiagramDocument,
@@ -1019,13 +1143,18 @@ export function createDiagram2Feature({
         renderer: diagram2Renderer,
         host: diagram2HostAdapter,
         state: diagram2RendererState,
+        templateLibrary: diagram2TemplateState.library,
         historyLimit: diagram2HistoryLimit
       });
       const objectsPanel = viewer.querySelector("[data-diagram2-inspector-panel='objects']");
-      if (objectsPanel) objectsPanel.innerHTML = diagram2ObjectsPaneHtml(diagram2RendererState, diagram2SelectedObjectIds);
+      if (objectsPanel) objectsPanel.innerHTML = diagram2ObjectsPaneHtml(diagram2RendererState, diagram2SelectedObjectIds, {
+        search: diagram2ObjectSearch
+      });
+      refreshDiagram2TemplatePane(viewer);
       diagram2Controller.onChange(event => {
         diagram2RendererState = diagram2Controller.currentState();
         diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+        refreshDiagram2TemplatePane(viewer);
         updateDiagram2EditorControls();
         if (event.diagnostics) updateDiagram2Diagnostics(event.diagnostics);
       });
@@ -1475,6 +1604,9 @@ export function createDiagram2Feature({
     diagram2RendererState = null;
     diagram2SelectedObjectIds = [];
     diagram2Busy = false;
+    diagram2ObjectSearch = "";
+    diagram2TemplateState = null;
+    diagram2ObjectTreeDrag = null;
   }
 
   function bindDiagram2Controls() {
@@ -1482,6 +1614,7 @@ export function createDiagram2Feature({
     bindDiagram2ImportInput();
     bindDiagram2InspectorTabs();
     bindDiagram2ColorPickers();
+    bindDiagram2ObjectTreeControls();
     bindDiagram2TreeSplitter();
     bindDiagram2TreeContextMenu();
     bindDiagram2TreeDragAndDrop();
@@ -1523,6 +1656,101 @@ export function createDiagram2Feature({
       applyStyle: (name, value) => applyDiagram2SelectedStyle(name, value),
       notify
     });
+  }
+
+  function bindDiagram2ObjectTreeControls() {
+    const shell = app.querySelector("[data-diagram2-editor-shell]");
+    if (!shell) return;
+    const search = shell.querySelector("[data-filter='diagram2-object-search']");
+    search?.addEventListener("input", event => {
+      diagram2ObjectSearch = String(event.target.value || "").trim();
+      refreshDiagram2ObjectsPane({ preserveFocus: true });
+    });
+    bindDiagram2ObjectTreeDragAndDrop(shell);
+  }
+
+  function bindDiagram2ObjectTreeDragAndDrop(root) {
+    const pane = root?.querySelector?.("[data-diagram2-objects-pane]");
+    const tree = pane?.querySelector?.("[data-diagram2-object-tree]");
+    const eventRoot = pane || tree;
+    if (!tree || !eventRoot) return;
+
+    eventRoot.addEventListener("dragstart", event => {
+      const row = event.target.closest?.("[data-diagram2-object-tree-row][draggable='true']");
+      const id = String(row?.dataset.diagram2ObjectId || "").trim();
+      const kind = String(row?.dataset.diagram2TreeNodeKind || "object").trim();
+      if (!row || !id || ["relationships", "relationship"].includes(kind)) {
+        event.preventDefault();
+        return;
+      }
+      diagram2ObjectTreeDrag = { id, kind };
+      row.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", id);
+    });
+
+    eventRoot.addEventListener("dragover", event => {
+      if (!diagram2ObjectTreeDrag?.id) return;
+      const rootDrop = event.target.closest?.("[data-diagram2-object-tree-root-drop]");
+      const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+      clearDiagram2ObjectTreeDropCues(root);
+      if (rootDrop) {
+        event.preventDefault();
+        rootDrop.classList.add("is-drop-target");
+        event.dataTransfer.dropEffect = "move";
+        return;
+      }
+      if (!row || row.dataset.diagram2ObjectId === diagram2ObjectTreeDrag.id) return;
+      const placement = diagram2ObjectTreeDropPlacement(row, event.clientY);
+      event.preventDefault();
+      row.classList.add(`is-drop-${placement}`);
+      event.dataTransfer.dropEffect = "move";
+    });
+
+    eventRoot.addEventListener("drop", event => {
+      if (!diagram2ObjectTreeDrag?.id) return;
+      event.preventDefault();
+      const rootDrop = event.target.closest?.("[data-diagram2-object-tree-root-drop]");
+      const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+      const placement = rootDrop ? "inside" : diagram2ObjectTreeDropPlacement(row, event.clientY);
+      const targetKind = rootDrop ? "root" : String(row?.dataset.diagram2TreeNodeKind || "object");
+      const targetId = rootDrop ? "" : String(row?.dataset.diagram2ObjectId || "");
+      const move = {
+        draggedKind: diagram2ObjectTreeDrag.kind,
+        draggedId: diagram2ObjectTreeDrag.id,
+        targetKind,
+        targetId,
+        targetPlacement: placement
+      };
+      clearDiagram2ObjectTreeDropCues(root);
+      void reorderDiagram2StructureNode(move);
+    });
+
+    const finish = () => {
+      clearDiagram2ObjectTreeDropCues(root);
+      diagram2ObjectTreeDrag = null;
+    };
+    eventRoot.addEventListener("dragend", finish);
+    eventRoot.addEventListener("dragleave", event => {
+      if (!eventRoot.contains(event.relatedTarget)) clearDiagram2ObjectTreeDropCues(root);
+    });
+  }
+
+  function diagram2ObjectTreeDropPlacement(row, clientY) {
+    if (!row?.getBoundingClientRect) return "after";
+    const kind = String(row.dataset.diagram2TreeNodeKind || "");
+    const rect = row.getBoundingClientRect();
+    const height = Math.max(1, rect.height || 1);
+    const ratio = (Number(clientY || rect.top) - rect.top) / height;
+    if (kind === "group" && ratio > 0.25 && ratio < 0.75) return "inside";
+    return ratio < 0.5 ? "before" : "after";
+  }
+
+  function clearDiagram2ObjectTreeDropCues(root) {
+    root?.querySelectorAll?.(".is-dragging, .is-drop-before, .is-drop-after, .is-drop-inside, .is-drop-target")
+      .forEach(element => {
+        element.classList.remove("is-dragging", "is-drop-before", "is-drop-after", "is-drop-inside", "is-drop-target");
+      });
   }
 
   async function applyDiagram2SelectedStyle(name, value) {
@@ -1579,6 +1807,8 @@ export function createDiagram2Feature({
         onPasteEvent: pasteDiagram2ClipboardEvent,
         onDuplicate: duplicateDiagram2Selection,
         onDelete: deleteDiagram2Selection,
+        onGroup: groupDiagram2Selection,
+        onUngroup: ungroupDiagram2Selection,
         onWheel: event => {
           const currentScale = diagram2CurrentViewportScale();
           const nextZoom = nextDiagram2Zoom(currentScale, event.deltaY < 0 ? 1 : -1);
@@ -2160,6 +2390,268 @@ export function createDiagram2Feature({
     return true;
   }
 
+  async function selectDiagram2StructureNode(button) {
+    if (!diagram2Controller) return false;
+    const kind = button?.dataset?.nodeKind || "object";
+    const id = button?.dataset?.objectId || "";
+    const selected = diagram2Controller.selectStructureNode(kind, id);
+    diagram2RendererState = diagram2Controller.currentState();
+    diagram2SelectedObjectIds = selected;
+    refreshDiagram2ObjectsPane();
+    updateDiagram2EditorControls();
+    return selected.length > 0;
+  }
+
+  async function groupDiagram2Selection() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const grouped = await diagram2Controller.groupSelectedObjects();
+    if (!grouped) return false;
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram objects grouped.");
+    return true;
+  }
+
+  async function ungroupDiagram2Selection() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const ungrouped = await diagram2Controller.ungroupSelectedObjects();
+    if (!ungrouped) return false;
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram group ungrouped.");
+    return true;
+  }
+
+  async function renameDiagram2StructureNode(button) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const target = diagram2StructureTargetFromButton(button);
+    if (!target.id) return false;
+    const currentName = diagram2StructureNodeName(target.kind, target.id);
+    const name = String(await askDiagram2Text("Object name", "Rename Object", currentName) || "").trim();
+    if (!name || name === currentName) return false;
+    const renamed = await diagram2Controller.renameStructureNode(target.kind, target.id, name);
+    if (!renamed) return false;
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram object renamed.");
+    return true;
+  }
+
+  async function toggleDiagram2StructureVisibility(button) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const target = diagram2StructureTargetFromButton(button);
+    if (!target.id) return false;
+    const changed = await diagram2Controller.setStructureNodeVisibility(target.kind, target.id);
+    if (!changed) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function toggleDiagram2SelectionVisibility() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const selected = diagram2Controller.getObjectsByIds(diagram2Controller.selectedObjectIds());
+    if (!selected.length) return false;
+    const visible = !selected.every(object => object.visible !== false);
+    let changed = false;
+    for (const object of selected) {
+      changed = await diagram2Controller.setStructureNodeVisibility("object", object.id, visible) || changed;
+    }
+    if (!changed) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function reorderDiagram2StructureNode(moveInput = {}) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const move = {
+      draggedKind: moveInput.draggedKind || diagram2ObjectTreeDrag?.kind || "object",
+      draggedId: moveInput.draggedId || diagram2ObjectTreeDrag?.id || diagram2Controller.selectedObjectIds()[0] || "",
+      targetKind: moveInput.targetKind || "root",
+      targetId: moveInput.targetId || "",
+      targetPlacement: moveInput.targetPlacement || "inside"
+    };
+    const reordered = await diagram2Controller.reorderStructureNode(move);
+    if (!reordered) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function saveDiagram2SelectionTemplate() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument() || !diagram2TemplateState?.loaded) return false;
+    if (diagram2TemplateCapacityReached(diagram2TemplateState.library)) {
+      setDiagram2TemplateMessage("Template library is full.");
+      return false;
+    }
+    const name = await askDiagram2Text("Template name", "Save Diagram Template", "Template");
+    if (!String(name || "").trim()) return false;
+    const template = await captureDiagram2SelectionTemplate(
+      diagram2Controller.currentState(),
+      diagram2Controller.selectedObjectIds(),
+      name
+    );
+    if (!template) {
+      setDiagram2TemplateMessage("Select one or more objects before saving a template.");
+      return false;
+    }
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      templates: [template, ...(diagram2TemplateState.library.templates || [])]
+    }, `Template "${template.name}" saved.`);
+  }
+
+  async function uploadDiagram2Templates(files) {
+    if (!diagram2TemplateState?.loaded || !Array.isArray(files) || !files.length) return false;
+    const templates = [...(diagram2TemplateState.library.templates || [])];
+    let imported = 0;
+    for (const file of files) {
+      if (templates.length >= 50) break;
+      try {
+        const template = parseDiagram2TemplateUpload(await file.text());
+        templates.unshift(template);
+        imported += 1;
+      } catch (error) {
+        notify?.(error?.message || "One Diagram template could not be imported.");
+      }
+    }
+    if (!imported) {
+      setDiagram2TemplateMessage("No templates were imported.");
+      return false;
+    }
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      templates
+    }, `${imported} template${imported === 1 ? "" : "s"} imported.`);
+  }
+
+  async function restoreDiagram2Templates() {
+    if (!diagram2TemplateState?.loaded || !diagram2TemplateState.defaultLoaded) return false;
+    const restored = restoreDiagram2DefaultTemplates(
+      diagram2TemplateState.library,
+      diagram2TemplateState.defaultLibrary
+    );
+    if (restored.capacityExceeded) {
+      setDiagram2TemplateMessage(`Remove ${restored.requiredSlots} template${restored.requiredSlots === 1 ? "" : "s"} before restoring defaults.`);
+      return false;
+    }
+    if (!restored.addedCount) {
+      setDiagram2TemplateMessage("Default templates are already present.");
+      return false;
+    }
+    return persistDiagram2Templates(restored.library, "Default templates restored.");
+  }
+
+  async function applyDiagram2TemplateById(templateId) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const template = diagram2TemplateById(templateId);
+    if (!template) return false;
+    const applied = await diagram2Controller.applyTemplate(template, diagram2InsertionCenter());
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    setDiagram2TemplateMessage(`Template "${template.name}" added to the canvas.`);
+    return true;
+  }
+
+  async function formatDiagram2SelectionFromTemplate(templateId) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const template = diagram2TemplateById(templateId);
+    if (!template) return false;
+    const applied = await diagram2Controller.applyTemplateFormatting(template);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    setDiagram2TemplateMessage(`Template "${template.name}" formatting applied.`);
+    return true;
+  }
+
+  async function renameDiagram2Template(templateId) {
+    const template = diagram2TemplateById(templateId);
+    if (!template || !diagram2TemplateState?.loaded) return false;
+    const name = String(await askDiagram2Text("Template name", "Rename Diagram Template", template.name) || "").trim();
+    if (!name || name === template.name) return false;
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      templates: diagram2TemplateState.library.templates.map(item =>
+        item.id === template.id ? { ...item, name, updatedAt: new Date().toISOString() } : item)
+    }, `Template renamed to "${name}".`);
+  }
+
+  async function updateDiagram2TemplateFromSelection(templateId) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const template = diagram2TemplateById(templateId);
+    if (!template) return false;
+    const replacement = await captureDiagram2SelectionTemplate(
+      diagram2Controller.currentState(),
+      diagram2Controller.selectedObjectIds(),
+      template.name
+    );
+    if (!replacement) {
+      setDiagram2TemplateMessage("Select one or more objects before updating a template.");
+      return false;
+    }
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      templates: diagram2TemplateState.library.templates.map(item =>
+        item.id === template.id
+          ? { ...replacement, id: template.id, createdAt: template.createdAt || replacement.createdAt }
+          : item)
+    }, `Template "${template.name}" updated.`);
+  }
+
+  async function moveDiagram2Template(templateId, direction) {
+    const templates = [...(diagram2TemplateState?.library?.templates || [])];
+    const index = templates.findIndex(template => template.id === templateId);
+    const nextIndex = index + Number(direction || 0);
+    if (index < 0 || nextIndex < 0 || nextIndex >= templates.length) return false;
+    [templates[index], templates[nextIndex]] = [templates[nextIndex], templates[index]];
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      templates
+    }, "Template order saved.");
+  }
+
+  function downloadDiagram2TemplateById(templateId) {
+    const template = diagram2TemplateById(templateId);
+    if (!template) return false;
+    const file = diagram2TemplateDownload(template);
+    downloadTextFile(file.contents, file.fileName, "application/json");
+    return true;
+  }
+
+  async function deleteDiagram2Template(templateId) {
+    const template = diagram2TemplateById(templateId);
+    if (!template || !diagram2TemplateState?.loaded) return false;
+    const confirmed = await confirmDiagram2(`Delete the "${template.name}" Diagram template?`, "Delete Diagram Template", "Delete");
+    if (!confirmed) return false;
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      templates: diagram2TemplateState.library.templates.filter(item => item.id !== template.id)
+    }, `Template "${template.name}" deleted.`);
+  }
+
+  async function setDiagram2DrawingDefault(type) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument() || !diagram2TemplateState?.loaded) return false;
+    const defaultStyle = diagram2Controller.setDrawingDefaultFromSelection(type);
+    if (!defaultStyle) {
+      setDiagram2TemplateMessage(`Select a ${type === "arrow" ? "arrow" : "rectangle"} first.`);
+      return false;
+    }
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      defaults: {
+        ...(diagram2TemplateState.library.defaults || {}),
+        [type]: defaultStyle
+      }
+    }, `${type === "arrow" ? "Arrow" : "Rectangle"} default saved.`);
+  }
+
+  async function resetDiagram2DrawingDefault(type) {
+    if (!diagram2Controller || !diagram2TemplateState?.loaded) return false;
+    diagram2Controller.resetDrawingDefault(type);
+    return persistDiagram2Templates({
+      ...diagram2TemplateState.library,
+      defaults: {
+        ...(diagram2TemplateState.library.defaults || {}),
+        [type]: null
+      }
+    }, `${type === "arrow" ? "Arrow" : "Rectangle"} default reset.`);
+  }
+
   async function editDiagram2ObjectText(object) {
     if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
     const value = await openDiagram2TextEditor({
@@ -2176,6 +2668,7 @@ export function createDiagram2Feature({
   async function finishDiagram2ObjectCommand() {
     syncDiagram2InteractionState();
     refreshDiagram2ObjectsPane();
+    refreshDiagram2TemplatePane();
     const diagnostics = await diagram2Renderer?.whenIdle();
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     syncDiagram2InteractionState();
@@ -2228,7 +2721,7 @@ export function createDiagram2Feature({
 
   async function addDiagram2ToolbarObject(type) {
     if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
-    const object = createDiagram2DefaultObject(type, diagram2Controller.snapPoint(diagram2InsertionCenter()));
+    const object = diagram2Controller.createDefaultObject(type, diagram2Controller.snapPoint(diagram2InsertionCenter()));
     if (!object) return false;
 
     const added = await diagram2Controller.addObject(object, {
@@ -2263,11 +2756,91 @@ export function createDiagram2Feature({
     };
   }
 
-  function refreshDiagram2ObjectsPane() {
+  function refreshDiagram2ObjectsPane(options = {}) {
     const pane = app.querySelector("[data-diagram2-objects-pane]");
     const current = diagram2Controller?.state?.() || diagram2RendererState;
     if (!pane || !current) return;
-    pane.outerHTML = diagram2ObjectsPaneHtml(current, diagram2Controller?.selectedObjectIds?.() || diagram2SelectedObjectIds);
+    pane.outerHTML = diagram2ObjectsPaneHtml(
+      current,
+      diagram2Controller?.selectedObjectIds?.() || diagram2SelectedObjectIds,
+      { search: diagram2ObjectSearch }
+    );
+    bindDiagram2ObjectTreeControls();
+    if (options.preserveFocus === true) {
+      const search = app.querySelector("[data-filter='diagram2-object-search']");
+      search?.focus({ preventScroll: true });
+      if (search) search.selectionStart = search.selectionEnd = search.value.length;
+    }
+  }
+
+  function refreshDiagram2TemplatePane(rootInput = app) {
+    const root = rootInput || app;
+    const pane = root.querySelector("[data-diagram2-template-pane]");
+    const current = diagram2Controller?.state?.() || diagram2RendererState;
+    if (!pane || !current) return;
+    pane.outerHTML = diagram2TemplatePaneHtml(
+      diagram2TemplateState,
+      current,
+      diagram2Controller?.selectedObjectIds?.() || diagram2SelectedObjectIds
+    );
+  }
+
+  function setDiagram2TemplateMessage(message) {
+    if (!diagram2TemplateState) return;
+    diagram2TemplateState.message = String(message || "");
+    diagram2TemplateState.error = "";
+    refreshDiagram2TemplatePane();
+  }
+
+  async function persistDiagram2Templates(nextLibrary, message) {
+    if (!diagram2TemplateState?.loaded) {
+      setDiagram2TemplateMessage("Template storage is unavailable.");
+      return false;
+    }
+    refreshDiagram2TemplatePane();
+    const saved = await persistDiagram2TemplateLibrary(
+      diagram2TemplateState,
+      saveTemplateLibrary,
+      nextLibrary,
+      message
+    );
+    if (saved) diagram2Controller?.setDrawingDefaults(saved.defaults || {});
+    refreshDiagram2TemplatePane();
+    updateDiagram2EditorControls();
+    if (saved && message) notify?.(message);
+    else if (!saved && diagram2TemplateState.message) notify?.(diagram2TemplateState.message);
+    return Boolean(saved);
+  }
+
+  function diagram2TemplateById(templateId) {
+    const id = String(templateId || "").trim();
+    return (diagram2TemplateState?.library?.templates || [])
+      .find(template => String(template.id || "") === id) || null;
+  }
+
+  function diagram2StructureTargetFromButton(button) {
+    const selectedIds = diagram2Controller?.selectedObjectIds?.() || [];
+    const id = String(button?.dataset?.objectId || selectedIds[0] || "").trim();
+    const kind = String(button?.dataset?.nodeKind || "object").trim() || "object";
+    return { kind, id };
+  }
+
+  function diagram2StructureNodeName(kind, id) {
+    const state = diagram2Controller?.currentState?.() || {};
+    if (kind === "group") return String(state.groupNames?.[id] || "Group");
+    return String((state.objects || []).find(object => object.id === id)?.name || "Object");
+  }
+
+  async function askDiagram2Text(message, title, currentValue = "") {
+    if (typeof askForText === "function") {
+      return askForText(message, title, currentValue);
+    }
+    return globalThis.window?.prompt?.(message, currentValue) ?? "";
+  }
+
+  async function confirmDiagram2(message, title, actionLabel) {
+    if (typeof confirm === "function") return confirm(message, title, actionLabel);
+    return globalThis.window?.confirm?.(message) === true;
   }
 
   function diagram2ToolLabel(type) {
@@ -2341,6 +2914,10 @@ export function createDiagram2Feature({
     app.querySelectorAll("[data-diagram2-requires-selection]").forEach(button => {
       if (button.closest("[data-diagram2-context-menu]")) return;
       button.disabled = !hasDocument || !hasSelection || busy;
+    });
+    app.querySelectorAll("[data-diagram2-requires-multi-selection]").forEach(button => {
+      if (button.closest("[data-diagram2-context-menu]")) return;
+      button.disabled = !hasDocument || status.selectedCount < 2 || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-undo]").forEach(button => {
       button.disabled = !hasDocument || !canUndo || !canEdit || busy;

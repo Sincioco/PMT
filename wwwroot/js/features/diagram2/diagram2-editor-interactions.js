@@ -1,7 +1,7 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -283,6 +283,11 @@ export function bindDiagram2EditorInteractions(options = {}) {
       event.preventDefault();
       controller.selectAll();
       options.onStateChange?.();
+      return;
+    }
+    if (command && key === "g") {
+      event.preventDefault();
+      void (event.shiftKey ? options.onUngroup?.() : options.onGroup?.());
       return;
     }
     if (command && key === "c") {

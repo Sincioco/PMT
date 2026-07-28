@@ -8,6 +8,7 @@ import {
   copyAnnotationSvgToClipboard
 } from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -115,7 +116,10 @@ export function diagram2EditorShellHtml(options = {}) {
         </div>
         <div class="image-annotation-inspector-splitter diagram2-editor-inspector-splitter" data-diagram2-inspector-splitter role="separator" aria-orientation="vertical" aria-label="Resize right pane" tabindex="0"></div>
         <aside class="image-annotation-inspector diagram2-editor-inspector" data-diagram2-inspector aria-label="Diagram 2 right pane">
-          ${diagram2InspectorHtml(status, state, selectedIds)}
+          ${diagram2InspectorHtml(status, state, selectedIds, {
+            objectSearch: options.objectSearch,
+            templateState: options.templateState
+          })}
         </aside>
       </div>
       ${diagram2ContextMenuHtml()}
@@ -124,37 +128,35 @@ export function diagram2EditorShellHtml(options = {}) {
   `;
 }
 
-export function diagram2ObjectsPaneHtml(state, selectedObjectIds = []) {
-  const objects = Array.isArray(state?.objects) ? state.objects : [];
+export function diagram2ObjectsPaneHtml(state, selectedObjectIds = [], options = {}) {
+  const query = String(options.search || "").trim();
+  const nodes = diagram2ObjectTreeNodes(state, query);
   const selected = new Set(selectedObjectIds.map(String));
-  const rows = objects.slice().reverse().map(object => {
-    const id = String(object.id || "");
-    const type = String(object.type || "object");
-    const label = diagram2ObjectLabel(object);
-    return `
-      <div class="image-annotation-object-tree-row ${selected.has(id) ? "is-selected" : ""}${object.visible === false ? " is-hidden" : ""}" role="treeitem" aria-selected="${selected.has(id)}" tabindex="0" draggable="false" data-action="select-diagram2-object-tree-item" data-object-id="${escapeAttr(id)}" data-diagram2-object-tree-row data-diagram2-object-id="${escapeAttr(id)}" data-diagram2-object-type="${escapeAttr(type)}">
-        <span class="image-annotation-object-tree-icon" aria-hidden="true">${diagram2ObjectTreeIcon(type)}</span>
-        <span class="image-annotation-object-tree-label" title="${escapeAttr(label)}">${escapeHtml(label)}</span>
-        <button type="button" class="image-annotation-object-tree-visibility${object.visible === false ? " is-hidden" : ""}" data-action="toggle-diagram2-object-visibility" data-object-id="${escapeAttr(id)}" title="${object.visible === false ? "Show" : "Hide"} ${escapeAttr(label)}" aria-label="${object.visible === false ? "Show" : "Hide"} ${escapeAttr(label)}" disabled><span aria-hidden="true">&#128065;</span></button>
-      </div>
-    `;
-  }).join("");
+  const rows = nodes.map(node => diagram2ObjectTreeNodeHtml(node, selected, 1)).join("");
 
   return `
     <div class="diagram2-editor-objects-pane" data-diagram2-objects-pane>
       <div class="image-annotation-object-tree-actions" role="toolbar" aria-label="Object tree actions">
-        <button type="button" data-action="rename-diagram2-object" data-diagram2-pending-command disabled>Rename</button>
+        <button type="button" data-action="group-diagram2-selection" data-diagram2-requires-multi-selection data-diagram2-requires-update>Group</button>
+        <button type="button" data-action="ungroup-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Ungroup</button>
+        <button type="button" data-action="rename-diagram2-object" data-diagram2-requires-selection data-diagram2-requires-update>Rename</button>
+        <button type="button" data-action="toggle-diagram2-selection-visibility" data-diagram2-requires-selection data-diagram2-requires-update>Hide/Show</button>
         <button type="button" data-action="copy-diagram2-selection" data-diagram2-requires-selection>Copy</button>
         <button type="button" data-action="paste-diagram2-selection" data-diagram2-requires-update>Paste</button>
         <button type="button" data-action="duplicate-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Duplicate</button>
         <button type="button" data-action="delete-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Delete</button>
       </div>
+      <div class="image-annotation-object-tree-actions diagram2-layer-actions" role="toolbar" aria-label="Layer order actions">
+        <button type="button" data-action="arrange-diagram2-selection-front" data-diagram2-requires-selection data-diagram2-requires-update>To Front</button>
+        <button type="button" data-action="arrange-diagram2-selection-forward" data-diagram2-requires-selection data-diagram2-requires-update>Forward</button>
+        <button type="button" data-action="arrange-diagram2-selection-backward" data-diagram2-requires-selection data-diagram2-requires-update>Backward</button>
+        <button type="button" data-action="arrange-diagram2-selection-back" data-diagram2-requires-selection data-diagram2-requires-update>To Back</button>
+      </div>
       <label class="image-annotation-object-tree-search">
         <span>Search objects</span>
-        <input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-filter="diagram2-object-search" disabled>
+        <input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-filter="diagram2-object-search" value="${escapeAttr(query)}">
       </label>
-      <p class="image-annotation-object-tree-help">Top items appear in front. The line shows where a dragged row will land. Drop above a group header to keep it at the root, or below the header to move it into that group.</p>
-      <button type="button" class="image-annotation-object-tree-root-drop" disabled>Move to root (top)</button>
+      <button type="button" class="image-annotation-object-tree-root-drop" data-diagram2-object-tree-root-drop data-action="reorder-diagram2-object-root">Move to root (top)</button>
       <div class="image-annotation-object-tree diagram2-object-tree" data-diagram2-object-tree role="tree" tabindex="0" aria-label="Diagram 2 objects, topmost first">
         ${rows || `<p class="image-annotation-object-tree-empty">No objects.</p>`}
       </div>
@@ -233,6 +235,44 @@ export function openDiagram2TextEditor(options = {}) {
   });
 }
 
+export function diagram2TemplatePaneHtml(templateStateInput = {}, state = null, selectedObjectIds = []) {
+  const templateState = templateStateInput && typeof templateStateInput === "object" ? templateStateInput : {};
+  const library = templateState.library && typeof templateState.library === "object"
+    ? templateState.library
+    : { templates: [], defaults: {} };
+  const templates = Array.isArray(library.templates) ? library.templates : [];
+  const selected = Array.isArray(selectedObjectIds) ? selectedObjectIds : [];
+  const selectedObjects = (Array.isArray(state?.objects) ? state.objects : [])
+    .filter(object => selected.includes(String(object.id || "")));
+  const selectedRectangle = selectedObjects.length === 1 && selectedObjects[0]?.type === "rectangle";
+  const selectedArrow = selectedObjects.length === 1 && selectedObjects[0]?.type === "arrow";
+  const disabled = templateState.loaded === true && templateState.busy !== true ? "" : "disabled";
+  const templateCards = templates.length
+    ? templates.map((template, index) => diagram2TemplateCardHtml(template, index, templates.length)).join("")
+    : `<p class="image-annotation-template-empty">No saved templates yet.</p>`;
+
+  return `
+    <div class="diagram2-template-pane" data-diagram2-template-pane>
+      <div class="image-annotation-template-actions" role="toolbar" aria-label="Template actions">
+        <button type="button" data-action="save-diagram2-selection-template" data-diagram2-requires-selection data-diagram2-requires-update ${disabled}>Save Selection</button>
+        <button type="button" data-action="upload-diagram2-template" ${disabled}>Upload</button>
+        <button type="button" data-action="restore-diagram2-default-templates" ${disabled} ${templateState.defaultLoaded === true ? "" : "disabled"}>Restore Defaults</button>
+        <input type="file" accept=".json,.pmt-template.json,application/json" data-diagram2-template-upload-input hidden multiple>
+      </div>
+      <div class="image-annotation-template-actions diagram2-default-actions" role="toolbar" aria-label="Drawing defaults">
+        <button type="button" data-action="set-diagram2-rectangle-default" data-diagram2-requires-update ${selectedRectangle ? "" : "disabled"}>Use Rectangle</button>
+        <button type="button" data-action="reset-diagram2-rectangle-default" data-diagram2-requires-update ${library.defaults?.rectangle ? "" : "disabled"}>Reset Rectangle</button>
+        <button type="button" data-action="set-diagram2-arrow-default" data-diagram2-requires-update ${selectedArrow ? "" : "disabled"}>Use Arrow</button>
+        <button type="button" data-action="reset-diagram2-arrow-default" data-diagram2-requires-update ${library.defaults?.arrow ? "" : "disabled"}>Reset Arrow</button>
+      </div>
+      <p class="image-annotation-template-status" data-diagram2-template-status>${escapeHtml(templateState.message || templateState.error || "")}</p>
+      <div class="image-annotation-template-list" data-diagram2-template-list>
+        ${templateCards}
+      </div>
+    </div>
+  `;
+}
+
 export async function copyDiagram2SelectionArtwork(state, selectedObjectIds, format = "svg") {
   const ids = Array.isArray(selectedObjectIds) ? selectedObjectIds.filter(Boolean) : [];
   if (!ids.length) return false;
@@ -286,6 +326,9 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   });
   root.querySelectorAll("[data-diagram2-requires-selection]").forEach(control => {
     control.disabled = !status.selectedCount || status.busy === true;
+  });
+  root.querySelectorAll("[data-diagram2-requires-multi-selection]").forEach(control => {
+    control.disabled = Number(status.selectedCount || 0) < 2 || status.busy === true;
   });
   root.querySelectorAll("[data-diagram2-requires-undo]").forEach(control => {
     control.disabled = !status.history?.canUndo || status.busy === true || canEdit === false;
@@ -501,7 +544,7 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
   `;
 }
 
-function diagram2InspectorHtml(status = {}, state = null, selectedIds = []) {
+function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], options = {}) {
   return `
     <div class="image-annotation-inspector-tabs" role="tablist" aria-label="Diagram 2 right pane">
       ${diagram2InspectorTab("format", "Format", true)}
@@ -574,15 +617,10 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = []) {
       </section>
     </div>
     <div id="diagram2TemplatePanel" role="tabpanel" aria-labelledby="diagram2TemplateTab" data-diagram2-inspector-panel="template" hidden>
-      <div class="image-annotation-template-actions">
-        <p>Templates use Diagram 1-compatible template storage. Template mutation commands are enabled in a later parity phase.</p>
-        <button type="button" disabled>Save Selection as Template</button>
-        <button type="button" disabled>Upload Template</button>
-        <button type="button" disabled>Restore Default Templates</button>
-      </div>
+      ${diagram2TemplatePaneHtml(options.templateState, state, selectedIds)}
     </div>
     <div id="diagram2ObjectsPanel" role="tabpanel" aria-labelledby="diagram2ObjectsTab" data-diagram2-inspector-panel="objects" hidden>
-      ${diagram2ObjectsPaneHtml(state, selectedIds)}
+      ${diagram2ObjectsPaneHtml(state, selectedIds, { search: options.objectSearch })}
     </div>
   `;
 }
@@ -618,6 +656,9 @@ function diagram2ContextMenuHtml() {
       ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-back", "To Back", "&#8676;")}
       ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-forward", "Forward", "&#8593;")}
       ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-backward", "Backward", "&#8595;")}
+      <div class="rich-image-menu-separator" role="separator"></div>
+      ${diagram2ContextMenuItemHtml("group-diagram2-selection", "Group", "&#9638;")}
+      ${diagram2ContextMenuItemHtml("ungroup-diagram2-selection", "Ungroup", "&#9633;")}
       <div class="rich-image-menu-separator" role="separator"></div>
       ${diagram2ContextMenuItemHtml("lock-diagram2-selection", "Lock", diagram2ObjectTreeLockIcon())}
       <div class="rich-image-menu-separator" role="separator"></div>
@@ -656,6 +697,23 @@ function syncDiagram2ContextMenu(root, selectedObjects, options = {}) {
       || options.busy === true
       || options.canEdit === false;
   });
+  const groupButton = root.querySelector("[data-action='group-diagram2-selection']");
+  if (groupButton) {
+    groupButton.disabled = selection.length < 2
+      || hasLocked
+      || containsFixedOriginalImage
+      || options.busy === true
+      || options.canEdit === false;
+  }
+  const ungroupButton = root.querySelector("[data-action='ungroup-diagram2-selection']");
+  if (ungroupButton) {
+    ungroupButton.disabled = !hasSelection
+      || !selection.some(object => object?.groupId)
+      || hasLocked
+      || containsFixedOriginalImage
+      || options.busy === true
+      || options.canEdit === false;
+  }
   const lockButton = root.querySelector("[data-action='lock-diagram2-selection']");
   if (lockButton) {
     const label = allLocked ? "Unlock" : "Lock";
@@ -683,6 +741,82 @@ function diagram2SelectionSvgDimensions(svg) {
     width: Math.max(1, Number.isFinite(width) ? width : 1),
     height: Math.max(1, Number.isFinite(height) ? height : 1)
   };
+}
+
+function diagram2ObjectTreeNodeHtml(node, selected, level) {
+  if (!node || typeof node !== "object") return "";
+  if (node.kind === "group" || node.kind === "relationships") {
+    const children = Array.isArray(node.children) ? node.children : [];
+    return `
+      <div class="image-annotation-object-tree-group" data-diagram2-object-tree-group-id="${escapeAttr(node.id)}">
+        ${diagram2ObjectTreeRowHtml(node, selected, level)}
+        <div class="image-annotation-object-tree-group-children" role="group">
+          ${children.map(child => diagram2ObjectTreeNodeHtml(child, selected, level + 1)).join("")}
+        </div>
+      </div>
+    `;
+  }
+  return diagram2ObjectTreeRowHtml(node, selected, level);
+}
+
+function diagram2ObjectTreeRowHtml(node, selected, level) {
+  const kind = String(node.kind || "object");
+  const object = kind === "object" ? node.object : null;
+  const fixed = ["relationships", "relationship"].includes(kind)
+    || (object?.type === "embedded-image" && object.isOriginalImage === true);
+  const childIds = kind === "group"
+    ? (node.allChildren || node.children || []).map(child => child.id)
+    : [node.id];
+  const selectedCount = childIds.filter(id => selected.has(String(id))).length;
+  const selectedAll = childIds.length > 0 && selectedCount === childIds.length;
+  const selectedPartial = selectedCount > 0 && !selectedAll;
+  const visible = node.visible !== false;
+  const effectiveVisible = node.effectiveVisible !== false;
+  const locked = object?.locked === true;
+  const draggable = fixed || locked ? "false" : "true";
+  const name = String(kind === "relationships" ? `${node.name} (${node.count || 0})` : node.name || "Object");
+  const type = object?.type || kind;
+  const icon = kind === "group" ? "&#9638;" : kind === "relationships" || kind === "relationship" ? "&#8644;" : diagram2ObjectTreeIcon(type);
+  const rowClass = `image-annotation-object-tree-row${selectedAll ? " is-selected" : ""}${selectedPartial ? " is-partially-selected" : ""}${effectiveVisible ? "" : " is-hidden"}`;
+  const actions = fixed
+    ? `<span class="image-annotation-object-tree-row-actions" aria-hidden="true"></span>`
+    : `<span class="image-annotation-object-tree-row-actions">
+        <button type="button" data-action="rename-diagram2-object" data-node-kind="${escapeAttr(kind)}" data-object-id="${escapeAttr(node.id)}" title="Rename ${escapeAttr(name)}" aria-label="Rename ${escapeAttr(name)}">&#9998;</button>
+      </span>`;
+  const visibility = kind === "relationship" || kind === "relationships"
+    ? ""
+    : `<button type="button" class="image-annotation-object-tree-visibility${visible ? "" : " is-hidden"}" data-action="toggle-diagram2-object-visibility" data-node-kind="${escapeAttr(kind)}" data-object-id="${escapeAttr(node.id)}" title="${visible ? "Hide" : "Show"} ${escapeAttr(name)}" aria-label="${visible ? "Hide" : "Show"} ${escapeAttr(name)}" aria-pressed="${visible}"><span aria-hidden="true">&#128065;</span></button>`;
+  return `
+    <div class="${rowClass}" role="treeitem" aria-level="${level}" aria-selected="${selectedAll}" ${kind === "group" || kind === "relationships" ? "aria-expanded=\"true\"" : ""} tabindex="0" draggable="${draggable}" data-action="select-diagram2-object-tree-item" data-object-id="${escapeAttr(node.id)}" data-node-kind="${escapeAttr(kind)}" data-diagram2-object-tree-row data-diagram2-object-id="${escapeAttr(node.id)}" data-diagram2-tree-node-kind="${escapeAttr(kind)}" data-diagram2-object-type="${escapeAttr(type)}" data-diagram2-object-visible="${visible}">
+      <span class="image-annotation-object-tree-icon" aria-hidden="true">${icon}</span>
+      <span class="image-annotation-object-tree-label" title="${escapeAttr(name)}">${escapeHtml(name)}</span>
+      ${locked ? `<span class="image-annotation-object-tree-lock-status" title="Locked" aria-label="Locked">${diagram2ObjectTreeLockIcon()}</span>` : ""}
+      ${visibility}
+      ${actions}
+    </div>
+  `;
+}
+
+function diagram2TemplateCardHtml(template, index, templateCount) {
+  const id = String(template?.id || "");
+  const name = String(template?.name || "Template");
+  const upDisabled = index <= 0;
+  const downDisabled = index >= templateCount - 1;
+  return `
+    <article class="image-annotation-template-card diagram2-template-card" data-diagram2-template-card="${escapeAttr(id)}">
+      <strong title="${escapeAttr(name)}">${escapeHtml(name)}</strong>
+      <div class="image-annotation-template-card-actions" aria-label="${escapeAttr(name)} template actions">
+        <button type="button" data-action="apply-diagram2-template" data-template-id="${escapeAttr(id)}" title="Use ${escapeAttr(name)}">Use</button>
+        <button type="button" data-action="format-diagram2-template" data-template-id="${escapeAttr(id)}" data-diagram2-requires-selection data-diagram2-requires-update title="Apply ${escapeAttr(name)} formatting">Format</button>
+        <button type="button" data-action="rename-diagram2-template" data-template-id="${escapeAttr(id)}" title="Rename ${escapeAttr(name)}">Rename</button>
+        <button type="button" data-action="update-diagram2-template" data-template-id="${escapeAttr(id)}" data-diagram2-requires-selection data-diagram2-requires-update title="Update ${escapeAttr(name)}">Update</button>
+        <button type="button" data-action="move-diagram2-template-up" data-template-id="${escapeAttr(id)}" ${upDisabled ? "disabled" : ""} title="Move ${escapeAttr(name)} up">Up</button>
+        <button type="button" data-action="move-diagram2-template-down" data-template-id="${escapeAttr(id)}" ${downDisabled ? "disabled" : ""} title="Move ${escapeAttr(name)} down">Down</button>
+        <button type="button" data-action="download-diagram2-template" data-template-id="${escapeAttr(id)}" title="Download ${escapeAttr(name)}">Download</button>
+        <button type="button" data-action="delete-diagram2-template" data-template-id="${escapeAttr(id)}" title="Delete ${escapeAttr(name)}">Delete</button>
+      </div>
+    </article>
+  `;
 }
 
 function diagram2ObjectTreeLockIcon() {

@@ -7,6 +7,9 @@ import {
   resizeDiagram2ObjectsGeometry
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-controller.js";
 import {
+  captureDiagram2SelectionTemplate
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-templates.js";
+import {
   normalizeDiagram2RteSaveState
 } from "../../wwwroot/js/features/diagram2/diagram2-rte-host-adapter.js";
 
@@ -465,6 +468,79 @@ test("Diagram 2 context-menu layer commands match Diagram 1 ordering and undo lo
   assert.equal(await controller.arrangeSelectedObjects("front"), false);
 });
 
+test("Diagram 2 Phase 4 structure and templates stay command-based and renderer-local", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: {
+      version: 1,
+      width: 900,
+      height: 540,
+      objects: [
+        { id: "rect", type: "rectangle", x: 40, y: 40, width: 120, height: 90, fill: "#ffffff", stroke: "#172b4d", strokeWidth: 2, opacity: 1 },
+        { id: "circle", type: "circle", x: 220, y: 60, width: 90, height: 90, fill: "#dbeafe", stroke: "#1d4ed8", strokeWidth: 2, opacity: 1 },
+        { id: "note", type: "textbox", x: 380, y: 80, width: 160, height: 80, text: "Note", fill: "#ffffff", stroke: "#334155", strokeWidth: 2, textColor: "#172b4d" }
+      ]
+    }
+  });
+
+  controller.setSelection(["rect", "circle"]);
+  assert.equal(await controller.groupSelectedObjects(), true);
+  const groupId = controller.getObjectById("rect").groupId;
+  assert.ok(groupId);
+  assert.equal(controller.getObjectById("circle").groupId, groupId);
+  assert.equal(controller.currentState().groupNames[groupId], "Group 1");
+  assert.deepEqual(controller.selectStructureNode("group", groupId).sort(), ["circle", "rect"]);
+  assert.deepEqual(controller.selectedObjectIds().sort(), ["circle", "rect"]);
+  assert.equal(renderer.structureStates.at(-1).reason, "group objects");
+  assert.equal(renderer.fullRenderCount, 0);
+
+  assert.equal(await controller.renameStructureNode("group", groupId, "Decision Pair"), true);
+  assert.equal(controller.currentState().groupNames[groupId], "Decision Pair");
+  assert.equal(await controller.setStructureNodeVisibility("group", groupId, false), true);
+  assert.equal(controller.currentState().groupVisibility[groupId], false);
+  assert.deepEqual(controller.selectedObjectIds(), []);
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.currentState().groupVisibility[groupId], true);
+
+  assert.equal(await controller.reorderStructureNode({
+    draggedKind: "object",
+    draggedId: "note",
+    targetKind: "group",
+    targetId: groupId,
+    targetPlacement: "inside"
+  }), true);
+  assert.equal(controller.getObjectById("note").groupId, groupId);
+  assert.deepEqual(controller.selectStructureNode("group", groupId).sort(), ["circle", "note", "rect"]);
+
+  const template = await captureDiagram2SelectionTemplate(
+    controller.currentState(),
+    controller.selectedObjectIds(),
+    "Decision Pair Template"
+  );
+  assert.ok(template);
+  const beforeTemplateCount = controller.currentState().objects.length;
+  assert.equal(await controller.applyTemplate(template, { x: 650, y: 260 }), true);
+  assert.equal(controller.currentState().objects.length, beforeTemplateCount + 3);
+  assert.equal(renderer.addedObjectBatches.at(-1).length, 3);
+  assert.equal(Object.keys(controller.currentState().groupNames).length, 2);
+
+  assert.equal(await controller.addObject(
+    createDiagram2DefaultObject("rectangle", { x: 700, y: 380 }, { id: "default-source" })
+  ), true);
+  controller.setSelection(["default-source"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("fill", "#123456"), true);
+  const savedDefault = controller.setDrawingDefaultFromSelection("rectangle");
+  assert.equal(savedDefault.fill, "#123456");
+  const defaulted = controller.createDefaultObject("rectangle", { x: 700, y: 380 }, { id: "defaulted-rect" });
+  assert.equal(defaulted.fill, "#123456");
+  assert.equal(controller.resetDrawingDefault("rectangle"), true);
+  const reset = controller.createDefaultObject("rectangle", { x: 700, y: 380 }, { id: "reset-rect" });
+  assert.equal(reset.fill, "none");
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
 test("Diagram 2 controller moves one object in a large state without full-state serialization or scans", async () => {
   const renderer = fakeRenderer();
   const controller = createDiagram2EditorController({
@@ -822,6 +898,7 @@ function fakeRenderer() {
     addedObjectBatches: [],
     removedObjectBatches: [],
     objectOrders: [],
+    structureStates: [],
     canvasOptions: [],
     beginDiagramUpdate() {},
     endDiagramUpdate() {},
@@ -839,6 +916,15 @@ function fakeRenderer() {
     },
     setObjectOrder(ids) {
       this.objectOrders.push(ids.slice());
+    },
+    setStructureState(state, options = {}) {
+      this.structureStates.push({
+        objectIds: (state?.objects || []).map(object => object.id),
+        groupNames: { ...(state?.groupNames || {}) },
+        groupVisibility: { ...(state?.groupVisibility || {}) },
+        affectedObjectIds: [...(options.affectedObjectIds || [])],
+        reason: options.reason || ""
+      });
     },
     updateObject(id) {
       this.updatedObjectIds.push(id);

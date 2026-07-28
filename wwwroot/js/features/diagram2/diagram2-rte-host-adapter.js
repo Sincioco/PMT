@@ -8,23 +8,33 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2";
+} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
 import {
-  createDiagram2DefaultObject,
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260727-diagram2-phase3-final-v2";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
   copyDiagram2SelectionArtwork,
   diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
+  diagram2TemplatePaneHtml,
   openDiagram2TextEditor,
+  setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram-png-raster-v1";
+} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1";
+import {
+  captureDiagram2SelectionTemplate,
+  createDiagram2TemplateState,
+  diagram2TemplateCapacityReached,
+  diagram2TemplateDownload,
+  parseDiagram2TemplateUpload,
+  persistDiagram2TemplateLibrary,
+  restoreDiagram2DefaultTemplates
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -45,6 +55,10 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
     originalReference,
     originalFileName: options.originalFileName,
     annotated: options.annotated === true
+  });
+  const templateState = await createDiagram2TemplateState({
+    loadTemplateLibrary: options.loadTemplateLibrary,
+    loadDefaultTemplateLibrary: options.loadDefaultTemplateLibrary
   });
 
   return new Promise(resolve => {
@@ -72,8 +86,11 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
     const controller = createDiagram2EditorController({
       host: hostAdapter,
       state: initialState,
+      templateLibrary: templateState.library,
       historyLimit: options.historyLimit || 100
     });
+    dialog.__diagram2ObjectSearch = "";
+    dialog.__diagram2TemplateState = templateState;
 
     dialog.innerHTML = diagram2EditorShellHtml({
       includeHeader: true,
@@ -86,7 +103,9 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
       selectedZoom: "fit",
       state: controller.state(),
       selectedObjectIds: controller.selectedObjectIds(),
-      status: controller.statusSnapshot()
+      status: controller.statusSnapshot(),
+      objectSearch: "",
+      templateState
     });
     document.body.appendChild(dialog);
 
@@ -108,6 +127,7 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
     const abortController = new AbortController();
     const { signal } = abortController;
     controller.onChange(event => {
+      refreshDiagram2RteTemplatePane(dialog, controller);
       updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller, event.status));
       updateDiagram2ObjectTreeSelection(dialog, event.status.selectedObjectIds);
     });
@@ -120,6 +140,10 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
       hostAdapter,
       signal,
       notify: options.notify,
+      askForText: options.askForText,
+      confirm: options.confirm,
+      templateState,
+      saveTemplateLibrary: options.saveTemplateLibrary,
       save: () => saveAndFinish()
     });
 
@@ -335,7 +359,90 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "select-diagram2-object-tree-item") {
-      controller.setSelection([actionElement.dataset.objectId]);
+      selectDiagram2RteStructureNode(dialog, controller, actionElement);
+      return;
+    }
+    if (action === "group-diagram2-selection") {
+      void groupDiagram2RteSelection(dialog, controller, renderer, notify);
+      return;
+    }
+    if (action === "ungroup-diagram2-selection") {
+      void ungroupDiagram2RteSelection(dialog, controller, renderer, notify);
+      return;
+    }
+    if (action === "rename-diagram2-object") {
+      void renameDiagram2RteStructureNode(dialog, controller, renderer, actionElement, options.askForText, notify);
+      return;
+    }
+    if (action === "toggle-diagram2-object-visibility") {
+      void toggleDiagram2RteStructureVisibility(dialog, controller, renderer, actionElement);
+      return;
+    }
+    if (action === "toggle-diagram2-selection-visibility") {
+      void toggleDiagram2RteSelectionVisibility(dialog, controller, renderer);
+      return;
+    }
+    if (action === "reorder-diagram2-object-root") {
+      void reorderDiagram2RteStructureNode(dialog, controller, renderer, {
+        targetKind: "root",
+        targetId: "",
+        targetPlacement: "inside"
+      });
+      return;
+    }
+    if (action === "save-diagram2-selection-template") {
+      void saveDiagram2RteSelectionTemplate(dialog, controller, renderer, options.askForText, options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "upload-diagram2-template") {
+      dialog.querySelector("[data-diagram2-template-upload-input]")?.click();
+      return;
+    }
+    if (action === "restore-diagram2-default-templates") {
+      void restoreDiagram2RteTemplates(dialog, controller, options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "apply-diagram2-template") {
+      void applyDiagram2RteTemplateById(dialog, controller, renderer, actionElement.dataset.templateId, notify);
+      return;
+    }
+    if (action === "format-diagram2-template") {
+      void formatDiagram2RteSelectionFromTemplate(dialog, controller, renderer, actionElement.dataset.templateId, notify);
+      return;
+    }
+    if (action === "rename-diagram2-template") {
+      void renameDiagram2RteTemplate(dialog, controller, actionElement.dataset.templateId, options.askForText, options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "update-diagram2-template") {
+      void updateDiagram2RteTemplateFromSelection(dialog, controller, actionElement.dataset.templateId, options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "move-diagram2-template-up" || action === "move-diagram2-template-down") {
+      void moveDiagram2RteTemplate(dialog, controller, actionElement.dataset.templateId, action.endsWith("-up") ? -1 : 1, options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "download-diagram2-template") {
+      downloadDiagram2RteTemplateById(dialog, actionElement.dataset.templateId);
+      return;
+    }
+    if (action === "delete-diagram2-template") {
+      void deleteDiagram2RteTemplate(dialog, controller, actionElement.dataset.templateId, options.confirm, options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "set-diagram2-rectangle-default" || action === "set-diagram2-arrow-default") {
+      void setDiagram2RteDrawingDefault(dialog, controller, action.includes("rectangle") ? "rectangle" : "arrow", options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "reset-diagram2-rectangle-default" || action === "reset-diagram2-arrow-default") {
+      void resetDiagram2RteDrawingDefault(dialog, controller, action.includes("rectangle") ? "rectangle" : "arrow", options.saveTemplateLibrary, notify);
+      return;
+    }
+    if (action === "set-diagram2-inspector-tab") {
+      setDiagram2InspectorActiveTab(
+        dialog.querySelector("[data-diagram2-editor-shell]"),
+        actionElement.dataset.diagram2InspectorTab
+      );
       return;
     }
     if (action === "fit-diagram2-viewer") {
@@ -407,6 +514,14 @@ function bindDiagram2RteHostEvents(options = {}) {
   }, { signal });
 
   dialog.addEventListener("change", event => {
+    if (event.target?.matches?.("[data-diagram2-template-upload-input]")) {
+      const files = [...(event.target.files || [])];
+      event.target.value = "";
+      if (files.length) {
+        void uploadDiagram2RteTemplates(dialog, controller, options.saveTemplateLibrary, files, notify);
+      }
+      return;
+    }
     const filter = event.target?.dataset?.filter;
     if (filter === "diagram2-grid") {
       void controller.setGridVisible(event.target.checked === true).then(() => {
@@ -426,6 +541,14 @@ function bindDiagram2RteHostEvents(options = {}) {
     else renderer.setZoom(value);
   }, { signal });
 
+  dialog.addEventListener("input", event => {
+    if (event.target?.dataset?.filter !== "diagram2-object-search") return;
+    dialog.__diagram2ObjectSearch = String(event.target.value || "").trim();
+    refreshDiagram2RteObjectsPane(dialog, controller, { preserveFocus: true });
+  }, { signal });
+
+  bindDiagram2RteObjectTreeDragAndDrop(dialog, controller, renderer, signal);
+
   bindDiagram2EditorInteractions({
     root: dialog,
     canvas,
@@ -443,7 +566,9 @@ function bindDiagram2RteHostEvents(options = {}) {
     onCopy: () => copyDiagram2RteSelection(controller, notify),
     onPaste: () => pasteDiagram2RteSelection(dialog, controller, renderer, notify),
     onDuplicate: () => duplicateDiagram2RteSelection(dialog, controller, renderer),
-    onDelete: () => deleteDiagram2RteSelection(dialog, controller, renderer)
+    onDelete: () => deleteDiagram2RteSelection(dialog, controller, renderer),
+    onGroup: () => groupDiagram2RteSelection(dialog, controller, renderer, notify),
+    onUngroup: () => ungroupDiagram2RteSelection(dialog, controller, renderer, notify)
   });
 }
 
@@ -468,7 +593,7 @@ async function applyDiagram2RteSelectedStyle(dialog, controller, renderer, name,
 }
 
 async function addDiagram2RteToolbarObject(type, dialog, controller, renderer) {
-  const object = createDiagram2DefaultObject(
+  const object = controller.createDefaultObject(
     type,
     controller.snapPoint(diagram2RteInsertionCenter(dialog, controller, renderer))
   );
@@ -481,6 +606,7 @@ async function addDiagram2RteToolbarObject(type, dialog, controller, renderer) {
 
   controller.setActiveTool("select");
   refreshDiagram2RteObjectsPane(dialog, controller);
+  refreshDiagram2RteTemplatePane(dialog, controller);
   await renderer.whenIdle();
   return true;
 }
@@ -488,6 +614,7 @@ async function addDiagram2RteToolbarObject(type, dialog, controller, renderer) {
 async function runDiagram2RteHistoryAction(dialog, controller, renderer, action) {
   const result = await action();
   refreshDiagram2RteObjectsPane(dialog, controller);
+  refreshDiagram2RteTemplatePane(dialog, controller);
   await renderer.whenIdle();
   return result;
 }
@@ -508,10 +635,27 @@ function diagram2RteInsertionCenter(dialog, controller, renderer) {
   };
 }
 
-function refreshDiagram2RteObjectsPane(dialog, controller) {
+function refreshDiagram2RteObjectsPane(dialog, controller, options = {}) {
   const pane = dialog.querySelector("[data-diagram2-objects-pane]");
   if (!pane) return;
-  pane.outerHTML = diagram2ObjectsPaneHtml(controller.state(), controller.selectedObjectIds());
+  pane.outerHTML = diagram2ObjectsPaneHtml(controller.state(), controller.selectedObjectIds(), {
+    search: dialog.__diagram2ObjectSearch || ""
+  });
+  if (options.preserveFocus === true) {
+    const search = dialog.querySelector("[data-filter='diagram2-object-search']");
+    search?.focus({ preventScroll: true });
+    if (search) search.selectionStart = search.selectionEnd = search.value.length;
+  }
+}
+
+function refreshDiagram2RteTemplatePane(dialog, controller) {
+  const pane = dialog.querySelector("[data-diagram2-template-pane]");
+  if (!pane) return;
+  pane.outerHTML = diagram2TemplatePaneHtml(
+    dialog.__diagram2TemplateState,
+    controller.state(),
+    controller.selectedObjectIds()
+  );
 }
 
 function diagram2ToolLabel(type) {
@@ -568,6 +712,7 @@ async function deleteDiagram2RteSelection(dialog, controller, renderer) {
 
 async function finishDiagram2RteObjectCommand(dialog, controller, renderer) {
   refreshDiagram2RteObjectsPane(dialog, controller);
+  refreshDiagram2RteTemplatePane(dialog, controller);
   updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
   await renderer.whenIdle();
   updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
@@ -622,6 +767,395 @@ async function arrangeDiagram2RteSelection(dialog, controller, renderer, action)
   if (!arranged) return false;
   await finishDiagram2RteObjectCommand(dialog, controller, renderer);
   return true;
+}
+
+function selectDiagram2RteStructureNode(dialog, controller, element) {
+  const selected = controller.selectStructureNode(
+    element?.dataset?.nodeKind || "object",
+    element?.dataset?.objectId || ""
+  );
+  refreshDiagram2RteObjectsPane(dialog, controller);
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+  updateDiagram2ObjectTreeSelection(dialog, selected);
+  return selected.length > 0;
+}
+
+async function groupDiagram2RteSelection(dialog, controller, renderer, notify) {
+  const grouped = await controller.groupSelectedObjects();
+  if (!grouped) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  notify?.("Diagram objects grouped.");
+  return true;
+}
+
+async function ungroupDiagram2RteSelection(dialog, controller, renderer, notify) {
+  const ungrouped = await controller.ungroupSelectedObjects();
+  if (!ungrouped) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  notify?.("Diagram group ungrouped.");
+  return true;
+}
+
+async function renameDiagram2RteStructureNode(dialog, controller, renderer, element, askForText, notify) {
+  const target = diagram2RteStructureTarget(controller, element);
+  if (!target.id) return false;
+  const currentName = diagram2RteStructureNodeName(controller, target.kind, target.id);
+  const name = String(await askDiagram2RteText(askForText, "Object name", "Rename Object", currentName) || "").trim();
+  if (!name || name === currentName) return false;
+  const renamed = await controller.renameStructureNode(target.kind, target.id, name);
+  if (!renamed) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  notify?.("Diagram object renamed.");
+  return true;
+}
+
+async function toggleDiagram2RteStructureVisibility(dialog, controller, renderer, element) {
+  const target = diagram2RteStructureTarget(controller, element);
+  if (!target.id) return false;
+  const changed = await controller.setStructureNodeVisibility(target.kind, target.id);
+  if (!changed) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function toggleDiagram2RteSelectionVisibility(dialog, controller, renderer) {
+  const selected = controller.getObjectsByIds(controller.selectedObjectIds());
+  if (!selected.length) return false;
+  const visible = !selected.every(object => object.visible !== false);
+  let changed = false;
+  for (const object of selected) {
+    changed = await controller.setStructureNodeVisibility("object", object.id, visible) || changed;
+  }
+  if (!changed) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function reorderDiagram2RteStructureNode(dialog, controller, renderer, moveInput = {}) {
+  const drag = dialog.__diagram2ObjectTreeDrag || {};
+  const reordered = await controller.reorderStructureNode({
+    draggedKind: moveInput.draggedKind || drag.kind || "object",
+    draggedId: moveInput.draggedId || drag.id || controller.selectedObjectIds()[0] || "",
+    targetKind: moveInput.targetKind || "root",
+    targetId: moveInput.targetId || "",
+    targetPlacement: moveInput.targetPlacement || "inside"
+  });
+  if (!reordered) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function saveDiagram2RteSelectionTemplate(dialog, controller, renderer, askForText, saveTemplateLibrary, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState?.loaded) return false;
+  if (diagram2TemplateCapacityReached(templateState.library)) {
+    setDiagram2RteTemplateMessage(dialog, controller, "Template library is full.");
+    return false;
+  }
+  const name = await askDiagram2RteText(askForText, "Template name", "Save Diagram Template", "Template");
+  if (!String(name || "").trim()) return false;
+  const template = await captureDiagram2SelectionTemplate(controller.currentState(), controller.selectedObjectIds(), name);
+  if (!template) {
+    setDiagram2RteTemplateMessage(dialog, controller, "Select one or more objects before saving a template.");
+    return false;
+  }
+  const saved = await persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    templates: [template, ...(templateState.library.templates || [])]
+  }, `Template "${template.name}" saved.`, notify);
+  if (saved) await renderer.whenIdle();
+  return saved;
+}
+
+async function uploadDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, files, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState?.loaded) return false;
+  const templates = [...(templateState.library.templates || [])];
+  let imported = 0;
+  for (const file of files) {
+    if (templates.length >= 50) break;
+    try {
+      templates.unshift(parseDiagram2TemplateUpload(await file.text()));
+      imported += 1;
+    } catch (error) {
+      notify?.(error?.message || "One Diagram template could not be imported.");
+    }
+  }
+  if (!imported) {
+    setDiagram2RteTemplateMessage(dialog, controller, "No templates were imported.");
+    return false;
+  }
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    templates
+  }, `${imported} template${imported === 1 ? "" : "s"} imported.`, notify);
+}
+
+async function restoreDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState?.loaded || !templateState.defaultLoaded) return false;
+  const restored = restoreDiagram2DefaultTemplates(templateState.library, templateState.defaultLibrary);
+  if (restored.capacityExceeded) {
+    setDiagram2RteTemplateMessage(dialog, controller, `Remove ${restored.requiredSlots} template${restored.requiredSlots === 1 ? "" : "s"} before restoring defaults.`);
+    return false;
+  }
+  if (!restored.addedCount) {
+    setDiagram2RteTemplateMessage(dialog, controller, "Default templates are already present.");
+    return false;
+  }
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, restored.library, "Default templates restored.", notify);
+}
+
+async function applyDiagram2RteTemplateById(dialog, controller, renderer, templateId, notify) {
+  const template = diagram2RteTemplateById(dialog, templateId);
+  if (!template) return false;
+  const applied = await controller.applyTemplate(template, diagram2RteInsertionCenter(dialog, controller, renderer));
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  setDiagram2RteTemplateMessage(dialog, controller, `Template "${template.name}" added to the canvas.`);
+  notify?.(`Template "${template.name}" added to the canvas.`);
+  return true;
+}
+
+async function formatDiagram2RteSelectionFromTemplate(dialog, controller, renderer, templateId, notify) {
+  const template = diagram2RteTemplateById(dialog, templateId);
+  if (!template) return false;
+  const applied = await controller.applyTemplateFormatting(template);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  setDiagram2RteTemplateMessage(dialog, controller, `Template "${template.name}" formatting applied.`);
+  notify?.(`Template "${template.name}" formatting applied.`);
+  return true;
+}
+
+async function renameDiagram2RteTemplate(dialog, controller, templateId, askForText, saveTemplateLibrary, notify) {
+  const template = diagram2RteTemplateById(dialog, templateId);
+  const templateState = dialog.__diagram2TemplateState;
+  if (!template || !templateState?.loaded) return false;
+  const name = String(await askDiagram2RteText(askForText, "Template name", "Rename Diagram Template", template.name) || "").trim();
+  if (!name || name === template.name) return false;
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    templates: templateState.library.templates.map(item =>
+      item.id === template.id ? { ...item, name, updatedAt: new Date().toISOString() } : item)
+  }, `Template renamed to "${name}".`, notify);
+}
+
+async function updateDiagram2RteTemplateFromSelection(dialog, controller, templateId, saveTemplateLibrary, notify) {
+  const template = diagram2RteTemplateById(dialog, templateId);
+  const templateState = dialog.__diagram2TemplateState;
+  if (!template || !templateState?.loaded) return false;
+  const replacement = await captureDiagram2SelectionTemplate(controller.currentState(), controller.selectedObjectIds(), template.name);
+  if (!replacement) {
+    setDiagram2RteTemplateMessage(dialog, controller, "Select one or more objects before updating a template.");
+    return false;
+  }
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    templates: templateState.library.templates.map(item =>
+      item.id === template.id
+        ? { ...replacement, id: template.id, createdAt: template.createdAt || replacement.createdAt }
+        : item)
+  }, `Template "${template.name}" updated.`, notify);
+}
+
+async function moveDiagram2RteTemplate(dialog, controller, templateId, direction, saveTemplateLibrary, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  const templates = [...(templateState?.library?.templates || [])];
+  const index = templates.findIndex(template => template.id === templateId);
+  const nextIndex = index + Number(direction || 0);
+  if (index < 0 || nextIndex < 0 || nextIndex >= templates.length) return false;
+  [templates[index], templates[nextIndex]] = [templates[nextIndex], templates[index]];
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    templates
+  }, "Template order saved.", notify);
+}
+
+function downloadDiagram2RteTemplateById(dialog, templateId) {
+  const template = diagram2RteTemplateById(dialog, templateId);
+  if (!template) return false;
+  const file = diagram2TemplateDownload(template);
+  downloadTextFile(file.contents, file.fileName, "application/json");
+  return true;
+}
+
+async function deleteDiagram2RteTemplate(dialog, controller, templateId, confirm, saveTemplateLibrary, notify) {
+  const template = diagram2RteTemplateById(dialog, templateId);
+  const templateState = dialog.__diagram2TemplateState;
+  if (!template || !templateState?.loaded) return false;
+  const confirmed = await confirmDiagram2Rte(confirm, `Delete the "${template.name}" Diagram template?`, "Delete Diagram Template", "Delete");
+  if (!confirmed) return false;
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    templates: templateState.library.templates.filter(item => item.id !== template.id)
+  }, `Template "${template.name}" deleted.`, notify);
+}
+
+async function setDiagram2RteDrawingDefault(dialog, controller, type, saveTemplateLibrary, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState?.loaded) return false;
+  const defaultStyle = controller.setDrawingDefaultFromSelection(type);
+  if (!defaultStyle) {
+    setDiagram2RteTemplateMessage(dialog, controller, `Select a ${type === "arrow" ? "arrow" : "rectangle"} first.`);
+    return false;
+  }
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    defaults: {
+      ...(templateState.library.defaults || {}),
+      [type]: defaultStyle
+    }
+  }, `${type === "arrow" ? "Arrow" : "Rectangle"} default saved.`, notify);
+}
+
+async function resetDiagram2RteDrawingDefault(dialog, controller, type, saveTemplateLibrary, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState?.loaded) return false;
+  controller.resetDrawingDefault(type);
+  return persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, {
+    ...templateState.library,
+    defaults: {
+      ...(templateState.library.defaults || {}),
+      [type]: null
+    }
+  }, `${type === "arrow" ? "Arrow" : "Rectangle"} default reset.`, notify);
+}
+
+async function persistDiagram2RteTemplates(dialog, controller, saveTemplateLibrary, nextLibrary, message, notify) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState?.loaded) {
+    setDiagram2RteTemplateMessage(dialog, controller, "Template storage is unavailable.");
+    return false;
+  }
+  refreshDiagram2RteTemplatePane(dialog, controller);
+  const saved = await persistDiagram2TemplateLibrary(templateState, saveTemplateLibrary, nextLibrary, message);
+  if (saved) controller.setDrawingDefaults(saved.defaults || {});
+  refreshDiagram2RteTemplatePane(dialog, controller);
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+  if (saved && message) notify?.(message);
+  else if (!saved && templateState.message) notify?.(templateState.message);
+  return Boolean(saved);
+}
+
+function setDiagram2RteTemplateMessage(dialog, controller, message) {
+  const templateState = dialog.__diagram2TemplateState;
+  if (!templateState) return;
+  templateState.message = String(message || "");
+  templateState.error = "";
+  refreshDiagram2RteTemplatePane(dialog, controller);
+}
+
+function diagram2RteTemplateById(dialog, templateId) {
+  const id = String(templateId || "").trim();
+  return (dialog.__diagram2TemplateState?.library?.templates || [])
+    .find(template => String(template.id || "") === id) || null;
+}
+
+function diagram2RteStructureTarget(controller, element) {
+  const selectedIds = controller.selectedObjectIds();
+  return {
+    kind: String(element?.dataset?.nodeKind || "object").trim() || "object",
+    id: String(element?.dataset?.objectId || selectedIds[0] || "").trim()
+  };
+}
+
+function diagram2RteStructureNodeName(controller, kind, id) {
+  const state = controller.currentState?.() || {};
+  if (kind === "group") return String(state.groupNames?.[id] || "Group");
+  return String((state.objects || []).find(object => object.id === id)?.name || "Object");
+}
+
+async function askDiagram2RteText(askForText, message, title, currentValue = "") {
+  if (typeof askForText === "function") return askForText(message, title, currentValue);
+  return globalThis.window?.prompt?.(message, currentValue) ?? "";
+}
+
+async function confirmDiagram2Rte(confirm, message, title, actionLabel) {
+  if (typeof confirm === "function") return confirm(message, title, actionLabel);
+  return globalThis.window?.confirm?.(message) === true;
+}
+
+function bindDiagram2RteObjectTreeDragAndDrop(dialog, controller, renderer, signal) {
+  dialog.addEventListener("dragstart", event => {
+    const row = event.target.closest?.("[data-diagram2-object-tree-row][draggable='true']");
+    if (!row || !row.closest("[data-diagram2-objects-pane]")) return;
+    const id = String(row.dataset.diagram2ObjectId || "").trim();
+    const kind = String(row.dataset.diagram2TreeNodeKind || "object").trim();
+    if (!id || ["relationships", "relationship"].includes(kind)) {
+      event.preventDefault();
+      return;
+    }
+    dialog.__diagram2ObjectTreeDrag = { id, kind };
+    row.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
+  }, { signal });
+
+  dialog.addEventListener("dragover", event => {
+    if (!dialog.__diagram2ObjectTreeDrag?.id) return;
+    const pane = event.target.closest?.("[data-diagram2-objects-pane]");
+    if (!pane) return;
+    const rootDrop = event.target.closest?.("[data-diagram2-object-tree-root-drop]");
+    const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+    clearDiagram2RteObjectTreeDropCues(dialog);
+    if (rootDrop) {
+      event.preventDefault();
+      rootDrop.classList.add("is-drop-target");
+      event.dataTransfer.dropEffect = "move";
+      return;
+    }
+    if (!row || row.dataset.diagram2ObjectId === dialog.__diagram2ObjectTreeDrag.id) return;
+    const placement = diagram2RteObjectTreeDropPlacement(row, event.clientY);
+    event.preventDefault();
+    row.classList.add(`is-drop-${placement}`);
+    event.dataTransfer.dropEffect = "move";
+  }, { signal });
+
+  dialog.addEventListener("drop", event => {
+    if (!dialog.__diagram2ObjectTreeDrag?.id) return;
+    const pane = event.target.closest?.("[data-diagram2-objects-pane]");
+    if (!pane) return;
+    event.preventDefault();
+    const rootDrop = event.target.closest?.("[data-diagram2-object-tree-root-drop]");
+    const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+    const move = {
+      draggedKind: dialog.__diagram2ObjectTreeDrag.kind,
+      draggedId: dialog.__diagram2ObjectTreeDrag.id,
+      targetKind: rootDrop ? "root" : String(row?.dataset.diagram2TreeNodeKind || "object"),
+      targetId: rootDrop ? "" : String(row?.dataset.diagram2ObjectId || ""),
+      targetPlacement: rootDrop ? "inside" : diagram2RteObjectTreeDropPlacement(row, event.clientY)
+    };
+    clearDiagram2RteObjectTreeDropCues(dialog);
+    void reorderDiagram2RteStructureNode(dialog, controller, renderer, move);
+  }, { signal });
+
+  const finish = () => {
+    clearDiagram2RteObjectTreeDropCues(dialog);
+    dialog.__diagram2ObjectTreeDrag = null;
+  };
+  dialog.addEventListener("dragend", finish, { signal });
+  dialog.addEventListener("dragleave", event => {
+    const pane = event.target.closest?.("[data-diagram2-objects-pane]");
+    if (pane && !pane.contains(event.relatedTarget)) clearDiagram2RteObjectTreeDropCues(dialog);
+  }, { signal });
+}
+
+function diagram2RteObjectTreeDropPlacement(row, clientY) {
+  if (!row?.getBoundingClientRect) return "after";
+  const kind = String(row.dataset.diagram2TreeNodeKind || "");
+  const rect = row.getBoundingClientRect();
+  const height = Math.max(1, rect.height || 1);
+  const ratio = (Number(clientY || rect.top) - rect.top) / height;
+  if (kind === "group" && ratio > 0.25 && ratio < 0.75) return "inside";
+  return ratio < 0.5 ? "before" : "after";
+}
+
+function clearDiagram2RteObjectTreeDropCues(dialog) {
+  dialog.querySelectorAll(".is-dragging, .is-drop-before, .is-drop-after, .is-drop-inside, .is-drop-target")
+    .forEach(element => {
+      element.classList.remove("is-dragging", "is-drop-before", "is-drop-after", "is-drop-inside", "is-drop-target");
+    });
 }
 
 async function readDiagram2SelectionClipboard() {
@@ -686,4 +1220,16 @@ function safeFileName(value) {
     .replace(/[^a-z0-9_.-]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "diagram";
+}
+
+function downloadTextFile(contents, fileName, type) {
+  const blob = new Blob([String(contents || "")], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

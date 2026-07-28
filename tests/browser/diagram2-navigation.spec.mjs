@@ -374,10 +374,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260727-diagram2-phase3-final-v2"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260727-diagram2-phase3-final-v2")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1")
     ]);
     const state = {
       version: 1,
@@ -677,6 +677,249 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
     window.__diagram2Phase3Harness.renderer.destroy();
     window.__diagram2Phase3Harness.controller.destroy();
     window.__diagram2Phase3Harness = null;
+  });
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shared and incremental", async ({ page }) => {
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.goto("/css/base.css");
+  await page.setContent(`
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components/buttons.css">
+    <link rel="stylesheet" href="/css/components/forms.css">
+    <link rel="stylesheet" href="/css/components/image-annotation.css">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v1">
+    <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
+  `);
+  await page.evaluate(async () => {
+    const [
+      controllerModule,
+      interactionModule,
+      rendererModule,
+      shellModule,
+      templateModule
+    ] = await Promise.all([
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1")
+    ]);
+    const root = document.querySelector("#phase4Harness");
+    const state = {
+      version: 1,
+      width: 900,
+      height: 540,
+      objects: [
+        { id: "rect-a", type: "rectangle", name: "Decision Rectangle", x: 80, y: 80, width: 160, height: 110, fill: "#ffffff", stroke: "#172b4d", strokeWidth: 3, opacity: 1 },
+        { id: "circle-a", type: "circle", name: "Decision Circle", x: 300, y: 90, width: 120, height: 120, fill: "#dbeafe", stroke: "#1d4ed8", strokeWidth: 3, opacity: 1 },
+        { id: "note-a", type: "textbox", name: "Process Note", x: 520, y: 90, width: 190, height: 95, text: "Note", fill: "#ffffff", stroke: "#334155", strokeWidth: 2, textColor: "#172b4d" }
+      ]
+    };
+    const templateState = {
+      library: { version: 1, templates: [], defaults: {} },
+      defaultLibrary: { version: 1, templates: [], defaults: {} },
+      loaded: true,
+      defaultLoaded: true,
+      busy: false,
+      error: "",
+      message: ""
+    };
+    const host = {
+      kind: "diagram-document",
+      canEdit: true,
+      canExport: true,
+      security: { canRead: true, canUpdate: true, canExport: true },
+      async save() {}
+    };
+    const controller = controllerModule.createDiagram2EditorController({
+      host,
+      state,
+      templateLibrary: templateState.library
+    });
+    root.innerHTML = shellModule.diagram2EditorShellHtml({
+      state: controller.state(),
+      selectedObjectIds: controller.selectedObjectIds(),
+      status: controller.statusSnapshot(),
+      templateState
+    });
+    const renderer = rendererModule.createDiagram2Renderer({
+      host: root.querySelector("[data-diagram2-renderer-surface]")
+    });
+    renderer.render(controller.state(), { reason: "phase4 browser harness" });
+    renderer.setZoom("1");
+    controller.attachRenderer(renderer);
+
+    let objectSearch = "";
+    const sync = () => {
+      const status = controller.statusSnapshot();
+      const selected = new Set(status.selectedObjectIds);
+      shellModule.updateDiagram2ShellStatus(root, {
+        ...status,
+        selectedObjects: controller.state().objects.filter(object => selected.has(object.id))
+      });
+      shellModule.updateDiagram2ObjectTreeSelection(root, status.selectedObjectIds);
+    };
+    const refreshPanes = () => {
+      const objectsPane = root.querySelector("[data-diagram2-objects-pane]");
+      if (objectsPane) {
+        objectsPane.outerHTML = shellModule.diagram2ObjectsPaneHtml(
+          controller.state(),
+          controller.selectedObjectIds(),
+          { search: objectSearch }
+        );
+      }
+      const templatePane = root.querySelector("[data-diagram2-template-pane]");
+      if (templatePane) {
+        templatePane.outerHTML = shellModule.diagram2TemplatePaneHtml(
+          templateState,
+          controller.state(),
+          controller.selectedObjectIds()
+        );
+      }
+      sync();
+    };
+    const finish = async () => {
+      await renderer.whenIdle();
+      refreshPanes();
+    };
+    root.addEventListener("input", event => {
+      if (event.target?.dataset?.filter !== "diagram2-object-search") return;
+      objectSearch = String(event.target.value || "").trim();
+      refreshPanes();
+    });
+    root.addEventListener("click", event => {
+      const button = event.target.closest("[data-action]");
+      if (!button) return;
+      const action = button.dataset.action;
+      const run = async () => {
+        if (action === "set-diagram2-inspector-tab") {
+          shellModule.setDiagram2InspectorActiveTab(root, button.dataset.diagram2InspectorTab);
+          return;
+        }
+        if (action === "group-diagram2-selection") await controller.groupSelectedObjects();
+        else if (action === "ungroup-diagram2-selection") await controller.ungroupSelectedObjects();
+        else if (action === "rename-diagram2-object") {
+          await controller.renameStructureNode(button.dataset.nodeKind || "object", button.dataset.objectId || controller.selectedObjectIds()[0], "Renamed Decision Group");
+        } else if (action === "toggle-diagram2-object-visibility") {
+          await controller.setStructureNodeVisibility(button.dataset.nodeKind || "object", button.dataset.objectId || "");
+        } else if (action.startsWith("arrange-diagram2-selection-")) {
+          await controller.arrangeSelectedObjects(action.slice("arrange-diagram2-selection-".length));
+        } else if (action === "save-diagram2-selection-template") {
+          const template = await templateModule.captureDiagram2SelectionTemplate(controller.state(), controller.selectedObjectIds(), "Phase 4 Pair");
+          if (template) templateState.library.templates = [template, ...templateState.library.templates];
+        } else if (action === "apply-diagram2-template") {
+          const template = templateState.library.templates.find(item => item.id === button.dataset.templateId);
+          if (template) await controller.applyTemplate(template, { x: 650, y: 350 });
+        } else if (action === "set-diagram2-rectangle-default") {
+          const defaultStyle = controller.setDrawingDefaultFromSelection("rectangle");
+          if (defaultStyle) templateState.library.defaults.rectangle = defaultStyle;
+        }
+        await finish();
+      };
+      void run();
+    });
+    const abortController = new AbortController();
+    interactionModule.bindDiagram2EditorInteractions({
+      root,
+      canvas: root.querySelector("[data-diagram2-viewer-canvas]"),
+      controller,
+      renderer,
+      signal: abortController.signal,
+      isActive: () => true,
+      canMutate: () => true,
+      onStateChange: sync,
+      onGroup: async () => { await controller.groupSelectedObjects(); await finish(); },
+      onUngroup: async () => { await controller.ungroupSelectedObjects(); await finish(); }
+    });
+    sync();
+    window.__diagram2Phase4Harness = { controller, renderer, abortController, finish, refreshPanes, templateState };
+  });
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase4Harness;
+    controller.setSelection(["rect-a", "circle-a"]);
+    await finish();
+  });
+  await page.getByRole("tab", { name: "Objects", exact: true }).click();
+  await page.getByRole("button", { name: "Group", exact: true }).click();
+  await expect(page.locator("[data-diagram2-tree-node-kind='group']")).toContainText("Group 1");
+  await expect.poll(() => page.evaluate(() => {
+    const controller = window.__diagram2Phase4Harness.controller;
+    return Boolean(controller.getObjectById("rect-a").groupId)
+      && controller.getObjectById("rect-a").groupId === controller.getObjectById("circle-a").groupId;
+  })).toBe(true);
+
+  const groupRow = page.locator("[data-diagram2-tree-node-kind='group']").first();
+  await groupRow.hover();
+  await groupRow.locator("[data-action='rename-diagram2-object']").click();
+  await expect(page.locator("[data-diagram2-tree-node-kind='group']")).toContainText("Renamed Decision Group");
+  await page.locator("[data-filter='diagram2-object-search']").fill("Renamed");
+  await expect(page.locator("[data-diagram2-object-tree-row]")).toHaveCount(3);
+  await expect(page.locator("[data-diagram2-object-tree-row]").filter({ hasText: "Process Note" })).toHaveCount(0);
+
+  await page.locator("[data-diagram2-tree-node-kind='group'] [data-action='toggle-diagram2-object-visibility']").click();
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']")).toHaveCount(0);
+  await page.locator("[data-diagram2-tree-node-kind='group'] [data-action='toggle-diagram2-object-visibility']").click();
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']")).toBeVisible();
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase4Harness;
+    const groupId = controller.getObjectById("rect-a").groupId;
+    await controller.reorderStructureNode({
+      draggedKind: "object",
+      draggedId: "note-a",
+      targetKind: "group",
+      targetId: groupId,
+      targetPlacement: "inside"
+    });
+    await finish();
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const controller = window.__diagram2Phase4Harness.controller;
+    return controller.getObjectById("note-a").groupId === controller.getObjectById("rect-a").groupId;
+  })).toBe(true);
+
+  await page.locator("[data-filter='diagram2-object-search']").fill("");
+  await page.getByRole("button", { name: "To Front", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const ids = window.__diagram2Phase4Harness.controller.state().objects.map(object => object.id);
+    return ids.slice(-3).sort();
+  })).toEqual(["circle-a", "note-a", "rect-a"]);
+
+  await page.getByRole("tab", { name: "Template", exact: true }).click();
+  await page.getByRole("button", { name: "Save Selection", exact: true }).click();
+  await expect(page.locator("[data-diagram2-template-card]")).toContainText("Phase 4 Pair");
+  const beforeTemplateApply = await page.evaluate(() => window.__diagram2Phase4Harness.controller.state().objects.length);
+  await page.locator("[data-action='apply-diagram2-template']").first().click();
+  await expect.poll(() => page.evaluate(() => window.__diagram2Phase4Harness.controller.state().objects.length)).toBe(beforeTemplateApply + 3);
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase4Harness;
+    controller.setSelection(["rect-a"]);
+    await controller.updateSelectedObjectsStyle("fill", "#123456");
+    await finish();
+  });
+  await page.getByRole("button", { name: "Use Rectangle", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const { controller } = window.__diagram2Phase4Harness;
+    return controller.createDefaultObject("rectangle", { x: 740, y: 420 }, { id: "defaulted-rect" }).fill;
+  })).toBe("#123456");
+
+  const fullRenderCount = await page.locator("[data-diagram2-svg]").getAttribute("data-diagram2-full-render-count");
+  expect(fullRenderCount).toBe("1");
+  await page.evaluate(() => {
+    window.__diagram2Phase4Harness.abortController.abort();
+    window.__diagram2Phase4Harness.renderer.destroy();
+    window.__diagram2Phase4Harness.controller.destroy();
+    window.__diagram2Phase4Harness = null;
   });
   expect(browserErrors).toEqual([]);
 });
@@ -1479,6 +1722,8 @@ async function assertDiagram2ObjectContextMenuParity(page) {
     "To Back",
     "Forward",
     "Backward",
+    "Group",
+    "Ungroup",
     "Lock",
     "Copy Selection",
     "Paste",
