@@ -4,7 +4,7 @@ import {
   filterAnnotationObjectTree,
   reorderAnnotationObjectTree
 } from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {
   const nodes = buildAnnotationObjectTree(normalizeDiagram2CanonicalState(stateInput));

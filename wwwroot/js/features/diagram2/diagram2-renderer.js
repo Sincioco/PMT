@@ -2571,27 +2571,24 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchSelectionOverlays(previewObjectsById = null) {
     if (!planes.overlays) return;
     const desiredIds = new Set();
-    liveView.selectedIds.forEach(id => {
-      const object = previewObjectsById?.get(id) || liveView.objectDataById.get(id);
-      const objectNode = liveView.objectNodesById.get(id);
-      if (!object || !objectNode?.isConnected) return;
-
-      desiredIds.add(id);
-      let overlay = planes.overlays.querySelector(`:scope > g[data-diagram2-selection-id="${cssEscape(id)}"]`);
+    diagram2SelectionOverlayEntries(previewObjectsById).forEach(entry => {
+      desiredIds.add(entry.id);
+      let overlay = planes.overlays.querySelector(`:scope > g[data-diagram2-selection-id="${cssEscape(entry.id)}"]`);
       if (!overlay) {
         overlay = createSvgElement(host, "g", {
-          "data-diagram2-selection-id": id,
+          "data-diagram2-selection-id": entry.id,
           class: "diagram2-renderer-selection",
           "pointer-events": "none"
         });
         planes.overlays.appendChild(overlay);
       }
 
-      const bounds = objectSelectionBounds(object);
       setSvgAttributes(overlay, {
-        "data-diagram2-selection-id": id,
-        class: "diagram2-renderer-selection",
-        transform: objectTransformText(object)
+        "data-diagram2-selection-id": entry.id,
+        class: entry.kind === "group"
+          ? "diagram2-renderer-selection diagram2-renderer-group-selection"
+          : "diagram2-renderer-selection",
+        transform: entry.transform
       });
 
       let outline = overlay.querySelector(":scope > rect[data-diagram2-selection-outline]");
@@ -2601,10 +2598,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         });
       }
       setSvgAttributes(outline, {
-        x: bounds.x - 4,
-        y: bounds.y - 4,
-        width: bounds.width + 8,
-        height: bounds.height + 8,
+        x: entry.bounds.x - 4,
+        y: entry.bounds.y - 4,
+        width: entry.bounds.width + 8,
+        height: entry.bounds.height + 8,
         fill: "none",
         stroke: "#2563eb",
         "stroke-width": 2,
@@ -2614,27 +2611,63 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       });
 
       overlay.querySelectorAll(":scope > [data-diagram2-resize-handle]").forEach(handle => handle.remove());
-      if (object.locked !== true) {
-        diagram2SelectionHandlePoints(object, bounds).forEach(handle => {
-          appendSvg(overlay, "circle", {
-            class: "image-annotation-handle diagram2-renderer-resize-handle",
-            "data-annotation-handle": handle.direction,
-            "data-diagram2-resize-handle": handle.direction,
-            cx: handle.x,
-            cy: handle.y,
-            r: diagram2SelectionHandleRadius(committedViewportTransform.scale),
-            fill: "#2563eb",
-            stroke: "#ffffff",
-            "stroke-width": 0.75,
-            "pointer-events": "all"
-          });
+      entry.handles.forEach(handle => {
+        appendSvg(overlay, "circle", {
+          class: "image-annotation-handle diagram2-renderer-resize-handle",
+          "data-annotation-handle": handle.direction,
+          "data-diagram2-resize-handle": handle.direction,
+          cx: handle.x,
+          cy: handle.y,
+          r: diagram2SelectionHandleRadius(committedViewportTransform.scale),
+          fill: "#2563eb",
+          stroke: "#ffffff",
+          "stroke-width": 0.75,
+          "pointer-events": "all"
         });
-      }
+      });
     });
 
     planes.overlays.querySelectorAll(":scope > g[data-diagram2-selection-id]").forEach(overlay => {
       if (!desiredIds.has(overlay.getAttribute("data-diagram2-selection-id"))) overlay.remove();
     });
+  }
+
+  function diagram2SelectionOverlayEntries(previewObjectsById = null) {
+    const grouped = new Map();
+    const entries = [];
+    liveView.selectedIds.forEach(id => {
+      const object = previewObjectsById?.get(id) || liveView.objectDataById.get(id);
+      const objectNode = liveView.objectNodesById.get(id);
+      if (!object || !objectNode?.isConnected) return;
+
+      const groupId = String(object.groupId || "").trim();
+      if (groupId) {
+        const group = grouped.get(groupId) || {
+          id: `group:${groupId}`,
+          kind: "group",
+          bounds: null,
+          transform: null,
+          handles: []
+        };
+        group.bounds = unionBounds(group.bounds, objectBounds(object));
+        grouped.set(groupId, group);
+        return;
+      }
+
+      const bounds = objectSelectionBounds(object);
+      entries.push({
+        id,
+        kind: "object",
+        bounds,
+        transform: objectTransformText(object),
+        handles: object.locked === true ? [] : diagram2SelectionHandlePoints(object, bounds)
+      });
+    });
+
+    grouped.forEach(group => {
+      if (group.bounds) entries.push(group);
+    });
+    return entries;
   }
 
   function queueViewportTransform(nextTransform, options = {}) {

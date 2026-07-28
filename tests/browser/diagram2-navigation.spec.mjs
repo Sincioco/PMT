@@ -374,10 +374,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2")
     ]);
     const state = {
       version: 1,
@@ -695,7 +695,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v2">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -706,11 +706,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -856,6 +856,40 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     return Boolean(controller.getObjectById("rect-a").groupId)
       && controller.getObjectById("rect-a").groupId === controller.getObjectById("circle-a").groupId;
   })).toBe(true);
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase4Harness;
+    controller.setSelection([]);
+    await finish();
+  });
+  const beforeGroupDrag = await page.evaluate(() => {
+    const controller = window.__diagram2Phase4Harness.controller;
+    return {
+      rectX: controller.getObjectById("rect-a").x,
+      circleX: controller.getObjectById("circle-a").x
+    };
+  });
+  const rectBox = await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").boundingBox();
+  expect(rectBox).not.toBeNull();
+  await page.mouse.move(rectBox.x + (rectBox.width / 2), rectBox.y + (rectBox.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(rectBox.x + (rectBox.width / 2) + 48, rectBox.y + (rectBox.height / 2));
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(before => {
+    const controller = window.__diagram2Phase4Harness.controller;
+    return {
+      selected: controller.selectedObjectIds().sort(),
+      rectDelta: controller.getObjectById("rect-a").x - before.rectX,
+      circleDelta: controller.getObjectById("circle-a").x - before.circleX,
+      groupOverlays: document.querySelectorAll("[data-diagram2-selection-id^='group:']").length,
+      objectOverlays: document.querySelectorAll("[data-diagram2-selection-id='rect-a'], [data-diagram2-selection-id='circle-a']").length
+    };
+  }, beforeGroupDrag)).toEqual({
+    selected: ["circle-a", "rect-a"],
+    rectDelta: 48,
+    circleDelta: 48,
+    groupOverlays: 1,
+    objectOverlays: 0
+  });
 
   const groupRow = page.locator("[data-diagram2-tree-node-kind='group']").first();
   await groupRow.hover();

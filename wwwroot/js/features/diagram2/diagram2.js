@@ -54,13 +54,13 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v2";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -72,7 +72,7 @@ import {
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -81,11 +81,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);

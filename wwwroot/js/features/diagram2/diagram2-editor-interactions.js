@@ -1,7 +1,7 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -375,9 +375,9 @@ export function bindDiagram2EditorInteractions(options = {}) {
     event.preventDefault();
     cancelGesture();
     const selection = pointerSelection(controller, objectId, event);
-    controller.setSelection(selection);
+    const selectedIds = controller.setSelection(selection);
     options.onStateChange?.();
-    if (options.canMutate?.() === false || selection.some(id => {
+    if (options.canMutate?.() === false || selectedIds.some(id => {
       const object = controller.getObjectById(id);
       return object?.locked === true || objectPositionFixed(object);
     })) return;
@@ -386,12 +386,12 @@ export function bindDiagram2EditorInteractions(options = {}) {
     gesture = {
       kind: "move",
       abortController,
-      objectIds: selection,
+      objectIds: selectedIds,
       start: renderer.screenToWorld(event),
       geometry: { deltaX: 0, deltaY: 0 },
       changed: false
     };
-    renderer.beginGeometryPreview({ objectIds: selection, mode: "move" });
+    renderer.beginGeometryPreview({ objectIds: selectedIds, mode: "move" });
     canvas.classList.add("is-moving-object");
     capturePointer(event);
     eventWindow.addEventListener("pointermove", moveEvent => {

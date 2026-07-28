@@ -12,7 +12,7 @@ import {
   loadDiagram2TemplateLibrary,
   normalizeDiagram2TemplateLibrary,
   saveDiagram2TemplateLibrary
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v2";
 
 const maximumDiagram2Templates = 50;
 

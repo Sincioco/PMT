@@ -8,7 +8,7 @@ import {
   copyAnnotationSvgToClipboard
 } from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v2";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";

@@ -8,12 +8,12 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -25,7 +25,7 @@ import {
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -34,7 +34,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;

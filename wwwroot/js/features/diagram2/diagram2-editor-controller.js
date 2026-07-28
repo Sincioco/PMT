@@ -1,10 +1,10 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v1";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v2";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -17,14 +17,14 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v2";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v1";
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
