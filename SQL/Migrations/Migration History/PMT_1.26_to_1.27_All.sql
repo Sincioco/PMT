@@ -1,6 +1,7 @@
 /*
     PMT combined database migration: Version 1.26 -> 1.27
-    Run this file from the SQL\Migrations folder with SQLCMD mode enabled.
+    Released runner retained under SQL\Migrations\Migration History.
+    Run this file from that folder with SQLCMD mode enabled.
 */
 
 :on error exit

@@ -17,7 +17,7 @@ The final 2026-07-28 closeout pass corrected four integration gaps found after t
 - Diagram 2 Edit mode now accepts an image from the native clipboard paste event, uploads it through the existing Rich Text upload path, creates one editable `embedded-image` object at the viewport center, selects it, and records one undoable command.
 - Linked Diagram viewers now render editable Diagram SVG as one inline SVG so Field Mapping rows can expose the same read-only relationship highlight and attention-arrow behavior used by Diagram 1.
 - Linked Diagram panning updates only the existing surface transform during pointer movement and persists once at pointer release. Paint containment and a single inline SVG prevent stale frames from appearing as smears.
-- The exact `PMT Field Mapping Example` Diagram is bundled as a public editable seed. Fresh Version 1.27 installs create it as Diagram ID 21 under the current seed order; the active `1.26 -> 1.27` migration inserts or safely adopts it for existing installs. Normal Latest sorting makes the newly inserted/updated Diagram appear first without forcing future selection.
+- The exact `PMT Field Mapping Example` Diagram is bundled as a public editable seed. Fresh Version 1.27 installs create it as Diagram ID 21 under the current seed order; the completed `1.26 -> 1.27` migration inserted or safely adopted it for existing installs. Normal Latest sorting makes the newly inserted/updated Diagram appear first without forcing future selection.
 
 These corrections do not implement Phase 4 Groups, Layers, Templates, Entity editing, relationship routing, Auto Format, Crop, or Diagram 2 Field Mapping authoring.
 
@@ -29,7 +29,7 @@ These corrections do not implement Phase 4 Groups, Layers, Templates, Entity edi
 - Final implementation commit subject: `Sin and Codex: complete Diagram 2 Phase 3 core editing parity`
 - Closeout authorization: Sin authorized formal Phase 3 closeout on 2026-07-27 after green automated validation.
 - Elapsed collaboration time: approximately 16 hours of wall-clock time from the starting commit timestamp through final validation, including implementation, user feedback, and test execution. This is not a continuous stopwatch measurement.
-- Database changes: the active Version 1.27 seed and `1.26 -> 1.27` migration add the public `PMT Field Mapping Example` Diagram without deleting unrelated data.
+- Database changes: the Version 1.27 seed and completed `1.26 -> 1.27` migration add the public `PMT Field Mapping Example` Diagram without deleting unrelated data.
 - Backend contract changes: none
 
 ## Completed Behavior
@@ -58,7 +58,7 @@ These corrections do not implement Phase 4 Groups, Layers, Templates, Entity edi
 | Save/reopen compatibility | PASS | Canonical document data remains compatible and renderer indexes, mounted-node state, and other live caches are not persisted. |
 | Linked Diagram panning | PASS | Pointer movement transforms one persistent inline SVG and stores the final view only at pointer release, preventing stale-image smearing. |
 | Linked Diagram Field Mapping | PASS | Read-only Field Mapping rows show base relationships, row emphasis, target highlights, and two attention arrows on hover/click. |
-| Public demo distribution | PASS | Fresh installs and the active migration provide one public editable bundled Field Mapping example under normal Latest sorting. |
+| Public demo distribution | PASS | Fresh installs and the completed migration provide one public editable bundled Field Mapping example under normal Latest sorting. |
 
 No Phase 3 feature is recorded as PARTIAL or FAIL.
 
@@ -164,7 +164,7 @@ Application and compatibility integration:
 Database and bundled demo:
 
 - `SQL/03_SeedData_DiagramDemo.sql`
-- `SQL/Migrations/PMT_1.26_to_1.27.sql`
+- `SQL/Migrations/Migration History/PMT_1.26_to_1.27.sql`
 - `wwwroot/assets/docs/pmt-field-mapping-example.svg`
 
 Tests and evidence:
@@ -271,4 +271,4 @@ There is no known technical blocker to Phase 4. Phase 4 must not begin automatic
 
 The final closeout changes frontend JavaScript/CSS, a bundled SVG asset, and SQL seed/migration files. **No .NET recompile is required for browser testing when PMT is already running.** Press **Ctrl+F5** in the browser.
 
-The changed CSS and JavaScript module graph use cache key `20260728-phase3-closeout-v1`, so the browser requests the corrected assets instead of reusing an older file. Existing Version 1.26 deployments must run `SQL/Migrations/PMT_1.26_to_1.27_All.sql` and deploy `wwwroot/assets/docs/pmt-field-mapping-example.svg`; fresh installations receive the Diagram from the normal rebuild seed.
+The changed CSS and JavaScript module graph use cache key `20260728-phase3-closeout-v1`, so the browser requests the corrected assets instead of reusing an older file. The completed Version 1.27 deployment used `SQL/Migrations/Migration History/PMT_1.26_to_1.27_All.sql`; every known instance is now at Version 1.27, and fresh installations receive the Diagram from the normal rebuild seed.

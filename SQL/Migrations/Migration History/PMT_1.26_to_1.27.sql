@@ -1,5 +1,6 @@
 /*
     PMT Database Version 1.26 -> 1.27
+    Released migration retained for deployment history.
 
     Adds user Suggestions, GUID-based anonymous public read-only Document/Diagram links,
     linked Dev/Bug rollback behavior when QA has not touched the linked Bug,

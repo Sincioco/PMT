@@ -11,8 +11,8 @@ const gameScoreMigration = read("../../SQL/Migrations/Migration History/PMT_1.24
 const gameScoreMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.23_to_1.25_All.sql");
 const tutorialDocsMigration = read("../../SQL/Migrations/Migration History/PMT_1.25_to_1.26.sql");
 const tutorialDocsMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.25_to_1.26_All.sql");
-const day36Migration = read("../../SQL/Migrations/PMT_1.26_to_1.27.sql");
-const day36MigrationRunner = read("../../SQL/Migrations/PMT_1.26_to_1.27_All.sql");
+const day36Migration = read("../../SQL/Migrations/Migration History/PMT_1.26_to_1.27.sql");
+const day36MigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.26_to_1.27_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
@@ -309,7 +309,7 @@ test("historical combined migration runners resolve every SQLCMD include", () =>
   }
 });
 
-test("active combined migration runner resolves every SQLCMD include", () => {
+test("active combined migration runners resolve every SQLCMD include", () => {
   const migrationsUrl = new URL("../../SQL/Migrations/", import.meta.url);
   const runners = readdirSync(migrationsUrl).filter((name) => name.endsWith("_All.sql"));
 
