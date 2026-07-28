@@ -136,6 +136,15 @@ test("Diagram 2 feature CSS stays flat without shadows", async () => {
   assert.doesNotMatch(css, /box-shadow|drop-shadow|filter\s*:/);
 });
 
+test("Diagram 2 selected objects keep their saved outline color", async () => {
+  const css = await readFile(
+    new URL("../../wwwroot/css/features/diagram2.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.doesNotMatch(css, /\.diagram2-renderer-object\.is-selected/);
+});
+
 test("Diagram 2 can load canonical state from saved Diagram SVG metadata", async () => {
   const document = {
     id: 10,

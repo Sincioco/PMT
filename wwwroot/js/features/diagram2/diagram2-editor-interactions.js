@@ -1,7 +1,7 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -433,14 +433,25 @@ export function bindDiagram2EditorInteractions(options = {}) {
       originals,
       objects: originals.map(cloneValue),
       bounds: diagram2SelectionResizeBounds(originals),
+      pointerOffset: null,
       changed: false
+    };
+    const startPoint = renderer.screenToWorld(event);
+    const anchor = resizeHandleAnchor(gesture.bounds, handleName, originals[0]);
+    gesture.pointerOffset = {
+      x: anchor.x - startPoint.x,
+      y: anchor.y - startPoint.y
     };
     renderer.beginGeometryPreview({ objectIds: resizeIds, mode: "resize" });
     canvas.classList.add("is-resizing-object");
     capturePointer(event);
     eventWindow.addEventListener("pointermove", moveEvent => {
       if (gesture?.kind !== "resize") return;
-      const point = controller.snapPoint(renderer.screenToWorld(moveEvent));
+      const rawPoint = renderer.screenToWorld(moveEvent);
+      const point = controller.snapPoint({
+        x: rawPoint.x + finiteNumber(gesture.pointerOffset?.x, 0),
+        y: rawPoint.y + finiteNumber(gesture.pointerOffset?.y, 0)
+      });
       const objects = resizeDiagram2ObjectsGeometry(
         gesture.originals,
         gesture.handle,
@@ -455,6 +466,35 @@ export function bindDiagram2EditorInteractions(options = {}) {
       options.onDiagnostics?.(renderer.previewGeometry({ objects }));
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
+  }
+
+  function resizeHandleAnchor(boundsInput, handleName, object = null) {
+    if (handleName === "arrow-base") {
+      return {
+        x: finiteNumber(object?.x1, 0),
+        y: finiteNumber(object?.y1, 0)
+      };
+    }
+    if (handleName === "arrow-tip") {
+      return {
+        x: finiteNumber(object?.x2, object?.x1),
+        y: finiteNumber(object?.y2, object?.y1)
+      };
+    }
+    const bounds = boundsInput || {};
+    const left = finiteNumber(bounds.x, 0);
+    const top = finiteNumber(bounds.y, 0);
+    const width = positiveNumber(bounds.width, 1);
+    const height = positiveNumber(bounds.height, 1);
+    const right = left + width;
+    const bottom = top + height;
+    const centerX = left + (width / 2);
+    const centerY = top + (height / 2);
+    const direction = String(handleName || "");
+    return {
+      x: direction.includes("w") ? left : direction.includes("e") ? right : centerX,
+      y: direction.includes("n") ? top : direction.includes("s") ? bottom : centerY
+    };
   }
 
   function startMarquee(event) {
@@ -538,6 +578,16 @@ function pointerSelection(controller, objectId, event) {
 
 function editableEventTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], [contenteditable='']"));
+}
+
+function finiteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function positiveNumber(value, fallback = 1) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 function objectPositionFixed(object) {

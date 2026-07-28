@@ -229,6 +229,30 @@ test("Diagram 2 fit uses visible content bounds instead of the full canvas", () 
   assert.equal(diagram2WorldToScreenPoint(transform, { x: 760, y: 440 }).y, 350);
 });
 
+test("Diagram 2 fit centers content inside the visible pane-adjusted area", () => {
+  const state = normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    objects: [{
+      id: "box",
+      type: "rectangle",
+      x: 700,
+      y: 420,
+      width: 120,
+      height: 40,
+      fill: "none",
+      stroke: "#172b4d"
+    }]
+  });
+  const transform = diagram2FitViewportTransform(state, { width: 1000, height: 700 }, {
+    padding: 16,
+    inset: { left: 320 }
+  });
+
+  assert.equal(diagram2WorldToScreenPoint(transform, { x: 760, y: 440 }).x, 660);
+  assert.equal(diagram2WorldToScreenPoint(transform, { x: 760, y: 440 }).y, 350);
+});
+
 test("Diagram 2 fit falls back to canvas bounds for empty diagrams", () => {
   const state = normalizeAnnotationState({
     width: 1600,

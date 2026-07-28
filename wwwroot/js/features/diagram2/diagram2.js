@@ -18,7 +18,7 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
+} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -54,25 +54,31 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v5";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
+  bindDiagram2EditorInspectorResize,
+  bindDiagram2EditorLeftPaneResize,
   copyDiagram2SelectionArtwork,
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
   diagram2TemplatePaneHtml,
   openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
+  setDiagram2ObjectsPaneOpen,
+  setDiagram2TemplatesPaneOpen,
+  setDiagram2ToolsPaneOpen,
+  syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -81,11 +87,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -303,11 +309,7 @@ export function createDiagram2Feature({
       return true;
     }
     if (action === "cancel-diagram2-editor") {
-      if (diagram2DocumentMode === "edit") {
-        diagram2DocumentMode = "readonly";
-        resetDiagram2ViewerToFit();
-        render();
-      }
+      if (diagram2DocumentMode === "edit") await closeDiagram2Editor();
       return true;
     }
     if (action === "delete-diagram2") {
@@ -355,6 +357,16 @@ export function createDiagram2Feature({
     if (action === "rename-diagram2-object") {
       if (!diagram2EditModeActive()) return true;
       await renameDiagram2StructureNode(button);
+      return true;
+    }
+    if (action === "delete-diagram2-object-tree-item") {
+      if (!diagram2EditModeActive()) return true;
+      await deleteDiagram2StructureNode(button);
+      return true;
+    }
+    if (action === "lock-diagram2-object-tree-item") {
+      if (!diagram2EditModeActive()) return true;
+      await toggleDiagram2StructureLock(button);
       return true;
     }
     if (action === "toggle-diagram2-object-visibility") {
@@ -448,7 +460,25 @@ export function createDiagram2Feature({
       if (!diagram2EditModeActive()) return true;
       const main = app.querySelector("[data-diagram2-editor-main]");
       main?.classList.toggle("is-inspector-hidden");
-      button?.setAttribute("aria-expanded", String(!main?.classList.contains("is-inspector-hidden")));
+      syncDiagram2InspectorToggleState();
+      return true;
+    }
+    if (action === "toggle-diagram2-tools-pane") {
+      if (!diagram2EditModeActive()) return true;
+      setDiagram2ToolsPaneOpen(app);
+      syncDiagram2VisibleViewportInset({ refit: false });
+      return true;
+    }
+    if (action === "toggle-diagram2-objects-pane") {
+      if (!diagram2EditModeActive()) return true;
+      setDiagram2ObjectsPaneOpen(app);
+      syncDiagram2VisibleViewportInset({ refit: false });
+      return true;
+    }
+    if (action === "toggle-diagram2-templates-pane") {
+      if (!diagram2EditModeActive()) return true;
+      setDiagram2TemplatesPaneOpen(app);
+      syncDiagram2VisibleViewportInset({ refit: false });
       return true;
     }
     if (action === "toggle-diagram2-diagnostics") {
@@ -1146,10 +1176,7 @@ export function createDiagram2Feature({
         templateLibrary: diagram2TemplateState.library,
         historyLimit: diagram2HistoryLimit
       });
-      const objectsPanel = viewer.querySelector("[data-diagram2-inspector-panel='objects']");
-      if (objectsPanel) objectsPanel.innerHTML = diagram2ObjectsPaneHtml(diagram2RendererState, diagram2SelectedObjectIds, {
-        search: diagram2ObjectSearch
-      });
+      refreshDiagram2ObjectsPane();
       refreshDiagram2TemplatePane(viewer);
       diagram2Controller.onChange(event => {
         diagram2RendererState = diagram2Controller.currentState();
@@ -1167,6 +1194,7 @@ export function createDiagram2Feature({
     let diagnostics = diagram2Renderer.render(diagram2RendererState, {
       reason: "initial"
     });
+    syncDiagram2VisibleViewportInset({ refit: false });
     diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
     syncDiagram2ReadonlyScrollbars({ reset: true });
     scheduleDiagram2ReadonlyScrollSync({ reset: true });
@@ -1476,6 +1504,7 @@ export function createDiagram2Feature({
   function applyDiagram2ViewerZoom() {
     app.querySelector("[data-diagram2-renderer-surface]")?.classList.toggle("is-fit", diagram2ViewerZoom === "fit");
     syncDiagram2ZoomControl();
+    syncDiagram2VisibleViewportInset({ refit: false });
     const diagnostics = diagram2ViewerZoom === "fit"
       ? diagram2Renderer?.fit()
       : diagram2Renderer?.setZoom(diagram2ViewerZoom);
@@ -1483,6 +1512,10 @@ export function createDiagram2Feature({
     scheduleDiagram2ReadonlyScrollSync({ reset: true });
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     scheduleDiagram2ZoomControlSync();
+  }
+
+  function syncDiagram2VisibleViewportInset(options = {}) {
+    return syncDiagram2RendererViewportInset(app, diagram2Renderer, options);
   }
 
   function refreshDiagram2Renderer() {
@@ -1494,6 +1527,7 @@ export function createDiagram2Feature({
     let diagnostics = diagram2Renderer.render(diagram2RendererState, {
       reason: "refresh"
     });
+    syncDiagram2VisibleViewportInset({ refit: false });
     diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
     diagnostics = diagram2Renderer.setSelectedIds(diagram2SelectedObjectIds);
     syncDiagram2ReadonlyScrollbars({ reset: true });
@@ -1614,6 +1648,8 @@ export function createDiagram2Feature({
     bindDiagram2ImportInput();
     bindDiagram2InspectorTabs();
     bindDiagram2ColorPickers();
+    bindDiagram2InspectorResize();
+    bindDiagram2LeftPaneResize();
     bindDiagram2ObjectTreeControls();
     bindDiagram2TreeSplitter();
     bindDiagram2TreeContextMenu();
@@ -1654,17 +1690,72 @@ export function createDiagram2Feature({
     });
     bindDiagram2EditorFormatControls(shell, {
       applyStyle: (name, value) => applyDiagram2SelectedStyle(name, value),
+      applyGeometry: (name, value) => applyDiagram2SelectedGeometry(name, value),
       notify
+    });
+  }
+
+  function bindDiagram2InspectorResize() {
+    const shell = app.querySelector("[data-diagram2-editor-shell]");
+    if (!shell) return;
+    bindDiagram2EditorInspectorResize(shell, {
+      onResize: () => {
+        if (String(app.querySelector("[data-filter='diagram2-zoom']")?.value || "fit") === "fit") applyDiagram2ViewerZoom();
+      }
+    });
+  }
+
+  function bindDiagram2LeftPaneResize() {
+    const shell = app.querySelector("[data-diagram2-editor-shell]");
+    if (!shell) return;
+    bindDiagram2EditorLeftPaneResize(shell, {
+      onResize: () => syncDiagram2VisibleViewportInset({ refit: false })
+    });
+  }
+
+  function syncDiagram2InspectorToggleState() {
+    const main = app.querySelector("[data-diagram2-editor-main]");
+    const expanded = !main?.classList.contains("is-inspector-hidden");
+    app.querySelectorAll("[data-action='toggle-diagram2-inspector']").forEach(control => {
+      control.setAttribute("aria-expanded", String(expanded));
     });
   }
 
   function bindDiagram2ObjectTreeControls() {
     const shell = app.querySelector("[data-diagram2-editor-shell]");
     if (!shell) return;
+    let lastObjectTreePointerDown = { key: "", time: 0 };
     const search = shell.querySelector("[data-filter='diagram2-object-search']");
     search?.addEventListener("input", event => {
       diagram2ObjectSearch = String(event.target.value || "").trim();
       refreshDiagram2ObjectsPane({ preserveFocus: true });
+    });
+    shell.addEventListener("click", event => {
+      if (Number(event.detail || 0) < 2) return;
+      const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+      if (!row || !shell.contains(row) || event.target.closest?.("button, input, textarea, select")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void focusDiagram2StructureNode(row);
+    }, { capture: true });
+    shell.addEventListener("pointerdown", event => {
+      const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+      if (!row || !shell.contains(row) || event.target.closest?.("button, input, textarea, select")) return;
+      const key = `${row.dataset.diagram2TreeNodeKind || "object"}:${row.dataset.diagram2ObjectId || ""}`;
+      const time = Number(event.timeStamp || Date.now());
+      if (key && key === lastObjectTreePointerDown.key && time - lastObjectTreePointerDown.time <= 500) {
+        event.preventDefault();
+        lastObjectTreePointerDown = { key: "", time: 0 };
+        void focusDiagram2StructureNode(row);
+        return;
+      }
+      lastObjectTreePointerDown = { key, time };
+    });
+    shell.addEventListener("dblclick", event => {
+      const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+      if (!row || !shell.contains(row) || event.target.closest?.("button, input, textarea, select")) return;
+      event.preventDefault();
+      void focusDiagram2StructureNode(row);
     });
     bindDiagram2ObjectTreeDragAndDrop(shell);
   }
@@ -1757,6 +1848,27 @@ export function createDiagram2Feature({
     if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
     const applied = await diagram2Controller.updateSelectedObjectsStyle(name, value, {
       reason: `format ${name}`
+    });
+    if (!applied) return false;
+    diagram2RendererState = diagram2Controller.currentState();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    updateDiagram2EditorControls();
+    const diagnostics = await diagram2Renderer.whenIdle();
+    updateDiagram2Diagnostics(diagnostics);
+    return true;
+  }
+
+  async function applyDiagram2SelectedGeometry(name, value) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
+    const property = String(name || "").trim();
+    if (!["width", "height"].includes(property)) return false;
+    const dimension = diagram2RectangleDimensionValue(value);
+    if (!Number.isFinite(dimension)) return false;
+    const selection = diagram2Controller.getObjectsByIds(diagram2Controller.selectedObjectIds());
+    if (selection.length !== 1 || selection[0]?.type !== "rectangle" || selection[0]?.locked === true) return false;
+    const applied = await diagram2Controller.resizeObjects([{ ...selection[0], [property]: dimension }], {
+      label: "Resize rectangle",
+      reason: `rectangle ${property}`
     });
     if (!applied) return false;
     diagram2RendererState = diagram2Controller.currentState();
@@ -2050,13 +2162,6 @@ export function createDiagram2Feature({
         writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
       }
       notify?.("Diagram 2 saved.");
-      queueMicrotask(() => {
-        if (!active) return;
-        diagram2DocumentMode = "readonly";
-        diagram2ModeDocumentId = selectedDiagramDocumentId;
-        resetDiagram2ViewerToFit();
-        render();
-      });
       return true;
     } catch (error) {
       notify?.(diagram2SaveConflict(error)
@@ -2068,6 +2173,56 @@ export function createDiagram2Feature({
       diagram2Controller?.setBusy(false);
       updateDiagram2EditorControls();
     }
+  }
+
+  async function closeDiagram2Editor() {
+    if (diagram2DocumentMode !== "edit") return false;
+    if (diagram2Busy) return false;
+    if (diagram2Controller?.historyStatus?.().dirty === true) {
+      const action = await askDiagram2UnsavedCloseAction();
+      if (action === "cancel") return false;
+      if (action === "save" && !await saveDiagram2Document()) return false;
+    }
+    if (!active) return false;
+    diagram2DocumentMode = "readonly";
+    diagram2ModeDocumentId = selectedDiagramDocumentId;
+    resetDiagram2ViewerToFit();
+    render();
+    return true;
+  }
+
+  function askDiagram2UnsavedCloseAction() {
+    return new Promise(resolve => {
+      const modal = document.createElement("dialog");
+      modal.className = "dialog mini-dialog";
+      modal.innerHTML = `
+        <div class="dialog-head">
+          <h2>Unsaved Changes</h2>
+        </div>
+        <div class="dialog-body">
+          <p>Save changes before closing this Diagram?</p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="button" class="secondary text-icon-button" data-result="discard">${buttonContent("&#8634;", "Discard")}</button>
+          <button type="button" class="primary text-icon-button" data-result="save">${buttonContent("&#10003;", "Save")}</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const finish = result => {
+        modal.close();
+        modal.remove();
+        resolve(result);
+      };
+      modal.querySelectorAll("[data-result]").forEach(button => {
+        button.addEventListener("click", () => finish(button.dataset.result || "cancel"));
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish("cancel");
+      });
+      modal.showModal();
+    });
   }
 
   async function exportDiagram2Pmt() {
@@ -2392,14 +2547,32 @@ export function createDiagram2Feature({
 
   async function selectDiagram2StructureNode(button) {
     if (!diagram2Controller) return false;
-    const kind = button?.dataset?.nodeKind || "object";
-    const id = button?.dataset?.objectId || "";
+    const { kind, id } = diagram2StructureTargetFromButton(button);
     const selected = diagram2Controller.selectStructureNode(kind, id);
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = selected;
     refreshDiagram2ObjectsPane();
     updateDiagram2EditorControls();
     return selected.length > 0;
+  }
+
+  async function focusDiagram2StructureNode(row) {
+    const { kind, id } = diagram2StructureTargetFromButton(row);
+    if (!id || !await selectDiagram2StructureNode(row)) return false;
+    const focusIds = kind === "group"
+      ? diagram2Controller.selectedObjectIds()
+      : [id];
+    const diagnostics = diagram2Renderer?.focusObjectIds?.(focusIds, {
+      reason: "object tree focus"
+    });
+    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    const settledDiagnostics = await diagram2Renderer?.whenIdle?.();
+    if (settledDiagnostics) updateDiagram2Diagnostics(settledDiagnostics);
+    diagram2ViewerZoom = diagram2ZoomOptionValue(diagram2CurrentViewportScale());
+    app.querySelector("[data-diagram2-renderer-surface]")?.classList.remove("is-fit");
+    scheduleDiagram2ZoomControlSync();
+    app.querySelector("[data-diagram2-viewer-canvas]")?.focus?.({ preventScroll: true });
+    return true;
   }
 
   async function groupDiagram2Selection() {
@@ -2431,6 +2604,41 @@ export function createDiagram2Feature({
     if (!renamed) return false;
     await finishDiagram2ObjectCommand();
     notify?.("Diagram object renamed.");
+    return true;
+  }
+
+  async function deleteDiagram2StructureNode(button) {
+    if (!diagram2Controller || !diagram2Renderer || !diagram2CanMutateCurrentDocument()) return false;
+    const target = diagram2StructureTargetFromButton(button);
+    if (!target.id) return false;
+    const selected = diagram2Controller.selectStructureNode(target.kind, target.id);
+    if (!selected.length) return false;
+    diagram2RendererState = diagram2Controller.currentState();
+    diagram2SelectedObjectIds = selected;
+    updateDiagram2ObjectTreeSelection(app, selected);
+    updateDiagram2EditorControls();
+    const deleted = await diagram2Controller.deleteSelectedObjects({
+      label: "Delete object from tree",
+      reason: "object tree delete"
+    });
+    if (!deleted) return false;
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram object deleted.");
+    return true;
+  }
+
+  async function toggleDiagram2StructureLock(button) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const target = diagram2StructureTargetFromButton(button);
+    if (!target.id) return false;
+    const changed = await diagram2Controller.setStructureNodeLocked(target.kind, target.id);
+    if (!changed) return false;
+    await finishDiagram2ObjectCommand();
+    const selection = diagram2Controller.getObjectsByIds(
+      target.kind === "group" ? diagram2Controller.selectedObjectIds() : [target.id]
+    );
+    const locked = selection.length > 0 && selection.every(object => object.locked === true);
+    notify?.(`Diagram object${selection.length === 1 ? "" : "s"} ${locked ? "locked" : "unlocked"}.`);
     return true;
   }
 
@@ -2778,11 +2986,14 @@ export function createDiagram2Feature({
     const pane = root.querySelector("[data-diagram2-template-pane]");
     const current = diagram2Controller?.state?.() || diagram2RendererState;
     if (!pane || !current) return;
+    const previousScrollTop = pane.querySelector(".diagram2-editor-left-pane-scroll")?.scrollTop || 0;
     pane.outerHTML = diagram2TemplatePaneHtml(
       diagram2TemplateState,
       current,
       diagram2Controller?.selectedObjectIds?.() || diagram2SelectedObjectIds
     );
+    const nextScroll = root.querySelector("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll");
+    if (nextScroll) nextScroll.scrollTop = previousScrollTop;
   }
 
   function setDiagram2TemplateMessage(message) {
@@ -2820,8 +3031,8 @@ export function createDiagram2Feature({
 
   function diagram2StructureTargetFromButton(button) {
     const selectedIds = diagram2Controller?.selectedObjectIds?.() || [];
-    const id = String(button?.dataset?.objectId || selectedIds[0] || "").trim();
-    const kind = String(button?.dataset?.nodeKind || "object").trim() || "object";
+    const id = String(button?.dataset?.objectId || button?.dataset?.diagram2ObjectId || selectedIds[0] || "").trim();
+    const kind = String(button?.dataset?.nodeKind || button?.dataset?.diagram2TreeNodeKind || "object").trim() || "object";
     return { kind, id };
   }
 
@@ -3824,6 +4035,12 @@ function uniqueStrings(values) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function diagram2RectangleDimensionValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return Number.NaN;
+  return Math.min(10000, Math.max(8, number));
 }
 
 function safeFileName(value) {

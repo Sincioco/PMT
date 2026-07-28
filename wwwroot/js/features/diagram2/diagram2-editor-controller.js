@@ -1,10 +1,10 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v5";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -17,14 +17,14 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v5";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
@@ -234,8 +234,11 @@ export function createDiagram2EditorController(options = {}) {
     emit("state");
   }
 
-  function setSelection(ids = []) {
-    selectedObjectIds = diagram2ExpandGroupSelectionIds(canonicalState, existingObjectIds(ids));
+  function setSelection(ids = [], selectionOptions = {}) {
+    const exactIds = existingObjectIds(ids);
+    selectedObjectIds = selectionOptions.expandGroups === false
+      ? exactIds
+      : diagram2ExpandGroupSelectionIds(canonicalState, exactIds);
     const diagnostics = renderer?.setSelectedIds?.(selectedObjectIds);
     emit("selection", { diagnostics });
     return selectedObjectIds.slice();
@@ -622,6 +625,30 @@ export function createDiagram2EditorController(options = {}) {
     return true;
   }
 
+  async function setStructureNodeLocked(kind, id, lockedInput = null) {
+    if (busy || destroyed || !canMutate()) return false;
+    const objectIds = diagram2ObjectTreeNodeSelectionIds(canonicalState, kind, id);
+    const objects = objectIds
+      .map(objectId => getObjectById(objectId))
+      .filter(object => object && !objectPositionFixed(object));
+    if (!objects.length) return false;
+    const locked = lockedInput == null
+      ? !objects.every(object => object.locked === true)
+      : lockedInput === true;
+    const nextObjects = objects
+      .filter(object => object.locked !== locked)
+      .map(object => ({ ...object, locked }));
+    if (!nextObjects.length) return false;
+    const command = createDiagram2PatchObjectsCommand({
+      objects: nextObjects,
+      label: locked ? "Lock objects" : "Unlock objects",
+      reason: locked ? "lock objects" : "unlock objects"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
   async function arrangeSelectedObjects(actionInput) {
     if (busy || destroyed || !canMutate()) return false;
     const plan = diagram2LayerOrderPlan(canonicalState, selectedObjectIds, actionInput);
@@ -727,7 +754,10 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function selectStructureNode(kind, id) {
-    return setSelection(diagram2ObjectTreeNodeSelectionIds(canonicalState, kind, id));
+    const normalizedKind = String(kind || "object").trim().toLowerCase();
+    return setSelection(diagram2ObjectTreeNodeSelectionIds(canonicalState, normalizedKind, id), {
+      expandGroups: normalizedKind !== "object"
+    });
   }
 
   function createDefaultObject(type, centerInput = {}, options = {}) {
@@ -1437,6 +1467,7 @@ export function createDiagram2EditorController(options = {}) {
     cancelFormatPainter,
     applyFormatPainter,
     setSelectedObjectsLocked,
+    setStructureNodeLocked,
     arrangeSelectedObjects,
     groupSelectedObjects,
     ungroupSelectedObjects,
@@ -1511,7 +1542,7 @@ export function createDiagram2AddObjectCommand(options = {}) {
       const renderer = context.renderer;
       renderer?.beginDiagramUpdate?.(`${reason} undo`);
       renderer?.removeObject?.(objectId);
-      context.setSelection(previousSelection);
+      context.setSelection(previousSelection, { expandGroups: false });
       renderer?.endDiagramUpdate?.(`${reason} undo`);
       return true;
     },
@@ -1567,7 +1598,7 @@ export function createDiagram2AddObjectsCommand(options = {}) {
         state: context.state,
         affectedObjectIds: objectIds
       });
-      context.setSelection(previousSelection);
+      context.setSelection(previousSelection, { expandGroups: false });
       return true;
     },
     redo(context) {
@@ -1629,7 +1660,7 @@ export function createDiagram2DeleteObjectsCommand(options = {}) {
         state: context.state,
         affectedObjectIds: objectIds
       });
-      context.setSelection(selectionBefore.filter(id => !objectIds.includes(id)));
+      context.setSelection(selectionBefore.filter(id => !objectIds.includes(id)), { expandGroups: false });
       return true;
     },
     undo(context) {
@@ -1645,7 +1676,7 @@ export function createDiagram2DeleteObjectsCommand(options = {}) {
         groupVisibility,
         state: context.state
       });
-      context.setSelection(objectIds);
+      context.setSelection(objectIds, { expandGroups: false });
       return true;
     },
     redo(context) {
@@ -1685,7 +1716,7 @@ export function createDiagram2PatchObjectsCommand(options = {}) {
     renderer?.beginDiagramUpdate?.(operationReason);
     update.affectedObjectIds.forEach(id => renderer?.updateObject?.(id, cloneDiagram2Value(valuesById.get(id))));
     renderer?.endDiagramUpdate?.(operationReason);
-    context.setSelection(update.affectedObjectIds);
+    context.setSelection(update.affectedObjectIds, { expandGroups: false });
     return true;
   };
 
@@ -1732,7 +1763,7 @@ export function createDiagram2TextCommand(options = {}) {
     renderer?.beginDiagramUpdate?.(operationReason);
     renderer?.updateObject?.(objectId, { [property]: nextValue });
     renderer?.endDiagramUpdate?.(operationReason);
-    context.setSelection([objectId]);
+    context.setSelection([objectId], { expandGroups: false });
     return true;
   };
 
@@ -1794,7 +1825,7 @@ export function createDiagram2ArrangeObjectsCommand(options = {}) {
     const renderer = context.renderer;
     renderer?.beginDiagramUpdate?.(operationReason);
     renderer?.setObjectOrder?.(order, { reason: operationReason });
-    context.setSelection(objectIds);
+    context.setSelection(objectIds, { expandGroups: false });
     renderer?.endDiagramUpdate?.(operationReason);
     return true;
   };
@@ -1911,7 +1942,7 @@ export function createDiagram2ResizeCommand(options = {}) {
         appliedObjectIds.forEach(id => renderer.updateObject(id, cloneDiagram2Value(objectsById.get(id))));
         renderer.endDiagramUpdate(reason);
       }
-      context.setSelection(appliedObjectIds);
+      context.setSelection(appliedObjectIds, { expandGroups: false });
       return true;
     },
     undo(context) {
@@ -1926,7 +1957,7 @@ export function createDiagram2ResizeCommand(options = {}) {
       renderer?.beginDiagramUpdate?.(`${reason} undo`);
       appliedObjectIds.forEach(id => renderer?.updateObject?.(id, cloneDiagram2Value(previousObjectsById.get(id))));
       renderer?.endDiagramUpdate?.(`${reason} undo`);
-      context.setSelection(appliedObjectIds);
+      context.setSelection(appliedObjectIds, { expandGroups: false });
       return true;
     },
     redo(context) {
@@ -1941,7 +1972,7 @@ export function createDiagram2ResizeCommand(options = {}) {
       renderer?.beginDiagramUpdate?.(`${reason} redo`);
       appliedObjectIds.forEach(id => renderer?.updateObject?.(id, cloneDiagram2Value(objectsById.get(id))));
       renderer?.endDiagramUpdate?.(`${reason} redo`);
-      context.setSelection(appliedObjectIds);
+      context.setSelection(appliedObjectIds, { expandGroups: false });
       return true;
     }
   };
@@ -2312,7 +2343,7 @@ async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {
     renderer.endDiagramUpdate(options.reason || "move objects");
   }
 
-  context.setSelection(objectIds);
+  context.setSelection(objectIds, { expandGroups: false });
   return true;
 }
 
@@ -2340,7 +2371,7 @@ function applyDiagram2Style(context, objectIds, styleName, valueProvider, option
     });
     renderer.endDiagramUpdate(reason);
   }
-  context.setSelection(affectedObjectIds);
+  context.setSelection(affectedObjectIds, { expandGroups: false });
   return true;
 }
 

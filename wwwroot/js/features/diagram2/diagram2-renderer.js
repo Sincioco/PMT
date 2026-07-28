@@ -7,7 +7,7 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
+} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -219,6 +219,7 @@ export function diagram2FitViewportTransform(inputState, viewportInput, options 
     height: Math.max(1, finiteNumber(viewportInput?.height, defaultDiagram2Height))
   };
   const padding = Math.max(0, finiteNumber(options?.padding, defaultViewportPadding));
+  const inset = normalizeDiagram2ViewportInset(options?.inset || viewportInput?.inset);
   const scaleStep = Math.max(0, finiteNumber(options?.scaleStep, 0));
   const contentBounds = diagram2ContentBounds(state);
   const fitBounds = contentBounds || {
@@ -227,8 +228,10 @@ export function diagram2FitViewportTransform(inputState, viewportInput, options 
     width: positiveNumber(state?.width, defaultDiagram2Width),
     height: positiveNumber(state?.height, defaultDiagram2Height)
   };
-  const availableWidth = Math.max(1, viewport.width - (padding * 2));
-  const availableHeight = Math.max(1, viewport.height - (padding * 2));
+  const visibleWidth = Math.max(1, viewport.width - inset.left - inset.right);
+  const visibleHeight = Math.max(1, viewport.height - inset.top - inset.bottom);
+  const availableWidth = Math.max(1, visibleWidth - (padding * 2));
+  const availableHeight = Math.max(1, visibleHeight - (padding * 2));
   const rawScale = Math.min(availableWidth / fitBounds.width, availableHeight / fitBounds.height);
   const steppedScale = scaleStep > 0
     ? Math.min(rawScale, Math.round(rawScale / scaleStep) * scaleStep)
@@ -236,8 +239,17 @@ export function diagram2FitViewportTransform(inputState, viewportInput, options 
   const scale = clampNumber(steppedScale, minimumViewportScale, maximumFitViewportScale);
   return {
     scale,
-    translateX: ((viewport.width - (fitBounds.width * scale)) / 2) - (fitBounds.x * scale),
-    translateY: ((viewport.height - (fitBounds.height * scale)) / 2) - (fitBounds.y * scale)
+    translateX: inset.left + ((visibleWidth - (fitBounds.width * scale)) / 2) - (fitBounds.x * scale),
+    translateY: inset.top + ((visibleHeight - (fitBounds.height * scale)) / 2) - (fitBounds.y * scale)
+  };
+}
+
+function normalizeDiagram2ViewportInset(insetInput = {}) {
+  return {
+    left: Math.max(0, finiteNumber(insetInput?.left, 0)),
+    top: Math.max(0, finiteNumber(insetInput?.top, 0)),
+    right: Math.max(0, finiteNumber(insetInput?.right, 0)),
+    bottom: Math.max(0, finiteNumber(insetInput?.bottom, 0))
   };
 }
 
@@ -337,7 +349,7 @@ export function diagram2RelationshipPatchFlags(previousRelationship, nextRelatio
   };
 }
 
-export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null, viewportPadding = defaultViewportPadding, fitScaleStep = 0 } = {}) {
+export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null, viewportPadding = defaultViewportPadding, fitScaleStep = 0, viewportInset: initialViewportInset = null } = {}) {
   if (!host) throw new Error("Diagram 2 renderer requires a host element.");
 
   const fitViewportPadding = Math.max(0, finiteNumber(viewportPadding, defaultViewportPadding));
@@ -350,6 +362,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   const planes = {};
   const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
   const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
+  let viewportInset = normalizeDiagram2ViewportInset(initialViewportInset);
   let svg = null;
   let viewportPlane = null;
   let canonicalState = null;
@@ -510,6 +523,32 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     };
     queueViewportTransform(next, {
       reason: "pan",
+      cursorScreenPoint: viewportCenterPoint(),
+      worldPointUnderCursor: null
+    });
+    return diagnostics();
+  }
+
+  function focusObjectIds(idsInput = [], options = {}) {
+    if (!canonicalState) return diagnostics();
+    const ids = new Set((Array.isArray(idsInput) ? idsInput : [idsInput])
+      .map(id => String(id || "").trim())
+      .filter(Boolean));
+    if (!ids.size) return diagnostics();
+    const bounds = canonicalState.objects
+      .filter(object => ids.has(object.id) && diagram2ObjectVisible(object, canonicalState))
+      .reduce((nextBounds, object) => unionBounds(nextBounds, diagram2ObjectContentBounds(object)), null);
+    if (!bounds) return diagnostics();
+
+    const scale = positiveNumber(options.scale, viewportTransform.scale);
+    const center = viewportCenterPoint();
+    zoomMode = String(scale);
+    queueViewportTransform({
+      scale,
+      translateX: center.x - ((bounds.x + (bounds.width / 2)) * scale),
+      translateY: center.y - ((bounds.y + (bounds.height / 2)) * scale)
+    }, {
+      reason: String(options.reason || "focus object"),
       cursorScreenPoint: viewportCenterPoint(),
       worldPointUnderCursor: null
     });
@@ -833,6 +872,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     };
 
     setGeometryPreviewRelationshipsHidden(activeGeometryPreview, true);
+    svg.classList.add("is-geometry-previewing");
     bringPreviewObjectsForward(activeGeometryPreview.objectIds);
     activeGeometryPreview.objectIds.forEach(id => {
       liveView.objectNodesById.get(id)?.classList.add("is-previewing");
@@ -1037,7 +1077,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function whenIdle() {
-    if (!pendingDiagramFlushFrame && !pendingGeometryPreviewFrame && !dirtyStateHasChanges(dirty)) {
+    if (!pendingDiagramFlushFrame && !pendingGeometryPreviewFrame && !pendingViewportFrame && !dirtyStateHasChanges(dirty)) {
       return Promise.resolve(diagnostics());
     }
     return new Promise(resolve => {
@@ -2514,6 +2554,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function clearGeometryPreview({ restoreObjects = false, reason = "" } = {}) {
     const preview = activeGeometryPreview;
+    svg?.classList.remove("is-geometry-previewing");
     setGeometryPreviewRelationshipsHidden(preview, false);
     if (preview && restoreObjects) {
       preview.originalObjectsById.forEach((object, id) => {
@@ -2585,44 +2626,49 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
       setSvgAttributes(overlay, {
         "data-diagram2-selection-id": entry.id,
-        class: entry.kind === "group"
-          ? "diagram2-renderer-selection diagram2-renderer-group-selection"
-          : "diagram2-renderer-selection",
+        class: [
+          "diagram2-renderer-selection",
+          entry.kind === "group" ? "diagram2-renderer-group-selection" : "",
+          entry.connector === true ? "diagram2-renderer-connector-selection" : "",
+          entry.locked === true ? "is-locked" : ""
+        ].filter(Boolean).join(" "),
         transform: entry.transform
       });
 
       let outline = overlay.querySelector(":scope > rect[data-diagram2-selection-outline]");
-      if (!outline) {
+      if (entry.connector === true) {
+        outline?.remove();
+      } else if (!outline) {
         outline = appendSvg(overlay, "rect", {
           "data-diagram2-selection-outline": ""
         });
       }
-      setSvgAttributes(outline, {
-        x: entry.bounds.x - 4,
-        y: entry.bounds.y - 4,
-        width: entry.bounds.width + 8,
-        height: entry.bounds.height + 8,
-        fill: "none",
-        stroke: "#2563eb",
-        "stroke-width": 2,
-        "stroke-dasharray": "6 4",
-        "vector-effect": "non-scaling-stroke",
-        "pointer-events": "none"
-      });
+      if (outline) {
+        setSvgAttributes(outline, {
+          x: entry.bounds.x,
+          y: entry.bounds.y,
+          width: entry.bounds.width,
+          height: entry.bounds.height,
+          fill: "none",
+          "stroke-width": 1,
+          "vector-effect": "non-scaling-stroke",
+          "pointer-events": "none"
+        });
+      }
 
       overlay.querySelectorAll(":scope > [data-diagram2-resize-handle]").forEach(handle => handle.remove());
+      overlay.querySelectorAll(":scope > .diagram2-renderer-locked-handle").forEach(handle => handle.remove());
       entry.handles.forEach(handle => {
+        const lockedHandle = entry.locked === true;
         appendSvg(overlay, "circle", {
-          class: "image-annotation-handle diagram2-renderer-resize-handle",
-          "data-annotation-handle": handle.direction,
-          "data-diagram2-resize-handle": handle.direction,
+          class: `image-annotation-handle diagram2-renderer-resize-handle${lockedHandle ? " diagram2-renderer-locked-handle is-locked" : ""}`,
+          "data-annotation-handle": lockedHandle ? null : handle.direction,
+          "data-diagram2-resize-handle": lockedHandle ? null : handle.direction,
           cx: handle.x,
           cy: handle.y,
           r: diagram2SelectionHandleRadius(committedViewportTransform.scale),
-          fill: "#2563eb",
-          stroke: "#ffffff",
           "stroke-width": 0.75,
-          "pointer-events": "all"
+          "pointer-events": lockedHandle ? "none" : "all"
         });
       });
     });
@@ -2634,6 +2680,20 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function diagram2SelectionOverlayEntries(previewObjectsById = null) {
     const grouped = new Map();
+    const groupMembersById = new Map();
+    (canonicalState?.objects || []).forEach(object => {
+      const groupId = String(object?.groupId || "").trim();
+      if (!groupId || !diagram2ObjectVisible(object, canonicalState) || !liveView.objectNodesById.has(object.id)) return;
+      const members = groupMembersById.get(groupId) || [];
+      members.push(object);
+      groupMembersById.set(groupId, members);
+    });
+    const fullySelectedGroups = new Set();
+    groupMembersById.forEach((members, groupId) => {
+      if (members.length > 0 && members.every(member => liveView.selectedIds.has(member.id))) {
+        fullySelectedGroups.add(groupId);
+      }
+    });
     const entries = [];
     liveView.selectedIds.forEach(id => {
       const object = previewObjectsById?.get(id) || liveView.objectDataById.get(id);
@@ -2641,26 +2701,34 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       if (!object || !objectNode?.isConnected) return;
 
       const groupId = String(object.groupId || "").trim();
-      if (groupId) {
+      if (groupId && fullySelectedGroups.has(groupId)) {
         const group = grouped.get(groupId) || {
           id: `group:${groupId}`,
           kind: "group",
           bounds: null,
           transform: null,
-          handles: []
+          handles: [],
+          locked: false,
+          connector: false
         };
         group.bounds = unionBounds(group.bounds, objectBounds(object));
+        group.locked = group.locked || object.locked === true;
         grouped.set(groupId, group);
         return;
       }
 
       const bounds = objectSelectionBounds(object);
+      const connector = object.type === "arrow" || object.type === "line";
       entries.push({
         id,
         kind: "object",
         bounds,
         transform: objectTransformText(object),
-        handles: object.locked === true ? [] : diagram2SelectionHandlePoints(object, bounds)
+        handles: connector || object.locked !== true
+          ? diagram2SelectionHandlePoints(object, bounds)
+          : [],
+        locked: object.locked === true,
+        connector
       });
     });
 
@@ -2781,13 +2849,27 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     measure(performanceApi, "diagram2 viewport transform", `${frameId}:start`, `${frameId}:end`);
     applyDiagnosticsAttributes();
     notifyDiagnostics();
+    resolvePendingFlushes();
   }
 
   function fitViewportTransform(state, viewport) {
     return diagram2FitViewportTransform(state, viewport, {
       padding: fitViewportPadding,
-      scaleStep: fitViewportScaleStep
+      scaleStep: fitViewportScaleStep,
+      inset: viewportInset
     });
+  }
+
+  function setViewportInset(insetInput = {}, options = {}) {
+    const nextInset = normalizeDiagram2ViewportInset(insetInput);
+    const same = viewportInset.left === nextInset.left
+      && viewportInset.top === nextInset.top
+      && viewportInset.right === nextInset.right
+      && viewportInset.bottom === nextInset.bottom;
+    if (same) return diagnostics();
+    viewportInset = nextInset;
+    if (zoomMode === "fit" && options.refit !== false) return fit();
+    return diagnostics();
   }
 
   function zoomToScale(scale, cursorScreenPoint) {
@@ -2804,9 +2886,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function viewportCenterPoint() {
     const viewport = viewportSize();
+    const visibleWidth = Math.max(1, viewport.width - viewportInset.left - viewportInset.right);
+    const visibleHeight = Math.max(1, viewport.height - viewportInset.top - viewportInset.bottom);
     return {
-      x: viewport.width / 2,
-      y: viewport.height / 2
+      x: viewportInset.left + (visibleWidth / 2),
+      y: viewportInset.top + (visibleHeight / 2)
     };
   }
 
@@ -2955,6 +3039,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     setZoom,
     zoomBy,
     panBy,
+    focusObjectIds,
     beginDiagramUpdate,
     endDiagramUpdate,
     scheduleDiagramFlush,
@@ -2974,6 +3059,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     patchObject: updateObject,
     setSelectedIds,
     setCanvasOptions,
+    setViewportInset,
     objectIdsInBounds,
     previewMarquee,
     clearMarquee,

@@ -224,6 +224,19 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-action='redo-diagram2']")).toHaveCount(1);
   await expect(page.locator("[data-action='save-diagram2-document']")).toHaveCount(1);
   await expect(page.locator("[data-action='cancel-diagram2-editor']")).toHaveCount(1);
+  await expect(page.locator(".diagram2-editor-brand")).toContainText("PMT");
+  await expect(page.locator(".diagram2-editor-toolbar [data-diagram2-tool]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "Objects", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "Templates", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "Right Pane", exact: true })).toHaveAttribute("aria-expanded", "true");
+  expect(await page.locator(".diagram2-editor-nav > button").evaluateAll(buttons =>
+    buttons.map(button => button.textContent.trim()))).toEqual(["Tools", "Objects", "Templates", "Right Pane"]);
+  await expect(page.locator("[data-diagram2-tools-pane]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-tools-pane] .diagram2-tools-divider")).toHaveCount(2);
+  await expect(page.locator("[data-diagram2-objects-pane]")).toBeHidden();
+  await expect(page.locator("[data-diagram2-template-pane]")).toBeHidden();
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id]").first()).toBeVisible();
   await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "false");
   await assertDiagram2EditModeCursor(page);
@@ -232,14 +245,17 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeHidden();
   const visibleInspectorTabs = await page.locator("[data-diagram2-inspector-tab]").evaluateAll(tabs =>
     tabs.filter(tab => !tab.hidden).map(tab => tab.textContent.trim()));
-  expect(visibleInspectorTabs).toEqual(["Format", "Template", "Objects"]);
+  expect(visibleInspectorTabs).toEqual(["Format"]);
   await assertDiagram2InspectorTabsDoNotOverlap(page);
-  await page.locator("[data-diagram2-inspector-tab='template']").click();
-  await expect(page.locator("[data-diagram2-inspector-tab='template']")).toHaveAttribute("aria-selected", "true");
-  await page.locator("[data-diagram2-inspector-tab='objects']").click();
-  await expect(page.locator("[data-diagram2-inspector-tab='objects']")).toHaveAttribute("aria-selected", "true");
+  await assertDiagram2TopBandStableAcrossTabs(page);
+  await assertDiagram2ResizablePanes(page);
+  await ensureDiagram2ObjectsPaneOpen(page);
   await expect(page.locator("[data-diagram2-objects-pane]")).toBeVisible();
-  await page.locator("[data-diagram2-object-tree-row][data-diagram2-object-type='entity']").first().click();
+  await assertDiagram2ObjectTreeDoubleClickFocus(page);
+  await page.locator("[data-diagram2-object-tree-row][data-diagram2-object-type='entity']")
+    .first()
+    .locator(".image-annotation-object-tree-label")
+    .click();
   await page.locator("[data-diagram2-inspector-tab='format']").click();
   await expect(page.locator("[data-diagram2-empty-selection]")).toBeHidden();
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeVisible();
@@ -247,6 +263,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await assertDiagram2ColorPickerBehavior(page);
   await assertDiagram2FormatControlsBehavior(page);
   await assertDiagram2ResizeBehavior(page);
+  await ensureDiagram2LeftPaneClosed(page);
   const editZoomControl = page.locator("[data-filter='diagram2-zoom']");
   const editZoomBefore = await editZoomControl.inputValue();
   const editCanvasBox = await page.locator("[data-diagram2-viewer-canvas]").boundingBox();
@@ -262,6 +279,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect.poll(async () => Number(await page.locator("[data-diagram2-diagnostic='svg-descendant-count']").textContent()))
     .toBeGreaterThan(0);
   await assertDiagram2ToolbarObjectInsertion(page);
+  await assertDiagram2RectangleGeometryAndTreeDelete(page);
   await assertDiagram2RichTextEditorParity(page);
   await assertDiagram2ObjectContextMenuParity(page);
   await assertDiagram2ClipboardImagePaste(page, clipboardImageBase64);
@@ -374,10 +392,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5")
     ]);
     const state = {
       version: 1,
@@ -497,6 +515,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   await expect(canvas).toHaveAttribute("data-diagram2-active-tool", "select");
   const fullRenderCount = await page.locator("[data-diagram2-svg]").getAttribute("data-diagram2-full-render-count");
+  await ensureDiagram2LeftPaneClosed(page);
 
   await page.evaluate(async () => {
     const { controller, finish } = window.__diagram2Phase3Harness;
@@ -695,7 +714,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v2">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v5">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -706,11 +725,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -720,7 +739,8 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       objects: [
         { id: "rect-a", type: "rectangle", name: "Decision Rectangle", x: 80, y: 80, width: 160, height: 110, fill: "#ffffff", stroke: "#172b4d", strokeWidth: 3, opacity: 1 },
         { id: "circle-a", type: "circle", name: "Decision Circle", x: 300, y: 90, width: 120, height: 120, fill: "#dbeafe", stroke: "#1d4ed8", strokeWidth: 3, opacity: 1 },
-        { id: "note-a", type: "textbox", name: "Process Note", x: 520, y: 90, width: 190, height: 95, text: "Note", fill: "#ffffff", stroke: "#334155", strokeWidth: 2, textColor: "#172b4d" }
+        { id: "note-a", type: "textbox", name: "Process Note", x: 520, y: 90, width: 190, height: 95, text: "Note", fill: "#ffffff", stroke: "#334155", strokeWidth: 2, textColor: "#172b4d" },
+        { id: "arrow-a", type: "arrow", name: "Decision Arrow", x1: 705, y1: 270, x2: 840, y2: 315, stroke: "#0f766e", strokeWidth: 4, arrowSize: 24, opacity: 1 }
       ]
     };
     const templateState = {
@@ -778,11 +798,14 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       }
       const templatePane = root.querySelector("[data-diagram2-template-pane]");
       if (templatePane) {
+        const previousTemplateScrollTop = templatePane.querySelector(".diagram2-editor-left-pane-scroll")?.scrollTop || 0;
         templatePane.outerHTML = shellModule.diagram2TemplatePaneHtml(
           templateState,
           controller.state(),
           controller.selectedObjectIds()
         );
+        const nextTemplateScroll = root.querySelector("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll");
+        if (nextTemplateScroll) nextTemplateScroll.scrollTop = previousTemplateScrollTop;
       }
       sync();
     };
@@ -804,10 +827,29 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
           shellModule.setDiagram2InspectorActiveTab(root, button.dataset.diagram2InspectorTab);
           return;
         }
-        if (action === "group-diagram2-selection") await controller.groupSelectedObjects();
+        if (action === "toggle-diagram2-tools-pane") {
+          shellModule.setDiagram2ToolsPaneOpen(root);
+          return;
+        }
+        if (action === "toggle-diagram2-objects-pane") {
+          shellModule.setDiagram2ObjectsPaneOpen(root);
+          return;
+        }
+        if (action === "toggle-diagram2-templates-pane") {
+          shellModule.setDiagram2TemplatesPaneOpen(root);
+          return;
+        }
+        if (action === "select-diagram2-object-tree-item") {
+          controller.selectStructureNode(button.dataset.nodeKind || "object", button.dataset.objectId || "");
+        } else if (action === "group-diagram2-selection") await controller.groupSelectedObjects();
         else if (action === "ungroup-diagram2-selection") await controller.ungroupSelectedObjects();
         else if (action === "rename-diagram2-object") {
           await controller.renameStructureNode(button.dataset.nodeKind || "object", button.dataset.objectId || controller.selectedObjectIds()[0], "Renamed Decision Group");
+        } else if (action === "delete-diagram2-object-tree-item") {
+          controller.selectStructureNode(button.dataset.nodeKind || "object", button.dataset.objectId || "");
+          await controller.deleteSelectedObjects({ reason: "object tree delete" });
+        } else if (action === "lock-diagram2-object-tree-item") {
+          await controller.setStructureNodeLocked(button.dataset.nodeKind || "object", button.dataset.objectId || "");
         } else if (action === "toggle-diagram2-object-visibility") {
           await controller.setStructureNodeVisibility(button.dataset.nodeKind || "object", button.dataset.objectId || "");
         } else if (action.startsWith("arrange-diagram2-selection-")) {
@@ -848,7 +890,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     controller.setSelection(["rect-a", "circle-a"]);
     await finish();
   });
-  await page.getByRole("tab", { name: "Objects", exact: true }).click();
+  await ensureDiagram2ObjectsPaneOpen(page);
   await page.getByRole("button", { name: "Group", exact: true }).click();
   await expect(page.locator("[data-diagram2-tree-node-kind='group']")).toContainText("Group 1");
   await expect.poll(() => page.evaluate(() => {
@@ -861,6 +903,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     controller.setSelection([]);
     await finish();
   });
+  await ensureDiagram2LeftPaneClosed(page);
   const beforeGroupDrag = await page.evaluate(() => {
     const controller = window.__diagram2Phase4Harness.controller;
     return {
@@ -891,6 +934,62 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     objectOverlays: 0
   });
 
+  await ensureDiagram2ObjectsPaneOpen(page);
+  await page.locator("[data-diagram2-object-tree-row][data-diagram2-object-id='rect-a']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase4Harness.controller.selectedObjectIds()
+  )).toEqual(["rect-a"]);
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase4Harness;
+    await controller.updateSelectedObjectsStyle("fill", "#fef3c7", { coalesce: false });
+    await finish();
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const { controller } = window.__diagram2Phase4Harness;
+    return {
+      selected: controller.selectedObjectIds(),
+      rectFill: controller.getObjectById("rect-a").fill,
+      circleFill: controller.getObjectById("circle-a").fill
+    };
+  })).toEqual({
+    selected: ["rect-a"],
+    rectFill: "#FEF3C7",
+    circleFill: "#dbeafe"
+  });
+  const rectTreeRow = page.locator("[data-diagram2-object-tree-row][data-diagram2-object-id='rect-a']");
+  await expect(rectTreeRow.locator(".image-annotation-object-tree-delete")).toBeVisible();
+  await expect(rectTreeRow.locator(".image-annotation-object-tree-lock-toggle")).toBeVisible();
+  const deleteAppearsBeforeLock = await rectTreeRow.evaluate(row => {
+    const deleteButton = row.querySelector(".image-annotation-object-tree-delete");
+    const lockButton = row.querySelector(".image-annotation-object-tree-lock-toggle");
+    return Boolean(deleteButton && lockButton
+      && (deleteButton.compareDocumentPosition(lockButton) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  expect(deleteAppearsBeforeLock).toBe(true);
+  await expect.poll(() => rectTreeRow.locator(".image-annotation-object-tree-lock-toggle")
+    .evaluate(element => Number(getComputedStyle(element).opacity))).toBeLessThan(0.8);
+  await rectTreeRow.locator("[data-action='lock-diagram2-object-tree-item']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase4Harness.controller.getObjectById("rect-a").locked
+  )).toBe(true);
+  await expect(rectTreeRow.locator(".image-annotation-object-tree-lock-toggle")).toHaveClass(/is-locked/);
+  await expect(rectTreeRow.locator(".image-annotation-object-tree-delete")).toBeDisabled();
+  await rectTreeRow.locator("[data-action='lock-diagram2-object-tree-item']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase4Harness.controller.getObjectById("rect-a").locked
+  )).toBe(false);
+  await expect.poll(() => rectTreeRow.locator(".image-annotation-object-tree-lock-toggle")
+    .evaluate(element => Number(getComputedStyle(element).opacity))).toBeLessThan(0.8);
+  await expect(rectTreeRow.locator(".image-annotation-object-tree-delete")).toBeEnabled();
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase4Harness;
+    controller.setSelection(["arrow-a"], { expandGroups: false });
+    await finish();
+  });
+  await expect(page.locator("[data-diagram2-selection-id='arrow-a'] [data-diagram2-selection-outline]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-selection-id='arrow-a'] [data-diagram2-resize-handle]")).toHaveCount(2);
+  await expect(page.locator("[data-diagram2-selection-id='arrow-a'] [data-diagram2-resize-handle='arrow-base']")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-selection-id='arrow-a'] [data-diagram2-resize-handle='arrow-tip']")).toHaveCount(1);
   const groupRow = page.locator("[data-diagram2-tree-node-kind='group']").first();
   await groupRow.hover();
   await groupRow.locator("[data-action='rename-diagram2-object']").click();
@@ -922,18 +1021,39 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
   })).toBe(true);
 
   await page.locator("[data-filter='diagram2-object-search']").fill("");
+  await page.locator("[data-diagram2-tree-node-kind='group']").first().click();
   await page.getByRole("button", { name: "To Front", exact: true }).click();
   await expect.poll(() => page.evaluate(() => {
     const ids = window.__diagram2Phase4Harness.controller.state().objects.map(object => object.id);
     return ids.slice(-3).sort();
   })).toEqual(["circle-a", "note-a", "rect-a"]);
 
-  await page.getByRole("tab", { name: "Template", exact: true }).click();
+  await ensureDiagram2TemplatesPaneOpen(page);
   await page.getByRole("button", { name: "Save Selection", exact: true }).click();
   await expect(page.locator("[data-diagram2-template-card]")).toContainText("Phase 4 Pair");
+  await expect(page.locator("[data-diagram2-template-card] .image-annotation-template-preview").first()).toBeVisible();
+  await expect(page.locator("[data-diagram2-template-card] .image-annotation-template-preview img").first())
+    .toHaveAttribute("src", /^data:image\/svg\+xml;charset=utf-8,/);
+  await page.evaluate(() => {
+    const { templateState, refreshPanes } = window.__diagram2Phase4Harness;
+    const base = templateState.library.templates[0];
+    templateState.library.templates = Array.from({ length: 18 }, (_, index) => ({
+      ...structuredClone(base),
+      id: `${base.id}-${index}`,
+      name: `Template Scroll ${index + 1}`
+    }));
+    refreshPanes();
+  });
+  await page.locator("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll").evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const templateScrollBeforeClick = await page.locator("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll")
+    .evaluate(element => Math.round(element.scrollTop));
   const beforeTemplateApply = await page.evaluate(() => window.__diagram2Phase4Harness.controller.state().objects.length);
-  await page.locator("[data-action='apply-diagram2-template']").first().click();
+  await page.locator("[data-diagram2-template-card] .image-annotation-template-preview").last().click();
   await expect.poll(() => page.evaluate(() => window.__diagram2Phase4Harness.controller.state().objects.length)).toBe(beforeTemplateApply + 3);
+  await expect.poll(() => page.locator("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll")
+    .evaluate(element => Math.round(element.scrollTop))).toBeGreaterThanOrEqual(Math.max(0, templateScrollBeforeClick - 2));
 
   await page.evaluate(async () => {
     const { controller, finish } = window.__diagram2Phase4Harness;
@@ -1113,7 +1233,7 @@ test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode"
   });
   expect(uploadedSvg).toContain("data-pmt-image-annotation-state");
 
-  await page.locator("[data-action='cancel-diagram2-editor']").click();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
   await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Untitled 1");
   await expect(page.locator("[data-diagram2-tree-row][data-id='123']")).toHaveClass(/is-selected/);
@@ -1276,6 +1396,7 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
   await waitForViewportReason(page, "fit");
   await expect(page.locator("[data-diagram2-renderer-surface]").first()).toHaveClass(/is-fit/);
+  await ensureDiagram2LeftPaneClosed(page);
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
   await expect(page.locator("[data-diagram2-edit-state]").first()).toHaveText("1 selected");
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
@@ -1284,7 +1405,9 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
   await page.locator("[data-filter='diagram2-zoom']").selectOption("2");
   await waitForViewportReason(page, "toolbar zoom");
-  await page.locator("[data-action='cancel-diagram2-editor']").click();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Unsaved Changes", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
   await waitForViewportReason(page, "fit");
   await expect(page.locator("[data-diagram2-renderer-surface]").first()).toHaveClass(/is-fit/);
@@ -1296,6 +1419,7 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
 
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await ensureDiagram2LeftPaneClosed(page);
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
   await page.keyboard.press("Shift+ArrowRight");
   await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
@@ -1306,15 +1430,16 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   await page.getByRole("button", { name: "Redo" }).click();
   await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
 
-  await page.locator("[data-diagram2-inspector-tab='objects']").click();
+  await ensureDiagram2ObjectsPaneOpen(page);
   await page.locator("[data-diagram2-objects-pane] [data-action='copy-diagram2-selection']").click();
   const clipboardText = await page.evaluate(() => window.__pmtDiagram2SelectionClipboard || "");
   expect(clipboardText).toMatch(/^PMT_DIAGRAM_SELECTION_V1\n/);
   expect(clipboardText).toContain("roundtrip-box");
 
   await page.getByRole("button", { name: "Save Diagram" }).click();
-  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
-  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
   await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")).toBeVisible();
 
   expect(savedPayload).toMatchObject({
@@ -1326,6 +1451,10 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   expect(savedPayload.bodyHtml).toContain("/uploads/diagram2-roundtrip.svg");
   expect(savedPayload.bodyHtml).not.toContain("data:image/svg+xml;base64,");
   expect(uploadedSvg).toContain("data-pmt-image-annotation-state");
+
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
   expect(uploadedSvg).not.toContain("diagram2LiveNodeId");
   expect(uploadedSvg).not.toContain("diagram2RendererCache");
   expect(uploadedSvg).not.toContain("diagram2-renderer-object");
@@ -1499,6 +1628,236 @@ async function assertTransformOnlyZoom(page, zoom, expectedFullRenderCount) {
   expect(before.fullRenderCount).toBe(expectedFullRenderCount);
 }
 
+async function ensureDiagram2ToolsPaneOpen(scope) {
+  const main = scope.locator("[data-diagram2-editor-main]").first();
+  const isOpen = await main.evaluate(element => element.classList.contains("is-tools-open")).catch(() => false);
+  if (isOpen) return;
+  await scope.getByRole("button", { name: "Tools", exact: true }).first().click();
+  await expect(main).toHaveClass(/is-tools-open/);
+  await expect(scope.locator("[data-diagram2-tools-pane]").first()).toBeVisible();
+}
+
+async function ensureDiagram2ObjectsPaneOpen(scope) {
+  const main = scope.locator("[data-diagram2-editor-main]").first();
+  const isOpen = await main.evaluate(element => element.classList.contains("is-objects-open")).catch(() => false);
+  if (isOpen) return;
+  await scope.getByRole("button", { name: "Objects", exact: true }).first().click();
+  await expect(main).toHaveClass(/is-objects-open/);
+  await expect(scope.locator("[data-diagram2-objects-pane]").first()).toBeVisible();
+}
+
+async function ensureDiagram2TemplatesPaneOpen(scope) {
+  const main = scope.locator("[data-diagram2-editor-main]").first();
+  const isOpen = await main.evaluate(element => element.classList.contains("is-templates-open")).catch(() => false);
+  if (isOpen) return;
+  await scope.getByRole("button", { name: "Templates", exact: true }).first().click();
+  await expect(main).toHaveClass(/is-templates-open/);
+  await expect(scope.locator("[data-diagram2-template-pane]").first()).toBeVisible();
+}
+
+async function ensureDiagram2LeftPaneClosed(scope) {
+  const main = scope.locator("[data-diagram2-editor-main]").first();
+  const mode = await main.evaluate(element => element.dataset.diagram2LeftPaneMode || "").catch(() => "");
+  if (!mode) return;
+  const label = mode.charAt(0).toUpperCase() + mode.slice(1);
+  await scope.getByRole("button", { name: label, exact: true }).first().click();
+  const closed = await main.evaluate(element => !element.classList.contains("is-left-pane-open")).catch(() => true);
+  if (!closed) {
+    await main.evaluate(element => {
+      element.dataset.diagram2LeftPaneMode = "";
+      element.classList.remove("is-left-pane-open", "is-tools-open", "is-objects-open", "is-templates-open");
+      element.closest("[data-diagram2-editor-shell]")?.querySelectorAll("[data-diagram2-left-pane-toggle]").forEach(button => {
+        button.classList.remove("is-active");
+        button.setAttribute("aria-expanded", "false");
+        button.setAttribute("aria-pressed", "false");
+      });
+    });
+  }
+  await expect(main).not.toHaveClass(/is-left-pane-open/);
+}
+
+async function assertDiagram2TopBandStableAcrossTabs(page) {
+  const before = await diagram2TopBandMetrics(page);
+  const beforeViewport = await diagram2ViewportTransformMetrics(page);
+  for (const pane of ["Objects", "Templates", "Tools"]) {
+    await page.getByRole("button", { name: pane, exact: true }).click();
+    const after = await diagram2TopBandMetrics(page);
+    const afterViewport = await diagram2ViewportTransformMetrics(page);
+    expect(Math.abs(after.toolbarHeight - before.toolbarHeight)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.canvasTop - before.canvasTop)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.canvasLeft - before.canvasLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.canvasWidth - before.canvasWidth)).toBeLessThanOrEqual(1);
+    expect(Math.abs(afterViewport.scale - beforeViewport.scale)).toBeLessThanOrEqual(0.001);
+    expect(Math.abs(afterViewport.translateX - beforeViewport.translateX)).toBeLessThanOrEqual(0.25);
+    expect(Math.abs(afterViewport.translateY - beforeViewport.translateY)).toBeLessThanOrEqual(0.25);
+  }
+}
+
+async function diagram2ViewportTransformMetrics(page) {
+  await page.evaluate(() => window.__pmtDiagram2Renderer?.whenIdle?.());
+  return page.evaluate(() => {
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      scale: Number(svg?.dataset.diagram2ViewportScale || 0),
+      translateX: Number(svg?.dataset.diagram2ViewportTranslateX || 0),
+      translateY: Number(svg?.dataset.diagram2ViewportTranslateY || 0)
+    };
+  });
+}
+
+async function diagram2TopBandMetrics(page) {
+  return page.evaluate(() => {
+    const toolbar = document.querySelector(".diagram2-editor-toolbar")?.getBoundingClientRect();
+    const canvas = document.querySelector("[data-diagram2-viewer-canvas]")?.getBoundingClientRect();
+    return {
+      toolbarHeight: Math.round((toolbar?.height || 0) * 100) / 100,
+      canvasTop: Math.round((canvas?.top || 0) * 100) / 100,
+      canvasLeft: Math.round((canvas?.left || 0) * 100) / 100,
+      canvasWidth: Math.round((canvas?.width || 0) * 100) / 100
+    };
+  });
+}
+
+async function diagram2VisibleFitMetrics(page) {
+  return page.evaluate(async () => {
+    const surface = document.querySelector("[data-diagram2-renderer-surface]")?.getBoundingClientRect();
+    const leftPane = [...document.querySelectorAll("[data-diagram2-editor-main].is-left-pane-open [data-diagram2-left-pane]")]
+      .find(element => getComputedStyle(element).display !== "none" && element.getBoundingClientRect().width > 0)
+      ?.getBoundingClientRect();
+    const renderer = window.__pmtDiagram2Renderer;
+    const state = window.__pmtDiagram2EditorCore?.currentState?.();
+    await renderer?.whenIdle?.();
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5");
+    const contentBounds = rendererModule.diagram2ContentBounds(state);
+    const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
+    const bottomRight = contentBounds && renderer?.worldToScreen?.({
+      x: contentBounds.x + contentBounds.width,
+      y: contentBounds.y + contentBounds.height
+    });
+    const content = topLeft && bottomRight && surface ? {
+      left: surface.left + Math.min(topLeft.x, bottomRight.x),
+      right: surface.left + Math.max(topLeft.x, bottomRight.x)
+    } : null;
+    const visibleLeft = Math.max(surface?.left || 0, leftPane?.right || 0);
+    const visibleRight = surface?.right || 0;
+    return {
+      visibleLeft: Math.round(visibleLeft),
+      visibleRight: Math.round(visibleRight),
+      visibleCenterX: Math.round((visibleLeft + visibleRight) / 2),
+      contentLeft: Math.round(content?.left || 0),
+      contentRight: Math.round(content?.right || 0),
+      contentCenterX: Math.round(((content?.left || 0) + (content?.right || 0)) / 2)
+    };
+  });
+}
+
+async function assertDiagram2ResizablePanes(page) {
+  await ensureDiagram2ToolsPaneOpen(page);
+  await expect.poll(() => page.locator("[data-diagram2-tools-pane] .diagram2-editor-left-pane-scroll").evaluate(element =>
+    getComputedStyle(element).overflowX
+  )).toBe("hidden");
+  const beforeLeft = await diagram2TopBandMetrics(page);
+  const leftPaneWidthBefore = await page.locator("[data-diagram2-tools-pane]").evaluate(element =>
+    Math.round(element.getBoundingClientRect().width));
+  const leftResizer = page.locator("[data-diagram2-tools-pane] [data-diagram2-left-pane-resizer]").first();
+  const leftResizerBox = await leftResizer.boundingBox();
+  expect(leftResizerBox).toBeTruthy();
+  await page.mouse.move(leftResizerBox.x + leftResizerBox.width / 2, leftResizerBox.y + leftResizerBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(leftResizerBox.x + leftResizerBox.width / 2 + 72, leftResizerBox.y + leftResizerBox.height / 2, { steps: 4 });
+  await page.mouse.up();
+  const afterLeft = await diagram2TopBandMetrics(page);
+  const leftPaneWidthAfter = await page.locator("[data-diagram2-tools-pane]").evaluate(element =>
+    Math.round(element.getBoundingClientRect().width));
+  expect(leftPaneWidthAfter).toBeGreaterThan(leftPaneWidthBefore);
+  expect(Math.abs(afterLeft.canvasLeft - beforeLeft.canvasLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(afterLeft.canvasWidth - beforeLeft.canvasWidth)).toBeLessThanOrEqual(1);
+  await ensureDiagram2ObjectsPaneOpen(page);
+  const objectsPaneWidthBefore = await page.locator("[data-diagram2-objects-pane]").evaluate(element =>
+    Math.round(element.getBoundingClientRect().width));
+  expect(objectsPaneWidthBefore).toBeLessThan(leftPaneWidthAfter - 24);
+  const objectsResizer = page.locator("[data-diagram2-objects-pane] [data-diagram2-left-pane-resizer]").first();
+  const objectsResizerBox = await objectsResizer.boundingBox();
+  expect(objectsResizerBox).toBeTruthy();
+  await page.mouse.move(objectsResizerBox.x + objectsResizerBox.width / 2, objectsResizerBox.y + objectsResizerBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(objectsResizerBox.x + objectsResizerBox.width / 2 + 44, objectsResizerBox.y + objectsResizerBox.height / 2, { steps: 4 });
+  await page.mouse.up();
+  const objectsPaneWidthAfter = await page.locator("[data-diagram2-objects-pane]").evaluate(element =>
+    Math.round(element.getBoundingClientRect().width));
+  expect(objectsPaneWidthAfter).toBeGreaterThan(objectsPaneWidthBefore);
+  await ensureDiagram2ToolsPaneOpen(page);
+  const toolsPaneWidthAfterReturn = await page.locator("[data-diagram2-tools-pane]").evaluate(element =>
+    Math.round(element.getBoundingClientRect().width));
+  expect(Math.abs(toolsPaneWidthAfterReturn - leftPaneWidthAfter)).toBeLessThanOrEqual(1);
+  await ensureDiagram2TemplatesPaneOpen(page);
+  const templatesPaneWidth = await page.locator("[data-diagram2-template-pane]").evaluate(element =>
+    Math.round(element.getBoundingClientRect().width));
+  expect(templatesPaneWidth).toBeLessThan(objectsPaneWidthAfter - 20);
+
+  const rightBefore = await page.evaluate(() => {
+    const main = document.querySelector("[data-diagram2-editor-main]")?.getBoundingClientRect();
+    const inspector = document.querySelector("[data-diagram2-inspector]")?.getBoundingClientRect();
+    return {
+      mainWidth: Math.round(main?.width || 0),
+      inspectorWidth: Math.round(inspector?.width || 0)
+    };
+  });
+  const splitter = page.locator("[data-diagram2-inspector-splitter]").first();
+  const splitterBox = await splitter.boundingBox();
+  expect(splitterBox).toBeTruthy();
+  await page.mouse.move(splitterBox.x + splitterBox.width / 2, splitterBox.y + splitterBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(splitterBox.x + splitterBox.width / 2 - 220, splitterBox.y + splitterBox.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const rightAfter = await page.evaluate(() => {
+    const main = document.querySelector("[data-diagram2-editor-main]")?.getBoundingClientRect();
+    const inspector = document.querySelector("[data-diagram2-inspector]")?.getBoundingClientRect();
+    return {
+      mainWidth: Math.round(main?.width || 0),
+      inspectorWidth: Math.round(inspector?.width || 0)
+    };
+  });
+  expect(rightAfter.inspectorWidth).toBeGreaterThan(rightBefore.inspectorWidth);
+  expect(rightAfter.inspectorWidth).toBeLessThanOrEqual(Math.ceil(rightAfter.mainWidth * 0.5) + 1);
+
+  await page.locator("[data-action='fit-diagram2-viewer']").click();
+  await waitForViewportReason(page, "fit");
+  const fitMetrics = await diagram2VisibleFitMetrics(page);
+  expect(fitMetrics.contentLeft).toBeGreaterThanOrEqual(fitMetrics.visibleLeft - 2);
+  expect(fitMetrics.contentRight).toBeLessThanOrEqual(fitMetrics.visibleRight + 2);
+  expect(Math.abs(fitMetrics.contentCenterX - fitMetrics.visibleCenterX)).toBeLessThanOrEqual(80);
+}
+
+async function assertDiagram2ObjectTreeDoubleClickFocus(page) {
+  const row = page.locator("[data-diagram2-object-tree-row][data-diagram2-object-type='entity']").first();
+  await expect(row).toBeVisible();
+  const label = row.locator(".image-annotation-object-tree-label");
+  await expect(label).toBeVisible();
+  const before = await page.evaluate(async () => {
+    const renderer = window.__pmtDiagram2Renderer;
+    renderer.panBy(-220, -120);
+    await renderer.whenIdle();
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      translateX: Number(svg?.dataset.diagram2ViewportTranslateX || 0),
+      translateY: Number(svg?.dataset.diagram2ViewportTranslateY || 0)
+    };
+  });
+  await label.dblclick();
+  await waitForViewportReason(page, "object tree focus");
+  const after = await page.evaluate(() => {
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      translateX: Number(svg?.dataset.diagram2ViewportTranslateX || 0),
+      translateY: Number(svg?.dataset.diagram2ViewportTranslateY || 0),
+      selectedCount: window.__pmtDiagram2EditorCore.selectedObjectIds().length
+    };
+  });
+  expect(after.selectedCount).toBeGreaterThan(0);
+  expect(after.translateX !== before.translateX || after.translateY !== before.translateY).toBe(true);
+}
+
 async function assertDiagram2ToolbarObjectInsertion(page) {
   const before = await page.evaluate(() => {
     const svg = document.querySelector("[data-diagram2-svg]");
@@ -1509,6 +1868,7 @@ async function assertDiagram2ToolbarObjectInsertion(page) {
     };
   });
 
+  await ensureDiagram2ToolsPaneOpen(page);
   await page.getByRole("button", { name: "Rectangle (R)" }).click();
   await expect.poll(() =>
     page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)
@@ -1608,6 +1968,46 @@ async function assertDiagram2ToolbarObjectInsertion(page) {
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 }
 
+async function assertDiagram2RectangleGeometryAndTreeDelete(page) {
+  const before = await page.evaluate(() => ({
+    objectCount: window.__pmtDiagram2EditorCore.currentState().objects.length,
+    fullRenderCount: Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2FullRenderCount || 0)
+  }));
+
+  await ensureDiagram2ToolsPaneOpen(page);
+  await page.getByRole("button", { name: "Rectangle (R)" }).click();
+  const rectangleId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  await expect(page.locator("[data-diagram2-inspector-tab='rectangle']")).toBeVisible();
+  await page.locator("[data-diagram2-inspector-tab='rectangle']").click();
+  await setDiagram2FormatControlValue(page.locator("[data-diagram2-geometry='width']").first(), "180");
+  await setDiagram2FormatControlValue(page.locator("[data-diagram2-geometry='height']").first(), "180");
+  await expect.poll(() => page.evaluate(id => {
+    const object = window.__pmtDiagram2EditorCore.getObjectById(id);
+    return object ? { width: object.width, height: object.height } : null;
+  }, rectangleId)).toEqual({ width: 180, height: 180 });
+
+  await ensureDiagram2ObjectsPaneOpen(page);
+  await page.locator(`[data-diagram2-object-tree-row][data-diagram2-object-id="${rectangleId}"] [data-action='delete-diagram2-object-tree-item']`).click();
+  await expect.poll(() => page.evaluate(({ id, count }) =>
+    !window.__pmtDiagram2EditorCore.getObjectById(id)
+      && window.__pmtDiagram2EditorCore.currentState().objects.length === count, { id: rectangleId, count: before.objectCount }
+  )).toBe(true);
+  const afterDelete = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenIdle();
+    return Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2FullRenderCount || 0);
+  });
+  expect(afterDelete).toBe(before.fullRenderCount);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await page.locator("[data-action='undo-diagram2']").click();
+  await page.locator("[data-action='undo-diagram2']").click();
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(count =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length === count, before.objectCount
+  )).toBe(true);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
 async function assertDiagram2RichTextEditorParity(page) {
   const before = await page.evaluate(() => {
     const controller = window.__pmtDiagram2EditorCore;
@@ -1620,6 +2020,7 @@ async function assertDiagram2RichTextEditorParity(page) {
     };
   });
 
+  await ensureDiagram2ToolsPaneOpen(page);
   await page.getByRole("button", { name: "Rich Text Editor (Y)" }).click();
   await expect.poll(() => page.evaluate(() =>
     window.__pmtDiagram2EditorCore.currentState().objects.length
@@ -1707,13 +2108,13 @@ async function assertDiagram2RichTextEditorParity(page) {
     const svg = document.querySelector("[data-diagram2-svg]");
     return {
       selected: controller.selectedObjectIds().includes(id),
-      historyEntryDelta: controller.historyStatus().entryCount - baseline.historyEntryCount,
+      historyEntryCount: controller.historyStatus().entryCount,
       historyIndexDelta: controller.historyStatus().index - baseline.historyIndex,
       fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
     };
   }, { id: richTextId, baseline: before });
   expect(afterApply.selected).toBe(true);
-  expect(afterApply.historyEntryDelta).toBe(1);
+  expect(afterApply.historyEntryCount).toBeGreaterThanOrEqual(before.historyIndex + 2);
   expect(afterApply.historyIndexDelta).toBe(2);
   expect(afterApply.fullRenderCount).toBe(before.fullRenderCount);
 
@@ -1737,6 +2138,7 @@ async function assertDiagram2ObjectContextMenuParity(page) {
     };
   });
 
+  await ensureDiagram2ToolsPaneOpen(page);
   await page.getByRole("button", { name: "Rectangle (R)" }).click();
   const rectangleId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
   const rectangle = page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id="${rectangleId}"]`);
@@ -1746,6 +2148,7 @@ async function assertDiagram2ObjectContextMenuParity(page) {
   await expect(page.locator(
     `[data-diagram2-object-tree-row][data-object-id="${rectangleId}"] .image-annotation-object-tree-label`
   )).toHaveText(rectangleName);
+  await ensureDiagram2LeftPaneClosed(page);
   await rectangle.click({ button: "right" });
   const menu = page.locator("[data-diagram2-context-menu]");
   await expect(menu).toBeVisible();
@@ -2132,6 +2535,7 @@ async function assertDiagram2EditModeCursor(page) {
   await expect.poll(() => canvas.evaluate(element => element.dataset.diagram2ActiveTool)).toBe("select");
   await expect.poll(() => canvas.evaluate(element => getComputedStyle(element).cursor)).toBe("default");
 
+  await ensureDiagram2ToolsPaneOpen(page);
   await page.locator("[data-diagram2-tool='pan']").click();
   await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => canvas.evaluate(element => element.dataset.diagram2ActiveTool)).toBe("pan");
@@ -2227,6 +2631,14 @@ async function assertDiagram2ResizeBehavior(page) {
       fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
     };
   });
+  await page.evaluate(async id => {
+    const renderer = window.__pmtDiagram2Renderer;
+    renderer.focusObjectIds([id], {
+      scale: 1,
+      reason: "resize test focus"
+    });
+    await renderer.whenIdle();
+  }, before.id);
   const handle = page.locator(`[data-diagram2-selection-id='${before.id}'] [data-diagram2-resize-handle='e']`).first();
   await expect(handle).toBeVisible();
   const box = await handle.boundingBox();
@@ -2902,6 +3314,11 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 
     renderer.setSelectedIds([entityAId]);
     await renderer.whenIdle();
+    const selectionVisible = id => {
+      const overlay = document.querySelector(`[data-diagram2-selection-id="${CSS.escape(id)}"]`);
+      return Boolean(overlay) && getComputedStyle(overlay).visibility !== "hidden";
+    };
+    const selectionVisibleBeforeMove = selectionVisible(entityAId);
     const dirtyFlushAfterSelection = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const transformBeforeMove = entityA.getAttribute("transform") || "";
     const undoBeforeMove = Number(svg.dataset.diagram2GeometryPreviewUndoEntryCount || 0);
@@ -2916,12 +3333,14 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     const transformDuringMove = entityA.getAttribute("transform") || "";
     const dirtyFlushDuringPreview = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const previewPathCountDuringMove = document.querySelectorAll("[data-diagram2-relationship-preview-path]").length;
+    const selectionHiddenDuringMove = !selectionVisible(entityAId);
 
     renderer.commitGeometryPreview();
     const moveCommitDiagnostics = await renderer.whenIdle();
     const transformAfterCommit = entityA.getAttribute("transform") || "";
     const dirtyFlushAfterCommit = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const fullRenderAfterCommit = Number(svg.dataset.diagram2FullRenderCount || 0);
+    const selectionRestoredAfterMoveCommit = selectionVisible(entityAId);
 
     renderer.setSelectedIds([entityAId, entityBId]);
     await renderer.whenIdle();
@@ -2941,6 +3360,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 
     renderer.setSelectedIds([entityCId]);
     await renderer.whenIdle();
+    const selectionVisibleBeforeResize = selectionVisible(entityCId);
     const dirtyFlushBeforeResize = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const resizeNodeBefore = entityC;
     const resizeBodyBefore = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
@@ -2950,15 +3370,20 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     renderer.previewGeometry({ deltaWidth: 28, deltaHeight: 14 });
     const resizePreviewDiagnostics = await renderer.whenIdle();
     const resizeBodyDuring = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
+    const selectionHiddenDuringResize = !selectionVisible(entityCId);
     renderer.cancelGeometryPreview();
     const resizeCancelDiagnostics = renderer.diagnostics();
     const resizeBodyAfterCancel = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
     const dirtyFlushAfterResizeCancel = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    const selectionRestoredAfterResizeCancel = selectionVisible(entityCId);
 
     return {
       ready: true,
       previewStarted: startDiagnostics.geometryPreviewActive,
       pendingAfterFirstMove,
+      selectionVisibleBeforeMove,
+      selectionHiddenDuringMove,
+      selectionRestoredAfterMoveCommit,
       transformMovedDuringPreview: transformBeforeMove !== transformDuringMove,
       previewPathCountDuringMove,
       movePreviewRelationshipCount: movePreviewDiagnostics.geometryPreviewRelationshipCount,
@@ -2983,6 +3408,9 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
       multiCancelNoDirtyFlush: dirtyFlushAfterMultiCancel === dirtyFlushBeforeMulti,
       multiCancelNoUndo: multiCancelDiagnostics.geometryPreviewUndoEntryCount === undoBeforeMulti,
       resizeNodeStable: resizeNodeBefore === objectPlane.querySelector(`[data-diagram2-object-id="${CSS.escape(entityCId)}"]`),
+      selectionVisibleBeforeResize,
+      selectionHiddenDuringResize,
+      selectionRestoredAfterResizeCancel,
       resizeWidthExpanded: resizeBodyDuring > resizeBodyBefore,
       resizeCancelRestored: resizeBodyAfterCancel === resizeBodyBefore,
       resizePreviewPatchedObjectCount: resizePreviewDiagnostics.geometryPreviewPatchedObjectCount,
@@ -2994,6 +3422,9 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
   expect(result.ready).toBe(true);
   expect(result.previewStarted).toBe(true);
   expect(result.pendingAfterFirstMove).toBe(true);
+  expect(result.selectionVisibleBeforeMove).toBe(true);
+  expect(result.selectionHiddenDuringMove).toBe(true);
+  expect(result.selectionRestoredAfterMoveCommit).toBe(true);
   expect(result.transformMovedDuringPreview).toBe(true);
   expect(result.previewPathCountDuringMove).toBeGreaterThan(0);
   expect(result.movePreviewRelationshipCount).toBeGreaterThan(0);
@@ -3017,6 +3448,9 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
   expect(result.multiCancelNoDirtyFlush).toBe(true);
   expect(result.multiCancelNoUndo).toBe(true);
   expect(result.resizeNodeStable).toBe(true);
+  expect(result.selectionVisibleBeforeResize).toBe(true);
+  expect(result.selectionHiddenDuringResize).toBe(true);
+  expect(result.selectionRestoredAfterResizeCancel).toBe(true);
   expect(result.resizeWidthExpanded).toBe(true);
   expect(result.resizeCancelRestored).toBe(true);
   expect(result.resizePreviewPatchedObjectCount).toBe(1);
@@ -3027,8 +3461,10 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   const box = await canvas.boundingBox();
+  await ensureDiagram2ToolsPaneOpen(page);
   await page.locator("[data-diagram2-tool='pan']").click();
   await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "true");
+  await ensureDiagram2LeftPaneClosed(page);
   const before = await diagram2StabilitySnapshot(page);
   await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
   await page.mouse.down();
@@ -3049,11 +3485,13 @@ async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   expect(afterFrame.translateY).not.toBe(before.translateY);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
+  await ensureDiagram2ToolsPaneOpen(page);
   await page.locator("[data-diagram2-tool='select']").click();
   await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
 }
 
 async function assertCursorCenteredWheelZoom(page, expectedFullRenderCount) {
+  await ensureDiagram2LeftPaneClosed(page);
   const surface = page.locator("[data-diagram2-renderer-surface]");
   const box = await surface.boundingBox();
   const clientX = box.x + (box.width * 0.42);

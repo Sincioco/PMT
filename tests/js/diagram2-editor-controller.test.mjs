@@ -491,6 +491,12 @@ test("Diagram 2 Phase 4 structure and templates stay command-based and renderer-
   assert.ok(groupId);
   assert.equal(controller.getObjectById("circle").groupId, groupId);
   assert.equal(controller.currentState().groupNames[groupId], "Group 1");
+  assert.deepEqual(controller.selectStructureNode("object", "rect"), ["rect"]);
+  assert.deepEqual(controller.selectedObjectIds(), ["rect"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("fill", "#fef3c7", { coalesce: false }), true);
+  assert.equal(controller.getObjectById("rect").fill, "#FEF3C7");
+  assert.equal(controller.getObjectById("circle").fill, "#dbeafe");
+  assert.deepEqual(controller.selectedObjectIds(), ["rect"]);
   assert.deepEqual(controller.selectStructureNode("group", groupId).sort(), ["circle", "rect"]);
   assert.deepEqual(controller.selectedObjectIds().sort(), ["circle", "rect"]);
   assert.equal(renderer.structureStates.at(-1).reason, "group objects");

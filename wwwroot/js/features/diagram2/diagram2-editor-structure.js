@@ -3,8 +3,8 @@ import {
   compactAnnotationGroupLayers,
   filterAnnotationObjectTree,
   reorderAnnotationObjectTree
-} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
+} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {
   const nodes = buildAnnotationObjectTree(normalizeDiagram2CanonicalState(stateInput));
@@ -296,7 +296,7 @@ export function createDiagram2StructureStateCommand(options = {}) {
       affectedObjectIds: update.affectedObjectIds,
       reason: operationReason
     });
-    context.setSelection(selectedIds);
+    context.setSelection(selectedIds, { expandGroups: false });
     renderer?.endDiagramUpdate?.(operationReason);
     return true;
   };

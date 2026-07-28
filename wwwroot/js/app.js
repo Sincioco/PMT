@@ -77,8 +77,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260728-diagram-png-raster-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260728-diagram2-phase4-v2";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v2";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260728-diagram2-phase4-v5";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v5";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,

@@ -9623,7 +9623,7 @@ function annotationFieldMappingTableExcelHtml(table) {
 </html>`;
 }
 
-function annotationTemplatePreviewDataUrl(template) {
+export function annotationTemplatePreviewDataUrl(template) {
   const width = positiveNumber(template?.width, 1);
   const height = positiveNumber(template?.height, 1);
   const visibleObjects = template?.groupVisible === false

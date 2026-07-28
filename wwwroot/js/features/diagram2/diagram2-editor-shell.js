@@ -3,12 +3,14 @@ import {
   sharedRichColorPickerHtml
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import {
+  annotationTemplatePreviewDataUrl,
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
+} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v2";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v5";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -103,7 +105,10 @@ export function diagram2EditorShellHtml(options = {}) {
         includeActions: options.includeToolbarActions === true || !includeFooter,
         selectedZoom
       })}
-      <div class="image-annotation-main diagram2-editor-main" data-diagram2-editor-main>
+      <div class="image-annotation-main diagram2-editor-main is-left-pane-open is-tools-open" data-diagram2-editor-main data-diagram2-left-pane-mode="tools">
+        ${diagram2ToolsPaneHtml({ canUse })}
+        ${diagram2ObjectsPaneHtml(state, selectedIds, { search: options.objectSearch })}
+        ${diagram2TemplatePaneHtml(options.templateState, state, selectedIds)}
         <div class="diagram2-editor-center" data-diagram2-editor-center>
           <div class="image-annotation-workspace diagram2-editor-workspace" data-diagram2-workspace tabindex="0" aria-label="Diagram 2 canvas">
             <div class="image-annotation-canvas-stage diagram2-editor-canvas-stage" data-diagram2-canvas-stage>
@@ -117,7 +122,6 @@ export function diagram2EditorShellHtml(options = {}) {
         <div class="image-annotation-inspector-splitter diagram2-editor-inspector-splitter" data-diagram2-inspector-splitter role="separator" aria-orientation="vertical" aria-label="Resize right pane" tabindex="0"></div>
         <aside class="image-annotation-inspector diagram2-editor-inspector" data-diagram2-inspector aria-label="Diagram 2 right pane">
           ${diagram2InspectorHtml(status, state, selectedIds, {
-            objectSearch: options.objectSearch,
             templateState: options.templateState
           })}
         </aside>
@@ -135,32 +139,35 @@ export function diagram2ObjectsPaneHtml(state, selectedObjectIds = [], options =
   const rows = nodes.map(node => diagram2ObjectTreeNodeHtml(node, selected, 1)).join("");
 
   return `
-    <div class="diagram2-editor-objects-pane" data-diagram2-objects-pane>
-      <div class="image-annotation-object-tree-actions" role="toolbar" aria-label="Object tree actions">
-        <button type="button" data-action="group-diagram2-selection" data-diagram2-requires-multi-selection data-diagram2-requires-update>Group</button>
-        <button type="button" data-action="ungroup-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Ungroup</button>
-        <button type="button" data-action="rename-diagram2-object" data-diagram2-requires-selection data-diagram2-requires-update>Rename</button>
-        <button type="button" data-action="toggle-diagram2-selection-visibility" data-diagram2-requires-selection data-diagram2-requires-update>Hide/Show</button>
-        <button type="button" data-action="copy-diagram2-selection" data-diagram2-requires-selection>Copy</button>
-        <button type="button" data-action="paste-diagram2-selection" data-diagram2-requires-update>Paste</button>
-        <button type="button" data-action="duplicate-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Duplicate</button>
-        <button type="button" data-action="delete-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Delete</button>
+    <aside class="diagram2-editor-left-pane diagram2-editor-objects-pane" data-diagram2-left-pane data-diagram2-left-pane-name="objects" data-diagram2-objects-pane aria-label="Diagram 2 objects">
+      <div class="diagram2-editor-left-pane-scroll">
+        <div class="image-annotation-object-tree-actions" role="toolbar" aria-label="Object tree actions">
+          <button type="button" data-action="group-diagram2-selection" data-diagram2-requires-multi-selection data-diagram2-requires-update>Group</button>
+          <button type="button" data-action="ungroup-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Ungroup</button>
+          <button type="button" data-action="rename-diagram2-object" data-diagram2-requires-selection data-diagram2-requires-update>Rename</button>
+          <button type="button" data-action="toggle-diagram2-selection-visibility" data-diagram2-requires-selection data-diagram2-requires-update>Hide/Show</button>
+          <button type="button" data-action="copy-diagram2-selection" data-diagram2-requires-selection>Copy</button>
+          <button type="button" data-action="paste-diagram2-selection" data-diagram2-requires-update>Paste</button>
+          <button type="button" data-action="duplicate-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Duplicate</button>
+          <button type="button" data-action="delete-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Delete</button>
+        </div>
+        <div class="image-annotation-object-tree-actions diagram2-layer-actions" role="toolbar" aria-label="Layer order actions">
+          <button type="button" data-action="arrange-diagram2-selection-front" data-diagram2-requires-selection data-diagram2-requires-update>To Front</button>
+          <button type="button" data-action="arrange-diagram2-selection-forward" data-diagram2-requires-selection data-diagram2-requires-update>Forward</button>
+          <button type="button" data-action="arrange-diagram2-selection-backward" data-diagram2-requires-selection data-diagram2-requires-update>Backward</button>
+          <button type="button" data-action="arrange-diagram2-selection-back" data-diagram2-requires-selection data-diagram2-requires-update>To Back</button>
+        </div>
+        <label class="image-annotation-object-tree-search">
+          <span>Search objects</span>
+          <input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-filter="diagram2-object-search" value="${escapeAttr(query)}">
+        </label>
+        <button type="button" class="image-annotation-object-tree-root-drop" data-diagram2-object-tree-root-drop data-action="reorder-diagram2-object-root">Move to root (top)</button>
+        <div class="image-annotation-object-tree diagram2-object-tree" data-diagram2-object-tree role="tree" tabindex="0" aria-label="Diagram 2 objects, topmost first">
+          ${rows || `<p class="image-annotation-object-tree-empty">No objects.</p>`}
+        </div>
       </div>
-      <div class="image-annotation-object-tree-actions diagram2-layer-actions" role="toolbar" aria-label="Layer order actions">
-        <button type="button" data-action="arrange-diagram2-selection-front" data-diagram2-requires-selection data-diagram2-requires-update>To Front</button>
-        <button type="button" data-action="arrange-diagram2-selection-forward" data-diagram2-requires-selection data-diagram2-requires-update>Forward</button>
-        <button type="button" data-action="arrange-diagram2-selection-backward" data-diagram2-requires-selection data-diagram2-requires-update>Backward</button>
-        <button type="button" data-action="arrange-diagram2-selection-back" data-diagram2-requires-selection data-diagram2-requires-update>To Back</button>
-      </div>
-      <label class="image-annotation-object-tree-search">
-        <span>Search objects</span>
-        <input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-filter="diagram2-object-search" value="${escapeAttr(query)}">
-      </label>
-      <button type="button" class="image-annotation-object-tree-root-drop" data-diagram2-object-tree-root-drop data-action="reorder-diagram2-object-root">Move to root (top)</button>
-      <div class="image-annotation-object-tree diagram2-object-tree" data-diagram2-object-tree role="tree" tabindex="0" aria-label="Diagram 2 objects, topmost first">
-        ${rows || `<p class="image-annotation-object-tree-empty">No objects.</p>`}
-      </div>
-    </div>
+      ${diagram2LeftPaneResizerHtml("Objects")}
+    </aside>
   `;
 }
 
@@ -252,24 +259,27 @@ export function diagram2TemplatePaneHtml(templateStateInput = {}, state = null, 
     : `<p class="image-annotation-template-empty">No saved templates yet.</p>`;
 
   return `
-    <div class="diagram2-template-pane" data-diagram2-template-pane>
-      <div class="image-annotation-template-actions" role="toolbar" aria-label="Template actions">
-        <button type="button" data-action="save-diagram2-selection-template" data-diagram2-requires-selection data-diagram2-requires-update ${disabled}>Save Selection</button>
-        <button type="button" data-action="upload-diagram2-template" ${disabled}>Upload</button>
-        <button type="button" data-action="restore-diagram2-default-templates" ${disabled} ${templateState.defaultLoaded === true ? "" : "disabled"}>Restore Defaults</button>
-        <input type="file" accept=".json,.pmt-template.json,application/json" data-diagram2-template-upload-input hidden multiple>
+    <aside class="diagram2-editor-left-pane diagram2-template-pane" data-diagram2-left-pane data-diagram2-left-pane-name="templates" data-diagram2-template-pane aria-label="Diagram 2 templates">
+      <div class="diagram2-editor-left-pane-scroll">
+        <div class="image-annotation-template-actions" role="toolbar" aria-label="Template actions">
+          <button type="button" data-action="save-diagram2-selection-template" data-diagram2-requires-selection data-diagram2-requires-update ${disabled}>Save Selection</button>
+          <button type="button" data-action="upload-diagram2-template" ${disabled}>Upload</button>
+          <button type="button" data-action="restore-diagram2-default-templates" ${disabled} ${templateState.defaultLoaded === true ? "" : "disabled"}>Restore Defaults</button>
+          <input type="file" accept=".json,.pmt-template.json,application/json" data-diagram2-template-upload-input hidden multiple>
+        </div>
+        <div class="image-annotation-template-actions diagram2-default-actions" role="toolbar" aria-label="Drawing defaults">
+          <button type="button" data-action="set-diagram2-rectangle-default" data-diagram2-requires-update ${selectedRectangle ? "" : "disabled"}>Use Rectangle</button>
+          <button type="button" data-action="reset-diagram2-rectangle-default" data-diagram2-requires-update ${library.defaults?.rectangle ? "" : "disabled"}>Reset Rectangle</button>
+          <button type="button" data-action="set-diagram2-arrow-default" data-diagram2-requires-update ${selectedArrow ? "" : "disabled"}>Use Arrow</button>
+          <button type="button" data-action="reset-diagram2-arrow-default" data-diagram2-requires-update ${library.defaults?.arrow ? "" : "disabled"}>Reset Arrow</button>
+        </div>
+        <p class="image-annotation-template-status" data-diagram2-template-status>${escapeHtml(templateState.message || templateState.error || "")}</p>
+        <div class="image-annotation-template-list" data-diagram2-template-list>
+          ${templateCards}
+        </div>
       </div>
-      <div class="image-annotation-template-actions diagram2-default-actions" role="toolbar" aria-label="Drawing defaults">
-        <button type="button" data-action="set-diagram2-rectangle-default" data-diagram2-requires-update ${selectedRectangle ? "" : "disabled"}>Use Rectangle</button>
-        <button type="button" data-action="reset-diagram2-rectangle-default" data-diagram2-requires-update ${library.defaults?.rectangle ? "" : "disabled"}>Reset Rectangle</button>
-        <button type="button" data-action="set-diagram2-arrow-default" data-diagram2-requires-update ${selectedArrow ? "" : "disabled"}>Use Arrow</button>
-        <button type="button" data-action="reset-diagram2-arrow-default" data-diagram2-requires-update ${library.defaults?.arrow ? "" : "disabled"}>Reset Arrow</button>
-      </div>
-      <p class="image-annotation-template-status" data-diagram2-template-status>${escapeHtml(templateState.message || templateState.error || "")}</p>
-      <div class="image-annotation-template-list" data-diagram2-template-list>
-        ${templateCards}
-      </div>
-    </div>
+      ${diagram2LeftPaneResizerHtml("Templates")}
+    </aside>
   `;
 }
 
@@ -353,9 +363,231 @@ export function updateDiagram2ShellStatus(root, status = {}) {
     node.hidden = !hasSelection;
   });
   syncDiagram2FormatControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
+  syncDiagram2GeometryControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
   syncDiagram2ColorPickerControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
   syncDiagram2InspectorTabVisibility(root, status.selectedObjects || []);
   syncDiagram2ContextMenu(root, status.selectedObjects || [], { busy: status.busy === true, canEdit, canExport });
+}
+
+export function setDiagram2ToolsPaneOpen(root, open) {
+  return setDiagram2LeftPaneMode(root, "tools", open);
+}
+
+export function setDiagram2ObjectsPaneOpen(root, open) {
+  return setDiagram2LeftPaneMode(root, "objects", open);
+}
+
+export function setDiagram2TemplatesPaneOpen(root, open) {
+  return setDiagram2LeftPaneMode(root, "templates", open);
+}
+
+export function syncDiagram2RendererViewportInset(root, renderer, options = {}) {
+  if (!renderer || typeof renderer.setViewportInset !== "function") return false;
+  const shell = root?.matches?.("[data-diagram2-editor-shell]")
+    ? root
+    : root?.querySelector?.("[data-diagram2-editor-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main]");
+  const surface = shell?.querySelector?.("[data-diagram2-renderer-surface]");
+  const surfaceRect = surface?.getBoundingClientRect?.();
+  let left = 0;
+
+  if (main?.classList.contains("is-left-pane-open") && surfaceRect?.width) {
+    const mode = String(main.dataset.diagram2LeftPaneMode || "").trim();
+    const pane = [...main.querySelectorAll("[data-diagram2-left-pane]")]
+      .find(candidate => candidate.dataset.diagram2LeftPaneName === mode);
+    const paneRect = pane?.getBoundingClientRect?.();
+    if (paneRect && paneRect.right > surfaceRect.left && paneRect.left < surfaceRect.right) {
+      left = clampDiagram2Number(paneRect.right - surfaceRect.left, 0, surfaceRect.width - 1);
+    }
+  }
+
+  renderer.setViewportInset({
+    left: Math.round(left),
+    top: 0,
+    right: 0,
+    bottom: 0
+  }, options);
+  return true;
+}
+
+function setDiagram2LeftPaneMode(root, modeInput, open) {
+  if (!root) return false;
+  const shell = root.matches?.("[data-diagram2-editor-shell]")
+    ? root
+    : root.querySelector?.("[data-diagram2-editor-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main]");
+  if (!shell || !main) return false;
+  const requestedMode = String(modeInput || "tools").trim();
+  const mode = ["tools", "objects", "templates"].includes(requestedMode) ? requestedMode : "tools";
+  const currentMode = String(main.dataset.diagram2LeftPaneMode || "tools");
+  const nextOpen = open === undefined
+    ? !(main.classList.contains("is-left-pane-open") && currentMode === mode)
+    : open === true;
+  main.dataset.diagram2LeftPaneMode = mode;
+  main.classList.toggle("is-left-pane-open", nextOpen);
+  main.classList.toggle("is-tools-open", nextOpen && mode === "tools");
+  main.classList.toggle("is-objects-open", nextOpen && mode === "objects");
+  main.classList.toggle("is-templates-open", nextOpen && mode === "templates");
+  shell.querySelectorAll("[data-diagram2-left-pane-toggle]").forEach(button => {
+    const active = nextOpen && button.dataset.diagram2LeftPaneToggle === mode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-expanded", String(active));
+    button.setAttribute("aria-pressed", String(active));
+  });
+  return nextOpen;
+}
+
+export function bindDiagram2EditorInspectorResize(root, options = {}) {
+  const shell = root?.matches?.("[data-diagram2-editor-shell]")
+    ? root
+    : root?.querySelector?.("[data-diagram2-editor-shell]");
+  if (!shell || shell.dataset.diagram2InspectorResizeBound === "true") return;
+  const main = shell.querySelector("[data-diagram2-editor-main]");
+  const inspector = shell.querySelector("[data-diagram2-inspector]");
+  const splitter = shell.querySelector("[data-diagram2-inspector-splitter]");
+  if (!main || !inspector || !splitter) return;
+  shell.dataset.diagram2InspectorResizeBound = "true";
+
+  let inspectorWidth = diagram2CurrentInspectorWidth(main, inspector);
+  let finishResize = () => {};
+
+  const inspectorWidthLimits = () => {
+    const mainWidth = Math.max(1, main.getBoundingClientRect().width || window.innerWidth || 1);
+    const maximum = Math.max(300, Math.floor(mainWidth * 0.5));
+    return {
+      minimum: 300,
+      maximum
+    };
+  };
+
+  const setInspectorWidth = value => {
+    const limits = inspectorWidthLimits();
+    inspectorWidth = Math.round(clampDiagram2Number(value, limits.minimum, limits.maximum));
+    main.style.setProperty("--image-annotation-inspector-width", `${inspectorWidth}px`);
+    splitter.setAttribute("aria-valuemin", String(limits.minimum));
+    splitter.setAttribute("aria-valuemax", String(limits.maximum));
+    splitter.setAttribute("aria-valuenow", String(inspectorWidth));
+    options.onResize?.(inspectorWidth);
+  };
+
+  const beginResize = event => {
+    if (main.classList.contains("is-inspector-hidden") || window.matchMedia("(max-width: 900px)").matches) return;
+    event.preventDefault();
+    finishResize();
+    const startX = Number(event.clientX || 0);
+    const startWidth = inspector.getBoundingClientRect().width || inspectorWidth;
+    const resizeClassTarget = shell.closest(".dialog") || shell;
+    resizeClassTarget.classList.add("is-resizing-inspector");
+    shell.classList.add("is-resizing-inspector");
+    splitter.setPointerCapture?.(event.pointerId);
+
+    const resize = moveEvent => {
+      setInspectorWidth(startWidth + startX - Number(moveEvent.clientX || 0));
+    };
+    finishResize = () => {
+      resizeClassTarget.classList.remove("is-resizing-inspector");
+      shell.classList.remove("is-resizing-inspector");
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+      finishResize = () => {};
+    };
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+  };
+
+  splitter.addEventListener("pointerdown", beginResize);
+  splitter.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const limits = inspectorWidthLimits();
+    if (event.key === "Home") setInspectorWidth(limits.minimum);
+    else if (event.key === "End") setInspectorWidth(limits.maximum);
+    else setInspectorWidth(inspectorWidth + (event.key === "ArrowLeft" ? 24 : -24));
+  });
+
+  setInspectorWidth(inspectorWidth);
+}
+
+export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
+  const shell = root?.matches?.("[data-diagram2-editor-shell]")
+    ? root
+    : root?.querySelector?.("[data-diagram2-editor-shell]");
+  if (!shell || shell.dataset.diagram2LeftPaneResizeBound === "true") return;
+  const main = shell.querySelector("[data-diagram2-editor-main]");
+  if (!main) return;
+  shell.dataset.diagram2LeftPaneResizeBound = "true";
+
+  let finishResize = () => {};
+  const paneModes = ["tools", "objects", "templates"];
+
+  const leftPaneWidthLimits = () => {
+    const mainWidth = Math.max(1, main.getBoundingClientRect().width || window.innerWidth || 1);
+    return {
+      minimum: 196,
+      maximum: Math.max(196, Math.floor(mainWidth * 0.5))
+    };
+  };
+
+  const setLeftPaneWidth = (mode, value) => {
+    const limits = leftPaneWidthLimits();
+    const paneMode = normalizeDiagram2LeftPaneMode(mode);
+    const width = Math.round(clampDiagram2Number(value, limits.minimum, limits.maximum));
+    main.style.setProperty(diagram2LeftPaneWidthProperty(paneMode), `${width}px`);
+    main.querySelectorAll(`[data-diagram2-left-pane-name="${paneMode}"] [data-diagram2-left-pane-resizer]`).forEach(resizer => {
+      resizer.setAttribute("aria-valuemin", String(limits.minimum));
+      resizer.setAttribute("aria-valuemax", String(limits.maximum));
+      resizer.setAttribute("aria-valuenow", String(width));
+    });
+    options.onResize?.(width, paneMode);
+    return width;
+  };
+
+  main.addEventListener("pointerdown", event => {
+    const resizer = event.target?.closest?.("[data-diagram2-left-pane-resizer]");
+    if (!resizer || !main.contains(resizer) || !main.classList.contains("is-left-pane-open")) return;
+    event.preventDefault();
+    finishResize();
+    const pane = resizer.closest("[data-diagram2-left-pane]");
+    const paneMode = normalizeDiagram2LeftPaneMode(pane?.dataset?.diagram2LeftPaneName || main.dataset.diagram2LeftPaneMode);
+    const startX = Number(event.clientX || 0);
+    const startWidth = diagram2CurrentLeftPaneWidth(main, paneMode);
+    const resizeClassTarget = shell.closest(".dialog") || shell;
+    resizeClassTarget.classList.add("is-resizing-left-pane");
+    shell.classList.add("is-resizing-left-pane");
+    resizer.setPointerCapture?.(event.pointerId);
+
+    const resize = moveEvent => {
+      setLeftPaneWidth(paneMode, startWidth + Number(moveEvent.clientX || 0) - startX);
+    };
+    finishResize = () => {
+      resizeClassTarget.classList.remove("is-resizing-left-pane");
+      shell.classList.remove("is-resizing-left-pane");
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+      finishResize = () => {};
+    };
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+  });
+
+  main.addEventListener("keydown", event => {
+    const resizer = event.target?.closest?.("[data-diagram2-left-pane-resizer]");
+    if (!resizer || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const limits = leftPaneWidthLimits();
+    const pane = resizer.closest("[data-diagram2-left-pane]");
+    const paneMode = normalizeDiagram2LeftPaneMode(pane?.dataset?.diagram2LeftPaneName || main.dataset.diagram2LeftPaneMode);
+    const currentWidth = diagram2CurrentLeftPaneWidth(main, paneMode);
+    if (event.key === "Home") setLeftPaneWidth(paneMode, limits.minimum);
+    else if (event.key === "End") setLeftPaneWidth(paneMode, limits.maximum);
+    else setLeftPaneWidth(paneMode, currentWidth + (event.key === "ArrowRight" ? 24 : -24));
+  });
+
+  paneModes.forEach(mode => setLeftPaneWidth(mode, diagram2CurrentLeftPaneWidth(main, mode)));
 }
 
 function normalizeDiagram2TextEditorHtml(value) {
@@ -491,6 +723,12 @@ export function bindDiagram2EditorFormatControls(root, options = {}) {
       return;
     }
 
+    const geometryControl = target.closest("[data-diagram2-geometry]");
+    if (geometryControl && root.contains(geometryControl)) {
+      void applyDiagram2Geometry(root, geometryControl.dataset.diagram2Geometry, geometryControl.value, options);
+      return;
+    }
+
     const styleControl = target.closest("[data-diagram2-style]");
     if (!styleControl || !root.contains(styleControl)) return;
     void applyDiagram2FormatStyle(root, styleControl.dataset.diagram2Style, styleControl.value, options);
@@ -500,22 +738,16 @@ export function bindDiagram2EditorFormatControls(root, options = {}) {
 function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
   const disabled = canUse ? "" : "disabled";
   return `
-    <div class="image-annotation-toolbar diagram2-editor-toolbar" role="toolbar" aria-label="Diagram 2 tools">
-      <div class="image-annotation-tool-group" aria-label="Drawing tools">
-        ${diagram2ToolButton("select", "Select (V)", true, disabled)}
-        ${diagram2ToolButton("pan", "Pan (H)", false, disabled)}
-        ${diagram2ToolButton("format-painter", "Format Painter", false, `${disabled} data-diagram2-requires-selection data-diagram2-requires-update`)}
-        ${diagram2ToolButton("crop", "Crop (C)", false, "disabled")}
-        ${diagram2ToolButton("rectangle", "Rectangle (R)", false, `${disabled} data-diagram2-requires-update`)}
-        ${diagram2ToolButton("circle", "Circle (O)", false, `${disabled} data-diagram2-requires-update`)}
-        ${diagram2ToolButton("arrow", "Arrow (A)", false, `${disabled} data-diagram2-requires-update`)}
-        ${diagram2ToolButton("line", "Line (L)", false, `${disabled} data-diagram2-requires-update`)}
-        ${diagram2ToolButton("textbox", "Text Box (T)", false, `${disabled} data-diagram2-requires-update`)}
-        ${diagram2ToolButton("rich-text", "Rich Text Editor (Y)", false, `${disabled} data-diagram2-requires-update`)}
-        <span class="image-annotation-toolbar-separator" role="separator" aria-hidden="true"></span>
-        ${diagram2ToolButton("entity", "Entity (E)", false, "disabled")}
-        ${diagram2ToolButton("field-rectangle", "Field Rectangle", false, "disabled")}
-        ${diagram2IconButton("Generate Field Mapping Table", "generate-diagram2-field-mapping-table", "field-mapping-table", "disabled")}
+    <div class="image-annotation-toolbar diagram2-editor-toolbar" role="toolbar" aria-label="Diagram 2 editor controls">
+      <div class="diagram2-editor-nav">
+        <div class="diagram2-editor-brand" aria-label="PMT">
+          <img src="${escapeAttr(appUrl("/assets/project-pmt.svg?v=20260621-transparent"))}" alt="">
+          <strong>PMT</strong>
+        </div>
+        <button type="button" class="diagram2-left-pane-toggle is-active" data-action="toggle-diagram2-tools-pane" data-diagram2-left-pane-toggle="tools" aria-expanded="true" aria-pressed="true" title="Tools" aria-label="Tools" ${disabled}>Tools</button>
+        <button type="button" class="diagram2-left-pane-toggle" data-action="toggle-diagram2-objects-pane" data-diagram2-left-pane-toggle="objects" aria-expanded="false" aria-pressed="false" title="Objects" aria-label="Objects" ${disabled}>Objects</button>
+        <button type="button" class="diagram2-left-pane-toggle" data-action="toggle-diagram2-templates-pane" data-diagram2-left-pane-toggle="templates" aria-expanded="false" aria-pressed="false" title="Templates" aria-label="Templates" ${disabled}>Templates</button>
+        <button type="button" data-action="toggle-diagram2-inspector" aria-controls="diagram2Inspector" aria-expanded="true" title="Right Pane" aria-label="Right Pane" ${disabled}>Right Pane</button>
       </div>
       <div class="image-annotation-tool-group" aria-label="History">
         ${diagram2TextButton("undo-diagram2", "Undo", "Undo (Ctrl+Z)", "data-diagram2-requires-undo data-diagram2-requires-update")}
@@ -531,12 +763,11 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
         </select>
         <button type="button" data-action="zoom-diagram2-in" title="Zoom In" aria-label="Zoom In" ${disabled}>+</button>
         <button type="button" data-action="fit-diagram2-viewer" title="Fit Diagram" aria-label="Fit Diagram" ${disabled}>Fit</button>
-        <button type="button" data-action="toggle-diagram2-inspector" aria-controls="diagram2Inspector" aria-expanded="true" title="Hide Right Pane" aria-label="Hide Right Pane" ${disabled}>Hide Right Pane</button>
       </div>
       <span class="image-annotation-mode-indicator diagram2-editor-status" data-diagram2-save-state data-diagram2-shell-save-state role="status" aria-live="polite">Saved</span>
       ${includeActions ? `
         <div class="image-annotation-tool-group image-annotation-maximized-actions diagram2-editor-top-actions" aria-label="Editor actions">
-          ${diagram2TextButton("cancel-diagram2-editor", "Cancel", "Cancel", "")}
+          ${diagram2TextButton("cancel-diagram2-editor", "Close", "Close", "")}
           ${diagram2TextButton("save-diagram2-document", "Save", "Save Diagram", "data-diagram2-requires-dirty data-diagram2-requires-update")}
         </div>
       ` : ""}
@@ -544,15 +775,49 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
   `;
 }
 
+function diagram2LeftPaneResizerHtml(label) {
+  return `<div class="diagram2-editor-left-pane-resizer" data-diagram2-left-pane-resizer role="separator" aria-orientation="vertical" aria-label="Resize ${escapeAttr(label)} pane" tabindex="0"></div>`;
+}
+
+function diagram2ToolsPaneHtml({ canUse }) {
+  const disabled = canUse ? "" : "disabled";
+  return `
+    <aside class="diagram2-editor-left-pane diagram2-editor-tools-pane" data-diagram2-left-pane data-diagram2-left-pane-name="tools" data-diagram2-tools-pane aria-label="Diagram 2 tools">
+      <div class="diagram2-editor-left-pane-scroll">
+        <div class="diagram2-editor-pane-title">
+          <h3>Tools</h3>
+        </div>
+        <div class="diagram2-tools-list" role="toolbar" aria-label="Drawing tools">
+          ${diagram2ToolPaneButton("select", "Select", "Select (V)", true, disabled)}
+          ${diagram2ToolPaneButton("pan", "Pan", "Pan (H)", false, disabled)}
+          ${diagram2ToolPaneButton("format-painter", "Format Painter", "Format Painter", false, `${disabled} data-diagram2-requires-selection data-diagram2-requires-update`)}
+          ${diagram2ToolPaneButton("crop", "Crop", "Crop (C)", false, "disabled")}
+          <div class="diagram2-tools-divider" role="separator" aria-hidden="true"></div>
+          ${diagram2ToolPaneButton("rectangle", "Rectangle", "Rectangle (R)", false, `${disabled} data-diagram2-requires-update`)}
+          ${diagram2ToolPaneButton("circle", "Circle", "Circle (O)", false, `${disabled} data-diagram2-requires-update`)}
+          ${diagram2ToolPaneButton("arrow", "Arrow", "Arrow (A)", false, `${disabled} data-diagram2-requires-update`)}
+          ${diagram2ToolPaneButton("line", "Line", "Line (L)", false, `${disabled} data-diagram2-requires-update`)}
+          ${diagram2ToolPaneButton("textbox", "Text Box", "Text Box (T)", false, `${disabled} data-diagram2-requires-update`)}
+          ${diagram2ToolPaneButton("rich-text", "Rich Text Editor", "Rich Text Editor (Y)", false, `${disabled} data-diagram2-requires-update`)}
+          <div class="diagram2-tools-divider" role="separator" aria-hidden="true"></div>
+          ${diagram2ToolPaneButton("entity", "Entity", "Entity (E)", false, "disabled")}
+          ${diagram2ToolPaneButton("field-rectangle", "Field Rectangle", "Field Rectangle", false, "disabled")}
+          ${diagram2ToolPaneActionButton("field-mapping-table", "Generate Field Mapping Table", "generate-diagram2-field-mapping-table", "disabled")}
+        </div>
+      </div>
+      ${diagram2LeftPaneResizerHtml("Tools")}
+    </aside>
+  `;
+}
+
 function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], options = {}) {
   return `
     <div class="image-annotation-inspector-tabs" role="tablist" aria-label="Diagram 2 right pane">
       ${diagram2InspectorTab("format", "Format", true)}
+      ${diagram2InspectorTab("rectangle", "Rectangle", false, false, true)}
       ${diagram2InspectorTab("crop", "Crop", false, false, true)}
       ${diagram2InspectorTab("field-mapping-table", "Mapping", false, false, true)}
       ${diagram2InspectorTab("entity", "Entity", false, false, true)}
-      ${diagram2InspectorTab("template", "Template", false)}
-      ${diagram2InspectorTab("objects", "Objects", false)}
     </div>
     <p class="image-annotation-selection-label" data-diagram2-selection-label data-diagram2-edit-state>${status.selectedCount ? `${status.selectedCount} selected` : "No selection"}</p>
     <div id="diagram2FormatPanel" role="tabpanel" aria-labelledby="diagram2FormatTab" data-diagram2-inspector-panel="format">
@@ -577,6 +842,15 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
           <label class="field"><span>Font size</span><input type="number" min="1" max="240" value="${escapeAttr(defaultDiagram2ShellStyles.fontSize)}" data-diagram2-style="fontSize"></label>
           <label class="field"><span>Horizontal alignment</span><select data-diagram2-style="textAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
           <label class="field"><span>Vertical alignment</span><select data-diagram2-style="textVerticalAlign"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
+        </div>
+      </section>
+    </div>
+    <div id="diagram2RectanglePanel" role="tabpanel" aria-labelledby="diagram2RectangleTab" data-diagram2-inspector-panel="rectangle" hidden>
+      <section class="image-annotation-format-section" aria-labelledby="diagram2RectangleGeometry">
+        <h4 id="diagram2RectangleGeometry">Rectangle</h4>
+        <div class="image-annotation-inspector-grid">
+          <label class="field"><span>Width</span><input type="number" min="8" max="10000" step="1" data-diagram2-geometry="width"></label>
+          <label class="field"><span>Height</span><input type="number" min="8" max="10000" step="1" data-diagram2-geometry="height"></label>
         </div>
       </section>
     </div>
@@ -615,12 +889,6 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
           ${diagram2ColorFieldHtml("entityHeaderFill", "Header background color", "Entity Header Background Color", "#ffffff", "background")}
         </div>
       </section>
-    </div>
-    <div id="diagram2TemplatePanel" role="tabpanel" aria-labelledby="diagram2TemplateTab" data-diagram2-inspector-panel="template" hidden>
-      ${diagram2TemplatePaneHtml(options.templateState, state, selectedIds)}
-    </div>
-    <div id="diagram2ObjectsPanel" role="tabpanel" aria-labelledby="diagram2ObjectsTab" data-diagram2-inspector-panel="objects" hidden>
-      ${diagram2ObjectsPaneHtml(state, selectedIds, { search: options.objectSearch })}
     </div>
   `;
 }
@@ -772,17 +1040,32 @@ function diagram2ObjectTreeRowHtml(node, selected, level) {
   const selectedPartial = selectedCount > 0 && !selectedAll;
   const visible = node.visible !== false;
   const effectiveVisible = node.effectiveVisible !== false;
-  const locked = object?.locked === true;
-  const draggable = fixed || locked ? "false" : "true";
+  const groupChildren = kind === "group" ? (node.allChildren || node.children || []) : [];
+  const lockTargets = kind === "group"
+    ? groupChildren.map(child => child?.object).filter(Boolean)
+    : [object].filter(Boolean);
+  const locked = lockTargets.length > 0 && lockTargets.every(target => target?.locked === true);
+  const hasLocked = lockTargets.some(target => target?.locked === true);
+  const draggable = fixed || hasLocked ? "false" : "true";
   const name = String(kind === "relationships" ? `${node.name} (${node.count || 0})` : node.name || "Object");
   const type = object?.type || kind;
   const icon = kind === "group" ? "&#9638;" : kind === "relationships" || kind === "relationship" ? "&#8644;" : diagram2ObjectTreeIcon(type);
-  const rowClass = `image-annotation-object-tree-row${selectedAll ? " is-selected" : ""}${selectedPartial ? " is-partially-selected" : ""}${effectiveVisible ? "" : " is-hidden"}`;
+  const rowClass = `image-annotation-object-tree-row${selectedAll ? " is-selected" : ""}${selectedPartial ? " is-partially-selected" : ""}${effectiveVisible ? "" : " is-hidden"}${locked ? " is-locked" : ""}${hasLocked && !locked ? " is-partially-locked" : ""}`;
+  const canDelete = !fixed && (kind === "group"
+    ? groupChildren.some(child => child?.object?.locked !== true)
+    : locked !== true);
+  const lockLabel = locked ? "Unlock" : "Lock";
   const actions = fixed
     ? `<span class="image-annotation-object-tree-row-actions" aria-hidden="true"></span>`
     : `<span class="image-annotation-object-tree-row-actions">
         <button type="button" data-action="rename-diagram2-object" data-node-kind="${escapeAttr(kind)}" data-object-id="${escapeAttr(node.id)}" title="Rename ${escapeAttr(name)}" aria-label="Rename ${escapeAttr(name)}">&#9998;</button>
       </span>`;
+  const deleteToggle = fixed
+    ? ""
+    : `<button type="button" class="image-annotation-object-tree-delete" data-action="delete-diagram2-object-tree-item" data-node-kind="${escapeAttr(kind)}" data-object-id="${escapeAttr(node.id)}" title="Delete ${escapeAttr(name)}" aria-label="Delete ${escapeAttr(name)}"${canDelete ? "" : " disabled"}>&#10005;</button>`;
+  const lockToggle = kind === "relationship" || kind === "relationships" || !lockTargets.length
+    ? ""
+    : `<button type="button" class="image-annotation-object-tree-lock-toggle${locked ? " is-locked" : ""}${hasLocked && !locked ? " is-partially-locked" : ""}" data-action="lock-diagram2-object-tree-item" data-node-kind="${escapeAttr(kind)}" data-object-id="${escapeAttr(node.id)}" title="${lockLabel} ${escapeAttr(name)}" aria-label="${lockLabel} ${escapeAttr(name)}" aria-pressed="${locked ? "true" : hasLocked ? "mixed" : "false"}">${diagram2ObjectTreeLockIcon()}</button>`;
   const visibility = kind === "relationship" || kind === "relationships"
     ? ""
     : `<button type="button" class="image-annotation-object-tree-visibility${visible ? "" : " is-hidden"}" data-action="toggle-diagram2-object-visibility" data-node-kind="${escapeAttr(kind)}" data-object-id="${escapeAttr(node.id)}" title="${visible ? "Hide" : "Show"} ${escapeAttr(name)}" aria-label="${visible ? "Hide" : "Show"} ${escapeAttr(name)}" aria-pressed="${visible}"><span aria-hidden="true">&#128065;</span></button>`;
@@ -790,7 +1073,8 @@ function diagram2ObjectTreeRowHtml(node, selected, level) {
     <div class="${rowClass}" role="treeitem" aria-level="${level}" aria-selected="${selectedAll}" ${kind === "group" || kind === "relationships" ? "aria-expanded=\"true\"" : ""} tabindex="0" draggable="${draggable}" data-action="select-diagram2-object-tree-item" data-object-id="${escapeAttr(node.id)}" data-node-kind="${escapeAttr(kind)}" data-diagram2-object-tree-row data-diagram2-object-id="${escapeAttr(node.id)}" data-diagram2-tree-node-kind="${escapeAttr(kind)}" data-diagram2-object-type="${escapeAttr(type)}" data-diagram2-object-visible="${visible}">
       <span class="image-annotation-object-tree-icon" aria-hidden="true">${icon}</span>
       <span class="image-annotation-object-tree-label" title="${escapeAttr(name)}">${escapeHtml(name)}</span>
-      ${locked ? `<span class="image-annotation-object-tree-lock-status" title="Locked" aria-label="Locked">${diagram2ObjectTreeLockIcon()}</span>` : ""}
+      ${deleteToggle}
+      ${lockToggle}
       ${visibility}
       ${actions}
     </div>
@@ -800,16 +1084,19 @@ function diagram2ObjectTreeRowHtml(node, selected, level) {
 function diagram2TemplateCardHtml(template, index, templateCount) {
   const id = String(template?.id || "");
   const name = String(template?.name || "Template");
+  const preview = annotationTemplatePreviewDataUrl(template);
   const upDisabled = index <= 0;
   const downDisabled = index >= templateCount - 1;
   return `
     <article class="image-annotation-template-card diagram2-template-card" data-diagram2-template-card="${escapeAttr(id)}">
+      <button type="button" class="image-annotation-template-preview" data-action="apply-diagram2-template" data-template-id="${escapeAttr(id)}" aria-label="Use ${escapeAttr(name)} template">
+        <img src="${escapeAttr(preview)}" alt="${escapeAttr(name)} template preview">
+      </button>
       <strong title="${escapeAttr(name)}">${escapeHtml(name)}</strong>
       <div class="image-annotation-template-card-actions" aria-label="${escapeAttr(name)} template actions">
-        <button type="button" data-action="apply-diagram2-template" data-template-id="${escapeAttr(id)}" title="Use ${escapeAttr(name)}">Use</button>
-        <button type="button" data-action="format-diagram2-template" data-template-id="${escapeAttr(id)}" data-diagram2-requires-selection data-diagram2-requires-update title="Apply ${escapeAttr(name)} formatting">Format</button>
         <button type="button" data-action="rename-diagram2-template" data-template-id="${escapeAttr(id)}" title="Rename ${escapeAttr(name)}">Rename</button>
         <button type="button" data-action="update-diagram2-template" data-template-id="${escapeAttr(id)}" data-diagram2-requires-selection data-diagram2-requires-update title="Update ${escapeAttr(name)}">Update</button>
+        <button type="button" data-action="format-diagram2-template" data-template-id="${escapeAttr(id)}" data-diagram2-requires-selection data-diagram2-requires-update title="Apply ${escapeAttr(name)} formatting">Format</button>
         <button type="button" data-action="move-diagram2-template-up" data-template-id="${escapeAttr(id)}" ${upDisabled ? "disabled" : ""} title="Move ${escapeAttr(name)} up">Up</button>
         <button type="button" data-action="move-diagram2-template-down" data-template-id="${escapeAttr(id)}" ${downDisabled ? "disabled" : ""} title="Move ${escapeAttr(name)} down">Down</button>
         <button type="button" data-action="download-diagram2-template" data-template-id="${escapeAttr(id)}" title="Download ${escapeAttr(name)}">Download</button>
@@ -825,6 +1112,14 @@ function diagram2ObjectTreeLockIcon() {
 
 function diagram2ToolButton(tool, label, pressed = false, attributes = "") {
   return `<button type="button" data-action="set-diagram2-tool" data-diagram2-tool="${escapeAttr(tool)}" data-tool="${escapeAttr(tool)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" aria-pressed="${pressed}" class="${pressed ? "is-active" : ""}" ${attributes}><span class="button-icon" aria-hidden="true">${diagram2ToolIconSvg(tool)}</span></button>`;
+}
+
+function diagram2ToolPaneButton(tool, text, label, pressed = false, attributes = "") {
+  return `<button type="button" class="diagram2-tool-pane-button ${pressed ? "is-active" : ""}" data-action="set-diagram2-tool" data-diagram2-tool="${escapeAttr(tool)}" data-tool="${escapeAttr(tool)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" aria-pressed="${pressed}" ${attributes}><span class="button-icon" aria-hidden="true">${diagram2ToolIconSvg(tool)}</span><span class="diagram2-tool-pane-label">${escapeHtml(text)}</span></button>`;
+}
+
+function diagram2ToolPaneActionButton(iconType, label, action, attributes = "") {
+  return `<button type="button" class="diagram2-tool-pane-button" data-action="${escapeAttr(action)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" ${attributes}><span class="button-icon" aria-hidden="true">${diagram2ToolIconSvg(iconType)}</span><span class="diagram2-tool-pane-label">${escapeHtml(label)}</span></button>`;
 }
 
 function diagram2IconButton(label, action, iconType, attributes = "") {
@@ -846,11 +1141,10 @@ function syncDiagram2InspectorTabVisibility(root, selectedObjects = []) {
   const type = String(single?.type || "");
   const visibleTabs = {
     format: true,
+    rectangle: type === "rectangle",
     crop: type === "embedded-image",
     "field-mapping-table": type === "field-mapping-table",
-    entity: type === "entity" || type === "field-rectangle",
-    template: true,
-    objects: true
+    entity: type === "entity" || type === "field-rectangle"
   };
 
   root.querySelectorAll("[data-diagram2-inspector-tab]").forEach(tab => {
@@ -889,6 +1183,46 @@ function syncDiagram2FormatControls(root, selectedObjects = [], options = {}) {
     control.dataset.diagram2MixedValue = values.some(value => value !== values[0]) ? "true" : "false";
     setDiagram2StyleControlValue(control, values[0]);
   });
+}
+
+function syncDiagram2GeometryControls(root, selectedObjects = [], options = {}) {
+  const objects = Array.isArray(selectedObjects) ? selectedObjects : [];
+  const rectangle = objects.length === 1 && objects[0]?.type === "rectangle" ? objects[0] : null;
+  const canUse = options.canEdit !== false && options.busy !== true && rectangle && rectangle.locked !== true;
+  root.querySelectorAll("[data-diagram2-geometry]").forEach(control => {
+    const property = control.dataset.diagram2Geometry || "";
+    const canEditGeometry = canUse && ["width", "height"].includes(property);
+    control.disabled = !canEditGeometry;
+    control.value = rectangle ? diagram2DimensionText(rectangle[property]) : "";
+  });
+}
+
+function diagram2CurrentInspectorWidth(main, inspector) {
+  const fromStyle = Number.parseFloat(main?.style?.getPropertyValue("--image-annotation-inspector-width") || "");
+  if (Number.isFinite(fromStyle) && fromStyle > 0) return fromStyle;
+  const width = inspector?.getBoundingClientRect?.().width || 0;
+  return Number.isFinite(width) && width > 0 ? width : 320;
+}
+
+function diagram2CurrentLeftPaneWidth(main, mode = "tools") {
+  const property = diagram2LeftPaneWidthProperty(mode);
+  const fromModeStyle = Number.parseFloat(main?.style?.getPropertyValue(property) || "");
+  if (Number.isFinite(fromModeStyle) && fromModeStyle > 0) return fromModeStyle;
+  const pane = main?.querySelector?.(`[data-diagram2-left-pane-name="${normalizeDiagram2LeftPaneMode(mode)}"]`);
+  const paneWidth = pane?.getBoundingClientRect?.().width || 0;
+  if (Number.isFinite(paneWidth) && paneWidth > 0) return paneWidth;
+  const fromStyle = Number.parseFloat(main?.style?.getPropertyValue("--diagram2-left-pane-width") || "");
+  if (Number.isFinite(fromStyle) && fromStyle > 0) return fromStyle;
+  return 320;
+}
+
+function normalizeDiagram2LeftPaneMode(mode) {
+  const value = String(mode || "").trim().toLowerCase();
+  return ["tools", "objects", "templates"].includes(value) ? value : "tools";
+}
+
+function diagram2LeftPaneWidthProperty(mode) {
+  return `--diagram2-${normalizeDiagram2LeftPaneMode(mode)}-pane-width`;
 }
 
 function syncDiagram2CheckboxStyleControl(root, selector, styleName, selectedObjects, canUse) {
@@ -983,6 +1317,12 @@ async function applyDiagram2FormatStyle(root, styleName, value, options = {}) {
   return true;
 }
 
+async function applyDiagram2Geometry(root, propertyInput, value, options = {}) {
+  const property = String(propertyInput || "").trim();
+  if (!["width", "height"].includes(property) || typeof options.applyGeometry !== "function") return false;
+  return options.applyGeometry(property, value);
+}
+
 function syncDiagram2ColorPickerControls(root, selectedObjects = [], options = {}) {
   const objects = Array.isArray(selectedObjects) ? selectedObjects : [];
   const canUse = options.canEdit !== false && options.busy !== true;
@@ -1001,6 +1341,11 @@ function diagram2SelectedColorValue(name, selectedObjects, fallback) {
   const colorName = String(name || "").trim();
   const object = selectedObjects.find(item => normalizeDiagram2PickerColor(item?.[colorName]));
   return normalizeDiagram2PickerColor(object?.[colorName]) || fallback;
+}
+
+function diagram2DimensionText(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? String(Math.round(number * 100) / 100) : "";
 }
 
 async function chooseDiagram2CustomPickerColor(root, picker, options = {}) {

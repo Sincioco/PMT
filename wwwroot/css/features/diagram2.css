@@ -59,18 +59,18 @@ body.diagram2-edit-mode-active #app {
   align-items: center;
   min-height: var(--control-height-sm);
   padding: 0 var(--space-3);
-  border: var(--border-width) solid var(--color-border-subtle);
+  border: var(--border-width) solid var(--color-success-border);
   border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  background: var(--color-surface);
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
 .diagram2-screen.has-unsaved-diagram2 .diagram2-save-state {
-  border-color: color-mix(in srgb, var(--color-warning, #f59e0b) 45%, var(--color-border-subtle));
-  color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-warning, #f59e0b) 14%, var(--color-surface));
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
 }
 
 .diagram2-screen.is-resizing-tree,
@@ -212,7 +212,8 @@ body.diagram2-edit-mode-active #app {
   position: relative;
   display: block;
   min-height: 420px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 16px;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
@@ -322,28 +323,42 @@ body.diagram2-edit-mode-active #app {
   pointer-events: none;
 }
 
-.diagram2-renderer-object.is-selected .diagram2-renderer-entity-outline,
-.diagram2-renderer-object.is-selected .diagram2-renderer-field-rectangle,
-.diagram2-renderer-object.is-selected .diagram2-renderer-rectangle,
-.diagram2-renderer-object.is-selected .diagram2-renderer-circle,
-.diagram2-renderer-object.is-selected .diagram2-renderer-textbox-frame {
-  stroke: #2563eb;
-}
-
 .diagram2-renderer-selection {
   pointer-events: none;
 }
 
+.diagram2-renderer-svg.is-geometry-previewing .diagram2-renderer-selection {
+  visibility: hidden;
+}
+
+.diagram2-renderer-selection [data-diagram2-selection-outline] {
+  stroke: var(--color-focus-ring);
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
+  opacity: 0.72;
+}
+
+.diagram2-renderer-selection.is-locked [data-diagram2-selection-outline] {
+  stroke: var(--color-text-tertiary);
+  opacity: 0.55;
+}
+
 .diagram2-renderer-selection .diagram2-renderer-resize-handle {
-  fill: #2563eb;
-  stroke: #ffffff;
-  opacity: 0.95;
+  fill: var(--color-focus-ring);
+  stroke: var(--color-surface-raised);
+  opacity: 0.9;
   pointer-events: all;
   vector-effect: non-scaling-stroke;
 }
 
 .diagram2-renderer-selection .diagram2-renderer-resize-handle:hover {
-  fill: #1d4ed8;
+  fill: var(--color-accent, var(--color-focus-ring));
+}
+
+.diagram2-renderer-selection.is-locked .diagram2-renderer-resize-handle {
+  fill: var(--color-text-tertiary);
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .diagram2-renderer-entity-title,
@@ -396,8 +411,54 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-editor-toolbar {
-  max-height: 126px;
+  --diagram2-editor-toolbar-height: 52px;
+  flex-wrap: nowrap;
+  align-content: center;
+  height: var(--diagram2-editor-toolbar-height);
+  min-height: var(--diagram2-editor-toolbar-height);
+  max-height: var(--diagram2-editor-toolbar-height);
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.diagram2-editor-toolbar .image-annotation-tool-group {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.diagram2-editor-nav {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  border-right: var(--border-width) solid var(--color-border-subtle);
+}
+
+.diagram2-editor-brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-sm);
+  color: var(--color-text-primary);
+}
+
+.diagram2-editor-brand img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.diagram2-editor-brand strong {
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-tight);
+}
+
+.diagram2-tools-toggle {
+  min-width: 64px;
 }
 
 .diagram2-editor-toolbar .image-annotation-maximized-actions {
@@ -407,13 +468,28 @@ body.diagram2-edit-mode-active #app {
 .diagram2-editor-status {
   display: inline-flex;
   align-items: center;
-  color: var(--color-text-tertiary);
+  justify-content: center;
+  min-width: 118px;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-success-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
+.diagram2-editor-shell.has-unsaved-diagram2 .diagram2-editor-status,
+.diagram2-rte-dialog.has-unsaved-diagram2 .diagram2-editor-status {
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+
 .diagram2-editor-main {
-  grid-template-columns: minmax(0, 1fr) 4px minmax(300px, var(--image-annotation-inspector-width, 320px));
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(300px, var(--image-annotation-inspector-width, 320px));
   background: var(--color-surface);
 }
 
@@ -426,10 +502,175 @@ body.diagram2-edit-mode-active #app {
   display: none;
 }
 
+.diagram2-editor-center {
+  grid-column: 1;
+}
+
+.diagram2-editor-inspector-splitter {
+  position: relative;
+  grid-column: 2;
+  width: 1px;
+  min-width: 1px;
+  border-radius: 0;
+  background: var(--color-border);
+  justify-self: stretch;
+}
+
+.diagram2-editor-inspector-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.diagram2-editor-inspector {
+  grid-column: 3;
+}
+
+.diagram2-editor-inspector-splitter:hover,
+.diagram2-editor-inspector-splitter:focus-visible,
+.diagram2-editor-shell.is-resizing-inspector .diagram2-editor-inspector-splitter,
+.diagram2-rte-dialog.is-resizing-inspector .diagram2-editor-inspector-splitter {
+  background: var(--color-border-strong);
+}
+
+.diagram2-editor-left-pane {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 8;
+  width: min(var(--diagram2-left-pane-width, 320px), 50%);
+  max-width: 50%;
+}
+
+.diagram2-editor-tools-pane {
+  width: min(var(--diagram2-tools-pane-width, var(--diagram2-left-pane-width, 320px)), 50%);
+}
+
 .diagram2-editor-objects-pane {
-  padding: 0 var(--space-4) var(--space-4);
-  border-right: var(--border-width) solid var(--color-border);
+  width: min(var(--diagram2-objects-pane-width, var(--diagram2-left-pane-width, 320px)), 50%);
+}
+
+.diagram2-template-pane {
+  width: min(var(--diagram2-templates-pane-width, var(--diagram2-left-pane-width, 320px)), 50%);
+}
+
+.diagram2-editor-main:not(.is-left-pane-open) .diagram2-editor-left-pane,
+.diagram2-editor-main:not(.is-tools-open) .diagram2-editor-tools-pane,
+.diagram2-editor-main:not(.is-objects-open) .diagram2-editor-objects-pane,
+.diagram2-editor-main:not(.is-templates-open) .diagram2-template-pane {
+  display: none;
+}
+
+.diagram2-editor-tools-pane,
+.diagram2-editor-objects-pane,
+.diagram2-template-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+  padding: 0;
+  border-right: 0;
+  background: var(--color-surface-dialog);
+}
+
+.diagram2-editor-left-pane-scroll {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.diagram2-editor-left-pane-resizer {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  bottom: 0;
+  width: 8px;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.diagram2-editor-left-pane-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.diagram2-editor-left-pane-resizer:hover::before,
+.diagram2-editor-left-pane-resizer:focus-visible::before,
+.diagram2-editor-shell.is-resizing-left-pane .diagram2-editor-left-pane-resizer::before,
+.diagram2-rte-dialog.is-resizing-left-pane .diagram2-editor-left-pane-resizer::before {
+  background: var(--color-border-strong);
+}
+
+.diagram2-editor-shell.is-resizing-left-pane,
+.diagram2-rte-dialog.is-resizing-left-pane {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.diagram2-left-pane-toggle.is-active {
+  border-color: var(--color-accent, #2563eb);
+  color: var(--color-accent, #2563eb);
+  background: color-mix(in srgb, var(--color-accent, #2563eb) 10%, var(--color-surface));
+}
+
+.diagram2-tools-list {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-top: var(--space-3);
+}
+
+.diagram2-tool-pane-button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 0 var(--space-2);
+  text-align: left;
+}
+
+.diagram2-tool-pane-button .button-icon {
+  display: grid;
+  place-items: center;
+}
+
+.diagram2-tool-pane-button .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.diagram2-tool-pane-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagram2-tools-divider {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--color-border);
+}
+
+.diagram2-editor-objects-pane {
+  border-right: 0;
   border-left: 0;
+}
+
+.diagram2-editor-objects-pane .diagram2-editor-left-pane-scroll,
+.diagram2-template-pane .diagram2-editor-left-pane-scroll {
+  padding: 0 var(--space-4) var(--space-4);
 }
 
 .diagram2-editor-pane-title {
@@ -481,7 +722,7 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-editor-inspector {
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: 0;
 }
 
 .diagram2-editor-inspector .image-annotation-inspector-tabs {
@@ -501,8 +742,8 @@ body.diagram2-edit-mode-active #app {
   display: none;
 }
 
-.diagram2-editor-objects-pane,
-.diagram2-template-pane {
+.diagram2-editor-objects-pane .diagram2-editor-left-pane-scroll,
+.diagram2-template-pane .diagram2-editor-left-pane-scroll {
   display: grid;
   gap: var(--space-3);
   min-width: 0;
@@ -556,10 +797,11 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-object-tree .image-annotation-object-tree-row {
+  position: relative;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 20px minmax(0, 1fr) 24px 24px 24px;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-height: 30px;
   padding: 0 var(--space-2);
   border: var(--border-width) solid transparent;
@@ -592,16 +834,88 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-object-tree .image-annotation-object-tree-row-actions {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--space-2) + 84px);
+  z-index: 1;
   display: inline-flex;
   gap: var(--space-1);
+  transform: translateY(-50%);
 }
 
 .diagram2-object-tree .image-annotation-object-tree-row-actions button,
+.diagram2-object-tree .image-annotation-object-tree-delete,
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle,
 .diagram2-object-tree .image-annotation-object-tree-visibility {
-  width: var(--control-height-sm);
-  min-width: var(--control-height-sm);
-  min-height: var(--control-height-sm);
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-delete {
+  display: inline-grid;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+
+.diagram2-object-tree .image-annotation-object-tree-delete:hover,
+.diagram2-object-tree .image-annotation-object-tree-delete:focus-visible {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
+}
+
+.diagram2-object-tree .image-annotation-object-tree-delete:disabled {
+  color: var(--color-text-disabled);
+  opacity: 0.45;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  opacity: 0.5;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle:hover,
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle:focus-visible {
+  border-color: var(--color-border-control);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  opacity: 0.65;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle.is-locked,
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle.is-partially-locked {
+  border-color: var(--color-border-control);
+  background: var(--color-control-selected);
+  color: var(--color-text-primary);
+  opacity: 1;
+}
+
+.diagram2-object-tree .image-annotation-object-tree-lock-toggle.is-partially-locked::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  border-top: 2px solid currentcolor;
+  transform: rotate(-45deg);
+  pointer-events: none;
 }
 
 .diagram2-object-tree .is-drop-before {
@@ -620,16 +934,19 @@ body.diagram2-edit-mode-active #app {
 
 .diagram2-template-pane .image-annotation-template-list {
   display: grid;
+  grid-template-columns: repeat(auto-fill, 260px);
+  align-items: start;
   gap: var(--space-2);
 }
 
 .diagram2-template-card {
   display: grid;
   gap: var(--space-2);
+  width: 260px;
   padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
 }
 
 .diagram2-template-card strong {
@@ -642,8 +959,8 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-template-card .image-annotation-template-card-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-1);
 }
 

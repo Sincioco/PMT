@@ -2,30 +2,36 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
+} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
 import { appUrl } from "../../shared/app-urls.js";
 import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
+  bindDiagram2EditorInspectorResize,
+  bindDiagram2EditorLeftPaneResize,
   copyDiagram2SelectionArtwork,
   diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
   diagram2TemplatePaneHtml,
   openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
+  setDiagram2ObjectsPaneOpen,
+  setDiagram2TemplatesPaneOpen,
+  setDiagram2ToolsPaneOpen,
+  syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -34,7 +40,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v2";
+} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -118,6 +124,7 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
       }
     });
     lastDiagnostics = renderer.render(controller.state(), { reason: "initial" });
+    syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
     lastDiagnostics = renderer.setZoom("fit");
     controller.attachRenderer(renderer);
     controller.markSaved();
@@ -331,7 +338,19 @@ function bindDiagram2RteHostEvents(options = {}) {
   });
   bindDiagram2EditorFormatControls(dialog, {
     applyStyle: (name, value) => applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, value),
+    applyGeometry: (name, value) => applyDiagram2RteSelectedGeometry(dialog, controller, renderer, name, value),
     notify
+  });
+  bindDiagram2EditorInspectorResize(dialog, {
+    onResize: () => {
+      if (String(dialog.querySelector("[data-filter='diagram2-zoom']")?.value || "fit") === "fit") {
+        syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
+        renderer.fit();
+      }
+    }
+  });
+  bindDiagram2EditorLeftPaneResize(dialog, {
+    onResize: () => syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false })
   });
 
   dialog.addEventListener("click", event => {
@@ -372,6 +391,14 @@ function bindDiagram2RteHostEvents(options = {}) {
     }
     if (action === "rename-diagram2-object") {
       void renameDiagram2RteStructureNode(dialog, controller, renderer, actionElement, options.askForText, notify);
+      return;
+    }
+    if (action === "delete-diagram2-object-tree-item") {
+      void deleteDiagram2RteStructureNode(dialog, controller, renderer, actionElement, notify);
+      return;
+    }
+    if (action === "lock-diagram2-object-tree-item") {
+      void toggleDiagram2RteStructureLock(dialog, controller, renderer, actionElement, notify);
       return;
     }
     if (action === "toggle-diagram2-object-visibility") {
@@ -446,6 +473,7 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "fit-diagram2-viewer") {
+      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
       renderer.fit();
       return;
     }
@@ -459,6 +487,22 @@ function bindDiagram2RteHostEvents(options = {}) {
     }
     if (action === "toggle-diagram2-inspector") {
       dialog.querySelector("[data-diagram2-editor-main]")?.classList.toggle("is-inspector-hidden");
+      syncDiagram2RteInspectorToggleState(dialog);
+      return;
+    }
+    if (action === "toggle-diagram2-tools-pane") {
+      setDiagram2ToolsPaneOpen(dialog);
+      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
+      return;
+    }
+    if (action === "toggle-diagram2-objects-pane") {
+      setDiagram2ObjectsPaneOpen(dialog);
+      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
+      return;
+    }
+    if (action === "toggle-diagram2-templates-pane") {
+      setDiagram2TemplatesPaneOpen(dialog);
+      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
       return;
     }
     if (action === "toggle-diagram2-diagnostics") {
@@ -537,7 +581,10 @@ function bindDiagram2RteHostEvents(options = {}) {
     }
     if (filter !== "diagram2-zoom") return;
     const value = String(event.target.value || "fit");
-    if (value === "fit") renderer.fit();
+    if (value === "fit") {
+      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
+      renderer.fit();
+    }
     else renderer.setZoom(value);
   }, { signal });
 
@@ -545,6 +592,36 @@ function bindDiagram2RteHostEvents(options = {}) {
     if (event.target?.dataset?.filter !== "diagram2-object-search") return;
     dialog.__diagram2ObjectSearch = String(event.target.value || "").trim();
     refreshDiagram2RteObjectsPane(dialog, controller, { preserveFocus: true });
+  }, { signal });
+
+  let lastObjectTreePointerDown = { key: "", time: 0 };
+  dialog.addEventListener("click", event => {
+    if (Number(event.detail || 0) < 2) return;
+    const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+    if (!row || !row.closest?.("[data-diagram2-objects-pane]") || event.target.closest?.("button, input, textarea, select")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void focusDiagram2RteStructureNode(dialog, controller, renderer, row);
+  }, { capture: true, signal });
+  dialog.addEventListener("pointerdown", event => {
+    const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+    if (!row || !row.closest?.("[data-diagram2-objects-pane]") || event.target.closest?.("button, input, textarea, select")) return;
+    const key = `${row.dataset.diagram2TreeNodeKind || "object"}:${row.dataset.diagram2ObjectId || ""}`;
+    const time = Number(event.timeStamp || Date.now());
+    if (key && key === lastObjectTreePointerDown.key && time - lastObjectTreePointerDown.time <= 500) {
+      event.preventDefault();
+      lastObjectTreePointerDown = { key: "", time: 0 };
+      void focusDiagram2RteStructureNode(dialog, controller, renderer, row);
+      return;
+    }
+    lastObjectTreePointerDown = { key, time };
+  }, { signal });
+
+  dialog.addEventListener("dblclick", event => {
+    const row = event.target.closest?.("[data-diagram2-object-tree-row]");
+    if (!row || !row.closest?.("[data-diagram2-objects-pane]") || event.target.closest?.("button, input, textarea, select")) return;
+    event.preventDefault();
+    void focusDiagram2RteStructureNode(dialog, controller, renderer, row);
   }, { signal });
 
   bindDiagram2RteObjectTreeDragAndDrop(dialog, controller, renderer, signal);
@@ -572,6 +649,18 @@ function bindDiagram2RteHostEvents(options = {}) {
   });
 }
 
+function syncDiagram2RteVisibleViewportInset(dialog, renderer, options = {}) {
+  return syncDiagram2RendererViewportInset(dialog, renderer, options);
+}
+
+function syncDiagram2RteInspectorToggleState(dialog) {
+  const main = dialog.querySelector("[data-diagram2-editor-main]");
+  const expanded = !main?.classList.contains("is-inspector-hidden");
+  dialog.querySelectorAll("[data-action='toggle-diagram2-inspector']").forEach(control => {
+    control.setAttribute("aria-expanded", String(expanded));
+  });
+}
+
 function diagram2RteShellStatus(controller, statusInput = null) {
   const status = statusInput || controller.statusSnapshot();
   const selected = new Set((status.selectedObjectIds || []).map(String));
@@ -585,6 +674,23 @@ function diagram2RteShellStatus(controller, statusInput = null) {
 async function applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, value) {
   const applied = await controller.updateSelectedObjectsStyle(name, value, {
     reason: `format ${name}`
+  });
+  if (!applied) return false;
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+  await renderer.whenIdle();
+  return true;
+}
+
+async function applyDiagram2RteSelectedGeometry(dialog, controller, renderer, name, value) {
+  const property = String(name || "").trim();
+  if (!["width", "height"].includes(property)) return false;
+  const dimension = diagram2RteRectangleDimensionValue(value);
+  if (!Number.isFinite(dimension)) return false;
+  const selection = controller.getObjectsByIds(controller.selectedObjectIds());
+  if (selection.length !== 1 || selection[0]?.type !== "rectangle" || selection[0]?.locked === true) return false;
+  const applied = await controller.resizeObjects([{ ...selection[0], [property]: dimension }], {
+    label: "Resize rectangle",
+    reason: `rectangle ${property}`
   });
   if (!applied) return false;
   updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
@@ -651,11 +757,14 @@ function refreshDiagram2RteObjectsPane(dialog, controller, options = {}) {
 function refreshDiagram2RteTemplatePane(dialog, controller) {
   const pane = dialog.querySelector("[data-diagram2-template-pane]");
   if (!pane) return;
+  const previousScrollTop = pane.querySelector(".diagram2-editor-left-pane-scroll")?.scrollTop || 0;
   pane.outerHTML = diagram2TemplatePaneHtml(
     dialog.__diagram2TemplateState,
     controller.state(),
     controller.selectedObjectIds()
   );
+  const nextScroll = dialog.querySelector("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll");
+  if (nextScroll) nextScroll.scrollTop = previousScrollTop;
 }
 
 function diagram2ToolLabel(type) {
@@ -771,13 +880,29 @@ async function arrangeDiagram2RteSelection(dialog, controller, renderer, action)
 
 function selectDiagram2RteStructureNode(dialog, controller, element) {
   const selected = controller.selectStructureNode(
-    element?.dataset?.nodeKind || "object",
-    element?.dataset?.objectId || ""
+    element?.dataset?.nodeKind || element?.dataset?.diagram2TreeNodeKind || "object",
+    element?.dataset?.objectId || element?.dataset?.diagram2ObjectId || ""
   );
   refreshDiagram2RteObjectsPane(dialog, controller);
   updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
   updateDiagram2ObjectTreeSelection(dialog, selected);
   return selected.length > 0;
+}
+
+async function focusDiagram2RteStructureNode(dialog, controller, renderer, row) {
+  const target = diagram2RteStructureTarget(controller, row);
+  if (!target.id) return false;
+  if (!selectDiagram2RteStructureNode(dialog, controller, row)) return false;
+  const focusIds = target.kind === "group"
+    ? controller.selectedObjectIds()
+    : [target.id];
+  renderer?.focusObjectIds?.(focusIds, {
+    reason: "object tree focus"
+  });
+  dialog.querySelector("[data-diagram2-renderer-surface]")?.classList.remove("is-fit");
+  dialog.querySelector("[data-diagram2-viewer-canvas]")?.focus?.({ preventScroll: true });
+  await renderer?.whenIdle?.();
+  return true;
 }
 
 async function groupDiagram2RteSelection(dialog, controller, renderer, notify) {
@@ -806,6 +931,37 @@ async function renameDiagram2RteStructureNode(dialog, controller, renderer, elem
   if (!renamed) return false;
   await finishDiagram2RteObjectCommand(dialog, controller, renderer);
   notify?.("Diagram object renamed.");
+  return true;
+}
+
+async function deleteDiagram2RteStructureNode(dialog, controller, renderer, element, notify) {
+  const target = diagram2RteStructureTarget(controller, element);
+  if (!target.id) return false;
+  const selected = controller.selectStructureNode(target.kind, target.id);
+  if (!selected.length) return false;
+  updateDiagram2ObjectTreeSelection(dialog, selected);
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+  const deleted = await controller.deleteSelectedObjects({
+    label: "Delete object from tree",
+    reason: "object tree delete"
+  });
+  if (!deleted) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  notify?.("Diagram object deleted.");
+  return true;
+}
+
+async function toggleDiagram2RteStructureLock(dialog, controller, renderer, element, notify) {
+  const target = diagram2RteStructureTarget(controller, element);
+  if (!target.id) return false;
+  const changed = await controller.setStructureNodeLocked(target.kind, target.id);
+  if (!changed) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  const selection = controller.getObjectsByIds(
+    target.kind === "group" ? controller.selectedObjectIds() : [target.id]
+  );
+  const locked = selection.length > 0 && selection.every(object => object.locked === true);
+  notify?.(`Diagram object${selection.length === 1 ? "" : "s"} ${locked ? "locked" : "unlocked"}.`);
   return true;
 }
 
@@ -1212,6 +1368,12 @@ function positiveNumber(value, fallback) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function diagram2RteRectangleDimensionValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return Number.NaN;
+  return Math.min(10000, Math.max(8, number));
 }
 
 function safeFileName(value) {
