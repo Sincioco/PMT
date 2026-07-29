@@ -2,25 +2,27 @@ import {
   adjustAnnotationEntityRelationshipRoute,
   autoFormatAnnotationEntitiesOrgTree,
   formatAnnotationEntityIdentifier
-} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipType
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
 import {
   compareDiagram2RouteScores,
   createDiagram2CompactDiagnostics,
   scoreDiagram2RelationshipRoutes
-} from "./diagram2-route-costing.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-route-costing.js?v=20260729-diagram2-compact-v1";
 
 const relationshipObjectType = "entity-relationship";
 const relationshipGroupObjectType = "entity-relationships";
 const relationshipGroupId = "entity-relationships";
+const compactSummaryEntityThreshold = 64;
+const compactSummaryRelationshipThreshold = 120;
 
 export function diagram2RelationshipSelectionObjects(stateInput, idsInput = null) {
   const state = normalizeDiagram2CanonicalState(stateInput);
@@ -347,19 +349,41 @@ function longestRouteSegmentIndex(points) {
 export function diagram2AutoFormatCompactPlan(stateInput, options = {}) {
   const startedAt = performanceNow();
   const state = normalizeDiagram2CanonicalState(stateInput);
-  const beforeScore = scoreDiagram2RelationshipRoutes(state);
+  const relationships = diagram2CanonicalRelationships(state);
+  const useSummaryScoring = diagram2UseCompactSummaryScoring(state, relationships);
+  const beforeScore = useSummaryScoring
+    ? diagram2CompactSummaryScore(state, relationships)
+    : scoreDiagram2RelationshipRoutes(state);
   const candidates = [
-    diagram2OrgTreeCompactCandidate(state, options),
+    diagram2OrgTreeCompactCandidate(state, {
+      ...options,
+      skipRouteAdjustment: useSummaryScoring
+    }),
     diagram2GridCompactCandidate(state)
   ].filter(Boolean);
   let best = null;
   candidates.forEach(candidate => {
-    const score = scoreDiagram2RelationshipRoutes(candidate.state, { compactRouting: true });
+    const score = useSummaryScoring
+      ? diagram2CompactSummaryScore(candidate.state)
+      : scoreDiagram2RelationshipRoutes(candidate.state, { compactRouting: true });
     if (!best || compareDiagram2RouteScores(score, best.score) < 0) {
       best = { ...candidate, score };
     }
   });
   if (!best || compareDiagram2RouteScores(best.score, beforeScore) >= 0) {
+    if (useSummaryScoring) {
+      return {
+        diagnostics: createDiagram2CompactDiagnostics(state, state, {
+          layoutsGenerated: candidates.length,
+          layoutsEvaluated: candidates.length,
+          beforeScore,
+          afterScore: beforeScore,
+          totalElapsedMs: performanceNow() - startedAt,
+          scoringMode: "summary",
+          finalStatus: "No improvement"
+        })
+      };
+    }
     return null;
   }
   const nextState = best.state;
@@ -370,11 +394,16 @@ export function diagram2AutoFormatCompactPlan(stateInput, options = {}) {
       return original && (original.x !== object.x || original.y !== object.y);
     })
     .map(object => object.id);
-  const relationships = diagram2CanonicalRelationships(nextState);
+  const nextRelationships = diagram2CanonicalRelationships(nextState);
   const diagnostics = createDiagram2CompactDiagnostics(state, nextState, {
     ...(best.diagnostics || {}),
     layoutsGenerated: candidates.length,
     layoutsEvaluated: candidates.length,
+    ...(useSummaryScoring ? {
+      beforeScore,
+      afterScore: best.score,
+      scoringMode: "summary"
+    } : {}),
     totalElapsedMs: performanceNow() - startedAt,
     finalStatus: "Completed"
   });
@@ -383,7 +412,7 @@ export function diagram2AutoFormatCompactPlan(stateInput, options = {}) {
       state,
       nextState,
       affectedObjectIds,
-      relationships.map(relationship => relationship.id),
+      nextRelationships.map(relationship => relationship.id),
       options.selectionAfter || [],
       "Auto Format - Compact"
     ),
@@ -401,7 +430,8 @@ function diagram2OrgTreeCompactCandidate(state, options = {}) {
     allowOverlappingLines: state.allowOverlappingEntityLines === true,
     gridSize: state.gridSize,
     relationshipStyle: state.relationshipStyle,
-    preferredRootId: options.preferredRootId
+    preferredRootId: options.preferredRootId,
+    skipRouteAdjustment: options.skipRouteAdjustment === true
   });
   objects.forEach(object => {
     const original = originalPositions.get(object.id);
@@ -421,9 +451,97 @@ function diagram2OrgTreeCompactCandidate(state, options = {}) {
     }),
     diagnostics: {
       ...(result || {}),
-      layoutName: "org-tree"
+      layoutName: "org-tree",
+      routeAdjustmentSkipped: options.skipRouteAdjustment === true ? 1 : 0
     }
   };
+}
+
+function diagram2UseCompactSummaryScoring(state, relationships = []) {
+  const entityCount = state.objects.filter(object => object?.type === "entity" && object.entityKind !== "field-rectangle").length;
+  return entityCount > compactSummaryEntityThreshold || relationships.length > compactSummaryRelationshipThreshold;
+}
+
+function diagram2CompactSummaryScore(stateInput, relationshipsInput = null) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const entities = state.objects.filter(object => object?.type === "entity" && object.entityKind !== "field-rectangle");
+  const relationships = Array.isArray(relationshipsInput) ? relationshipsInput : diagram2CanonicalRelationships(state);
+  const bounds = diagram2EntityBounds(entities);
+  const overlapCount = diagram2EntityOverlapCount(entities);
+  const totalManhattanRouteLength = relationships.reduce((total, relationship) => {
+    const source = relationship.source;
+    const target = relationship.target;
+    if (!source || !target) return total;
+    const sourceCenter = { x: finiteNumber(source.x, 0) + (positiveNumber(source.width, 1) / 2), y: finiteNumber(source.y, 0) + (positiveNumber(source.height, 1) / 2) };
+    const targetCenter = { x: finiteNumber(target.x, 0) + (positiveNumber(target.width, 1) / 2), y: finiteNumber(target.y, 0) + (positiveNumber(target.height, 1) / 2) };
+    return total + Math.abs(sourceCenter.x - targetCenter.x) + Math.abs(sourceCenter.y - targetCenter.y);
+  }, 0);
+  const layoutAreaScore = Math.round((bounds.width * bounds.height) / 1000);
+  const visualNoiseScore = layoutAreaScore
+    + Math.round(totalManhattanRouteLength / 10)
+    + (overlapCount * 100000);
+  return {
+    unresolvedRoutes: overlapCount,
+    clearanceContacts: overlapCount,
+    obstacleContacts: overlapCount,
+    routeFootprintScore: layoutAreaScore,
+    endpointLaneScore: 0,
+    bendCount: 0,
+    shortJogCount: 0,
+    corridorCongestionScore: 0,
+    sharedLaneScore: 0,
+    visualNoiseScore,
+    totalManhattanRouteLength,
+    entityCount: entities.length,
+    relationshipCount: relationships.length,
+    manualRouteCount: relationships.filter(relationship =>
+      Array.isArray(relationship.foreignKeySource?.routeOverride)
+      && relationship.foreignKeySource.routeOverride.length > 1).length,
+    canonicalRouteKey: entities
+      .map(entity => `${entity.id}:${Math.round(finiteNumber(entity.x, 0))},${Math.round(finiteNumber(entity.y, 0))}`)
+      .sort()
+      .join("|"),
+    routeScores: []
+  };
+}
+
+function diagram2EntityBounds(entities = []) {
+  if (!entities.length) return { x: 0, y: 0, width: 1, height: 1 };
+  const left = Math.min(...entities.map(entity => finiteNumber(entity.x, 0)));
+  const top = Math.min(...entities.map(entity => finiteNumber(entity.y, 0)));
+  const right = Math.max(...entities.map(entity => finiteNumber(entity.x, 0) + positiveNumber(entity.width, 1)));
+  const bottom = Math.max(...entities.map(entity => finiteNumber(entity.y, 0) + positiveNumber(entity.height, 1)));
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top)
+  };
+}
+
+function diagram2EntityOverlapCount(entities = []) {
+  let count = 0;
+  for (let index = 0; index < entities.length; index += 1) {
+    const first = entities[index];
+    for (let nextIndex = index + 1; nextIndex < entities.length; nextIndex += 1) {
+      const second = entities[nextIndex];
+      if (rectsOverlap(
+        {
+          x: finiteNumber(first.x, 0),
+          y: finiteNumber(first.y, 0),
+          width: positiveNumber(first.width, 1),
+          height: positiveNumber(first.height, 1)
+        },
+        {
+          x: finiteNumber(second.x, 0),
+          y: finiteNumber(second.y, 0),
+          width: positiveNumber(second.width, 1),
+          height: positiveNumber(second.height, 1)
+        }
+      )) count += 1;
+    }
+  }
+  return count;
 }
 
 function diagram2GridCompactCandidate(state) {
@@ -446,6 +564,9 @@ function diagram2GridCompactCandidate(state) {
     }));
   const startX = Math.min(...entities.map(entity => finiteNumber(entity.x, 0)));
   const startY = Math.min(...entities.map(entity => finiteNumber(entity.y, 0)));
+  const lockedBottom = lockedBounds.reduce((bottom, bounds) =>
+    Math.max(bottom, bounds.y + bounds.height + padding), startY);
+  const maximumLockedProbeRows = Math.max(unlocked.length + lockedBounds.length + 1, 256);
   const nextById = new Map();
   unlocked
     .slice()
@@ -457,8 +578,17 @@ function diagram2GridCompactCandidate(state) {
         x: snapToGrid(startX + (column * cellWidth), gridSize),
         y: snapToGrid(startY + (row * cellHeight), gridSize)
       };
+      let lockedProbeRows = 0;
       while (lockedBounds.some(bounds => rectsOverlap({ ...candidate, width: entity.width, height: entity.height }, bounds))) {
+        if (lockedProbeRows >= maximumLockedProbeRows) {
+          candidate = {
+            x: snapToGrid(startX + (column * cellWidth), gridSize),
+            y: snapToGrid(lockedBottom + (index * cellHeight), gridSize)
+          };
+          break;
+        }
         row += 1;
+        lockedProbeRows += 1;
         candidate = {
           x: snapToGrid(startX + (column * cellWidth), gridSize),
           y: snapToGrid(startY + (row * cellHeight), gridSize)

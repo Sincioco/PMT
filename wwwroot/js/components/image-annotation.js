@@ -10701,15 +10701,21 @@ export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) 
     entity.y = Math.round(planned.y + translation.y);
   });
 
-  const routeAdjustment = separateAnnotationEntitiesFromRelationshipRoutes(
-    entities,
-    resolvedRelationships,
-    {
-      allowOverlappingLines,
-      gridSize: options?.gridSize,
-      relationshipStyle: options?.relationshipStyle
-    }
-  );
+  const routeAdjustment = options?.skipRouteAdjustment === true
+    ? {
+        adjustedCount: 0,
+        unresolvedContactCount: 0,
+        fixedConstraintShortcutCount: 0
+      }
+    : separateAnnotationEntitiesFromRelationshipRoutes(
+        entities,
+        resolvedRelationships,
+        {
+          allowOverlappingLines,
+          gridSize: options?.gridSize,
+          relationshipStyle: options?.relationshipStyle
+        }
+      );
   if (!anchoredEntities.length) {
     const adjustedOriginX = Math.min(...entities.map(entity => entity.x));
     const originCorrectionX = originX - adjustedOriginX;

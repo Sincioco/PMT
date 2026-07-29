@@ -1,8 +1,8 @@
-import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260729-diagram2-phase5-closure-v1";
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260729-diagram2-compact-v1";
 import {
   createDiagram2CompactDiagnostics,
   diagram2CompactPhases
-} from "./diagram2-route-costing.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-route-costing.js?v=20260729-diagram2-compact-v1";
 
 export async function runDiagram2CompactEngine(input = {}) {
   const startedAt = performanceNow();
@@ -37,6 +37,7 @@ export async function runDiagram2CompactEngine(input = {}) {
 
   if (signal?.aborted) return canceled("Canceled");
   progress(phaseCount - 2);
+  await yieldToMain();
   const plan = diagram2AutoFormatCompactPlan(state, {
     preferredRootId: input.preferredRootId,
     selectionAfter: input.selectionAfter
@@ -48,7 +49,7 @@ export async function runDiagram2CompactEngine(input = {}) {
     return {
       status: "No improvement",
       plan: null,
-      diagnostics: createDiagram2CompactDiagnostics(state, state, {
+      diagnostics: plan?.diagnostics || createDiagram2CompactDiagnostics(state, state, {
         totalElapsedMs: performanceNow() - startedAt,
         finalStatus: "No improvement"
       })

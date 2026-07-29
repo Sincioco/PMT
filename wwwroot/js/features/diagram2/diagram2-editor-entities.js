@@ -7,11 +7,11 @@ import {
   resolveAnnotationEntitySizeChangeLayout,
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility
-} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
 
 const defaultDiagram2EntityWidth = 520;
 const defaultDiagram2EntityFill = "#ffffff";

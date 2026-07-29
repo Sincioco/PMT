@@ -1,11 +1,11 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-compact-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -42,6 +42,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
   const finishGesture = async commit => {
     const active = gesture;
     if (!active) return;
+    if (active.kind === "marquee") flushMarqueePreview(active);
     gesture = null;
     active.abortController.abort();
     canvas.classList.remove("is-panning", "is-moving-object", "is-resizing-object", "is-selecting");
@@ -93,7 +94,6 @@ export function bindDiagram2EditorInteractions(options = {}) {
 
     if (active.kind === "marquee" && commit) {
       controller.setSelection(active.selection);
-      options.onStateChange?.();
     }
   };
 
@@ -615,25 +615,63 @@ export function bindDiagram2EditorInteractions(options = {}) {
       abortController,
       start,
       initial,
-      selection: initial.slice()
+      selection: initial.slice(),
+      previewFrame: 0,
+      pendingPointer: null
     };
-    options.onStateChange?.();
     canvas.classList.add("is-selecting");
     capturePointer(event);
     eventWindow.addEventListener("pointermove", moveEvent => {
       if (gesture?.kind !== "marquee") return;
-      const point = renderer.screenToWorld(moveEvent);
-      const ids = renderer.previewMarquee({
-        x: gesture.start.x,
-        y: gesture.start.y,
-        x2: point.x,
-        y2: point.y
-      });
-      gesture.selection = [...new Set(gesture.initial.concat(ids))];
-      controller.setSelection(gesture.selection);
-      options.onStateChange?.();
+      scheduleMarqueePreview(moveEvent);
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
+  }
+
+  function scheduleMarqueePreview(event) {
+    const active = gesture?.kind === "marquee" ? gesture : null;
+    if (!active) return;
+    active.pendingPointer = {
+      clientX: event.clientX,
+      clientY: event.clientY
+    };
+    if (active.previewFrame) return;
+    const requestFrame = eventWindow?.requestAnimationFrame
+      || globalThis.requestAnimationFrame
+      || (callback => globalThis.setTimeout(callback, 16));
+    active.previewFrame = requestFrame(() => {
+      active.previewFrame = 0;
+      if (gesture !== active || active.kind !== "marquee") return;
+      applyMarqueePreview(active);
+    });
+  }
+
+  function flushMarqueePreview(active) {
+    if (!active || active.kind !== "marquee") return;
+    if (active.previewFrame) {
+      if (eventWindow?.cancelAnimationFrame) eventWindow.cancelAnimationFrame(active.previewFrame);
+      else if (globalThis.cancelAnimationFrame) globalThis.cancelAnimationFrame(active.previewFrame);
+      else globalThis.clearTimeout?.(active.previewFrame);
+      active.previewFrame = 0;
+    }
+    applyMarqueePreview(active);
+  }
+
+  function applyMarqueePreview(active) {
+    const pointer = active?.pendingPointer;
+    if (!pointer) return;
+    active.pendingPointer = null;
+    const point = renderer.screenToWorld(pointer);
+    const ids = renderer.previewMarquee({
+      x: active.start.x,
+      y: active.start.y,
+      x2: point.x,
+      y2: point.y
+    });
+    const nextSelection = [...new Set(active.initial.concat(ids))];
+    if (sameDiagram2IdList(active.selection, nextSelection)) return;
+    active.selection = nextSelection;
+    controller.setSelection(active.selection);
   }
 
   function capturePointer(event) {
@@ -754,6 +792,13 @@ function editableEventTarget(target) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function sameDiagram2IdList(leftInput = [], rightInput = []) {
+  const left = Array.isArray(leftInput) ? leftInput : [];
+  const right = Array.isArray(rightInput) ? rightInput : [];
+  if (left.length !== right.length) return false;
+  return left.every((id, index) => String(id || "") === String(right[index] || ""));
 }
 
 function positiveNumber(value, fallback = 1) {

@@ -7,12 +7,12 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -38,6 +38,12 @@ const diagram2DetailLevelLow = "low";
 const diagram2LowDetailEnterRowPixels = 4;
 const diagram2LowDetailExitRowPixels = 6;
 const diagram2LowDetailMinimumEntityCount = 80;
+const diagram2LowDetailMinimumTitleFontPixels = 7;
+const diagram2LowDetailMinimumTitleWidthPixels = 28;
+const diagram2LowDetailMinimumTitleHeightPixels = 12;
+const diagram2LowDetailMinimumKeyFontPixels = 9;
+const diagram2LowDetailMinimumKeyWidthPixels = 80;
+const diagram2LowDetailMinimumKeyHeightPixels = 32;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["belowRelationships", "data-diagram2-below-relationship-plane"],
@@ -1449,6 +1455,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       ...flags,
       detailLevel,
       detailChanged,
+      viewportScale: committedViewportTransform.scale,
       rebuild: flags.rebuild || detailChanged,
       selected: liveView.selectedIds.has(object.id)
     }, canonicalState);
@@ -2446,6 +2453,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       patchObjectNode(node, previousObject, object, {
         ...diagram2ObjectPatchFlags(previousObject, object),
         detailLevel: objectDetailLevel(object),
+        viewportScale: committedViewportTransform.scale,
         selected: liveView.selectedIds.has(id)
       }, canonicalState);
       setSvgAttributes(node, {
@@ -2572,6 +2580,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         patchObjectNode(node, liveView.objectDataById.get(id), object, {
           ...diagram2ObjectPatchFlags(liveView.objectDataById.get(id), object),
           detailLevel: objectDetailLevel(object),
+          viewportScale: committedViewportTransform.scale,
           selected: liveView.selectedIds.has(id),
           rebuild: preview.mode === "resize" || object.type === "arrow" || object.type === "line"
         }, canonicalState);
@@ -2638,6 +2647,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         class: [
           "diagram2-renderer-selection",
           entry.kind === "group" ? "diagram2-renderer-group-selection" : "",
+          entry.kind === "multi" ? "diagram2-renderer-multi-selection" : "",
           entry.connector === true ? "diagram2-renderer-connector-selection" : "",
           entry.locked === true ? "is-locked" : ""
         ].filter(Boolean).join(" "),
@@ -2715,12 +2725,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
           id: `group:${groupId}`,
           kind: "group",
           bounds: null,
+          worldBounds: null,
           transform: null,
           handles: [],
           locked: false,
           connector: false
         };
         group.bounds = unionBounds(group.bounds, objectBounds(object));
+        group.worldBounds = group.bounds;
         group.locked = group.locked || object.locked === true;
         grouped.set(groupId, group);
         return;
@@ -2728,10 +2740,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
       const bounds = objectSelectionBounds(object);
       const connector = object.type === "arrow" || object.type === "line";
+      const worldBounds = objectBounds(object);
       entries.push({
         id,
         kind: "object",
         bounds,
+        worldBounds,
         transform: objectTransformText(object),
         handles: connector || object.locked !== true
           ? diagram2SelectionHandlePoints(object, bounds)
@@ -2744,7 +2758,23 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     grouped.forEach(group => {
       if (group.bounds) entries.push(group);
     });
+    if (entries.length > 1) return [diagram2MultiSelectionOverlayEntry(entries)];
     return entries;
+  }
+
+  function diagram2MultiSelectionOverlayEntry(entries) {
+    const bounds = entries.reduce((current, entry) =>
+      unionBounds(current, entry.worldBounds || entry.bounds), null);
+    return {
+      id: "selection:multi",
+      kind: "multi",
+      bounds,
+      worldBounds: bounds,
+      transform: null,
+      handles: [],
+      locked: entries.length > 0 && entries.every(entry => entry.locked === true),
+      connector: false
+    };
   }
 
   function queueViewportTransform(nextTransform, options = {}) {
@@ -3147,7 +3177,8 @@ function patchObjectNode(node, previousObject, object, flags = {}, state) {
   if (flags.rebuild || !node.hasChildNodes()) {
     node.replaceChildren();
     renderObjectContents(node, diagram2LocalObject(object), state, {
-      detailLevel: flags.detailLevel || diagram2DetailLevelDetailed
+      detailLevel: flags.detailLevel || diagram2DetailLevelDetailed,
+      viewportScale: flags.viewportScale
     });
     return;
   }
@@ -3202,7 +3233,11 @@ function patchEntityObjectNode(node, object, detailLevel = diagram2DetailLevelDe
   const title = node.querySelector(":scope > title");
   if (title) title.textContent = `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`;
   const entityTitle = node.querySelector("[data-diagram2-entity-title]");
-  if (entityTitle) entityTitle.textContent = formatEntityIdentifier(object.entitySchema, object.entityName);
+  if (entityTitle) {
+    entityTitle.textContent = detailLevel === diagram2DetailLevelLow
+      ? lowDetailEntityIdentifier(object)
+      : formatEntityIdentifier(object.entitySchema, object.entityName);
+  }
   patchEntityObjectNodeStyles(node, local, detailLevel);
 }
 
@@ -3330,7 +3365,7 @@ function renderEntityObject(node, object, options = {}) {
   }
 
   if (options.detailLevel === diagram2DetailLevelLow) {
-    renderLowDetailEntityObject(node, object);
+    renderLowDetailEntityObject(node, object, options);
     return;
   }
 
@@ -3580,7 +3615,7 @@ function renderEntityObject(node, object, options = {}) {
   });
 }
 
-function renderLowDetailEntityObject(node, object) {
+function renderLowDetailEntityObject(node, object, options = {}) {
   const x = finiteNumber(object.x, 0);
   const y = finiteNumber(object.y, 0);
   const width = positiveNumber(object.width, 1);
@@ -3594,6 +3629,7 @@ function renderLowDetailEntityObject(node, object) {
   const fontSize = lowDetailEntityFontSize(object);
   const headerHeight = Math.min(height, Math.max(28, Math.min(height * 0.58, fontSize * 1.35)));
   const titleClipId = `${safeSvgId(object.id)}-diagram2-low-title`;
+  const textVisibility = lowDetailEntityTextVisibility(object, options.viewportScale);
   const primaryKeyCount = fields.filter(field => field.isPrimaryKey).length;
   const foreignKeyCount = fields.filter(field => field.isForeignKey).length;
 
@@ -3620,22 +3656,24 @@ function renderLowDetailEntityObject(node, object) {
     fill: headerFill,
     stroke: "none"
   });
-  appendText(node, formatEntityIdentifier(object.entitySchema, object.entityName), {
-    class: "diagram2-renderer-entity-title",
-    "data-diagram2-entity-title": "",
-    "data-diagram2-entity-text": "",
-    x: x + (width / 2),
-    y: y + (headerHeight / 2),
-    "text-anchor": "middle",
-    "dominant-baseline": "middle",
-    "clip-path": `url(#${titleClipId})`,
-    fill: headerTextColor,
-    "font-family": object.fontFamily || "Arial",
-    "font-size": fontSize,
-    "font-weight": 700
-  });
+  if (textVisibility.title) {
+    appendText(node, lowDetailEntityIdentifier(object), {
+      class: "diagram2-renderer-entity-title",
+      "data-diagram2-entity-title": "",
+      "data-diagram2-entity-text": "",
+      x: x + (width / 2),
+      y: y + (headerHeight / 2),
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      "clip-path": `url(#${titleClipId})`,
+      fill: headerTextColor,
+      "font-family": object.fontFamily || "Arial",
+      "font-size": fontSize,
+      "font-weight": 700
+    });
+  }
 
-  if (primaryKeyCount > 0 || foreignKeyCount > 0) {
+  if (textVisibility.keySummary && (primaryKeyCount > 0 || foreignKeyCount > 0)) {
     const indicatorText = [primaryKeyCount ? `PK ${primaryKeyCount}` : "", foreignKeyCount ? `FK ${foreignKeyCount}` : ""]
       .filter(Boolean)
       .join(" / ");
@@ -4688,6 +4726,27 @@ function lowDetailEntityFontSize(object) {
   const height = positiveNumber(object?.height, 1);
   const base = Math.max(positiveNumber(object?.fontSize, 12) * 4, 42);
   return clampNumber(base, 20, Math.max(20, height * 0.46));
+}
+
+function lowDetailEntityIdentifier(object) {
+  const entityName = String(object?.entityName || "").trim();
+  const shortName = entityName.split(".").map(part => part.trim()).filter(Boolean).pop() || entityName;
+  return formatAnnotationEntityIdentifier(shortName) || "Entity";
+}
+
+function lowDetailEntityTextVisibility(object, scaleInput) {
+  const scale = positiveNumber(scaleInput, 1);
+  const fontPixels = lowDetailEntityFontSize(object) * scale;
+  const widthPixels = positiveNumber(object?.width, 1) * scale;
+  const heightPixels = positiveNumber(object?.height, 1) * scale;
+  return {
+    title: fontPixels >= diagram2LowDetailMinimumTitleFontPixels
+      && widthPixels >= diagram2LowDetailMinimumTitleWidthPixels
+      && heightPixels >= diagram2LowDetailMinimumTitleHeightPixels,
+    keySummary: fontPixels >= diagram2LowDetailMinimumKeyFontPixels
+      && widthPixels >= diagram2LowDetailMinimumKeyWidthPixels
+      && heightPixels >= diagram2LowDetailMinimumKeyHeightPixels
+  };
 }
 
 function fieldMappingTextAttributes(object, x, y, fill) {

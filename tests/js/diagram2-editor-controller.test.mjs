@@ -52,6 +52,35 @@ test("Diagram 2 editor controller records incremental move commands without full
   assert.equal(controller.historyStatus().dirty, true);
 });
 
+test("Diagram 2 editor controller skips unchanged selection renderer churn", () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: simpleState()
+  });
+  let selectionEvents = 0;
+  controller.onChange(event => {
+    if (event.reason === "selection") selectionEvents += 1;
+  });
+
+  assert.deepEqual(controller.setSelection(["box"]), ["box"]);
+  assert.equal(renderer.selectedCallCount, 1);
+  assert.equal(selectionEvents, 1);
+
+  assert.deepEqual(controller.setSelection(["box"]), ["box"]);
+  assert.equal(renderer.selectedCallCount, 1);
+  assert.equal(selectionEvents, 1);
+
+  assert.deepEqual(controller.setSelection([]), []);
+  assert.equal(renderer.selectedCallCount, 2);
+  assert.equal(selectionEvents, 2);
+
+  assert.deepEqual(controller.setSelection([]), []);
+  assert.equal(renderer.selectedCallCount, 2);
+  assert.equal(selectionEvents, 2);
+});
+
 test("Diagram 2 editor controller applies color styles through command history without full renders", async () => {
   const renderer = fakeRenderer();
   const controller = createDiagram2EditorController({
@@ -767,6 +796,97 @@ test("Diagram 2 Compact engine reports progress phases without mutating canonica
   assert.equal(result.plan.label, "Auto Format - Compact");
 });
 
+test("Diagram 2 Compact controller runs the planner in a module worker when available", async () => {
+  const hadWorker = Object.hasOwn(globalThis, "Worker");
+  const originalWorker = globalThis.Worker;
+  const workerRuns = [];
+  const workerProgress = [];
+  let terminated = false;
+
+  class FakeCompactWorker {
+    constructor(url, options = {}) {
+      this.url = String(url);
+      this.options = options;
+      workerRuns.push({ url: this.url, options });
+    }
+
+    postMessage(message = {}) {
+      if (message.type !== "run") return;
+      setTimeout(async () => {
+        this.onmessage?.({
+          data: {
+            type: "progress",
+            progress: {
+              phase: "Evaluating Route Candidates",
+              percent: 60,
+              elapsedMs: 5
+            }
+          }
+        });
+        const result = await runDiagram2CompactEngine({
+          state: message.state,
+          preferredRootId: message.preferredRootId,
+          selectionAfter: message.selectionAfter
+        });
+        this.onmessage?.({ data: { type: "result", result } });
+      }, 0);
+    }
+
+    terminate() {
+      terminated = true;
+    }
+  }
+
+  globalThis.Worker = FakeCompactWorker;
+  try {
+    const controller = createDiagram2EditorController({
+      renderer: fakeRenderer(),
+      host: editableHost(),
+      state: phase5TwoEntityState()
+    });
+    controller.setSelection(["entity-projects"]);
+
+    assert.equal(await controller.autoFormatCompact({
+      onProgress: item => workerProgress.push(item.phase)
+    }), true);
+
+    assert.equal(workerRuns.length, 1);
+    assert.equal(workerRuns[0].options.type, "module");
+    assert.match(workerRuns[0].url, /diagram2-compact-worker\.js/);
+    assert.ok(workerProgress.includes("Evaluating Route Candidates"));
+    assert.equal(terminated, true);
+    assert.equal(controller.currentState().compactEntityRelationshipRouting, true);
+  } finally {
+    if (hadWorker) {
+      globalThis.Worker = originalWorker;
+    } else {
+      delete globalThis.Worker;
+    }
+  }
+});
+
+test("Diagram 2 Compact grid fallback caps locked-column probing", async () => {
+  const state = lockedTallEntityState();
+  const startedAt = performance.now();
+  const result = await runDiagram2CompactEngine({ state });
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.ok(["Completed", "No improvement"].includes(result.status));
+  assert.ok(elapsedMs < 1000, `Compact grid probe took ${elapsedMs.toFixed(1)}ms`);
+});
+
+test("Diagram 2 Compact uses summary scoring for large Entity diagrams", async () => {
+  const state = largeCompactEntityState(70);
+  const startedAt = performance.now();
+  const result = await runDiagram2CompactEngine({ state });
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(result.status, "Completed");
+  assert.equal(result.diagnostics.scoringMode, "summary");
+  assert.equal(result.diagnostics.entityCount, 70);
+  assert.ok(elapsedMs < 1000, `Large Compact took ${elapsedMs.toFixed(1)}ms`);
+});
+
 test("Diagram 2 Phase 4 Objects tree handles 1,000 structured objects through shared incremental commands", async t => {
   const state = phase4ClosureState(1000);
   const renderer = fakeRenderer();
@@ -1403,6 +1523,87 @@ function phase5TwoEntityState() {
   };
 }
 
+function lockedTallEntityState() {
+  const baseFields = [
+    { name: "Id", dataType: "int", nullable: false, isPrimaryKey: true },
+    { name: "Name", dataType: "nvarchar(80)", nullable: true }
+  ];
+  return {
+    version: 1,
+    width: 1600,
+    height: 1000,
+    gridSize: 20,
+    objects: [{
+      id: "entity-locked",
+      type: "entity",
+      x: 0,
+      y: 0,
+      width: 520,
+      height: 100000000,
+      entitySchema: "pmt",
+      entityName: "LockedTallTable",
+      fields: baseFields,
+      foreignKeys: [],
+      locked: true
+    }, {
+      id: "entity-child-a",
+      type: "entity",
+      x: 0,
+      y: 40,
+      width: 520,
+      height: 120,
+      entitySchema: "pmt",
+      entityName: "ChildA",
+      fields: baseFields,
+      foreignKeys: []
+    }, {
+      id: "entity-child-b",
+      type: "entity",
+      x: 0,
+      y: 220,
+      width: 520,
+      height: 120,
+      entitySchema: "pmt",
+      entityName: "ChildB",
+      fields: baseFields,
+      foreignKeys: []
+    }]
+  };
+}
+
+function largeCompactEntityState(count) {
+  return {
+    version: 1,
+    width: 9000,
+    height: 5200,
+    gridSize: 20,
+    objects: Array.from({ length: count }, (_, index) => ({
+      id: `entity-large-${index}`,
+      type: "entity",
+      x: (index % 10) * 880,
+      y: Math.floor(index / 10) * 620,
+      width: 300,
+      height: 110,
+      entitySchema: "pmt",
+      entityName: `Large${index}`,
+      fields: [
+        { name: "Id", dataType: "int", nullable: false, isPrimaryKey: true },
+        ...(index > 0 ? [{ name: "ParentId", dataType: "int", nullable: false, isForeignKey: true }] : [])
+      ],
+      foreignKeys: index > 0
+        ? [{
+            name: `FK_Large${index}_Parent`,
+            columns: ["ParentId"],
+            referencedSchema: "pmt",
+            referencedTable: `Large${index - 1}`,
+            referencedColumns: ["Id"],
+            relationshipType: "many-to-one"
+          }]
+        : []
+    }))
+  };
+}
+
 function largeState(count) {
   return {
     version: 1,
@@ -1531,6 +1732,7 @@ function fakeRenderer() {
     objectOrders: [],
     structureStates: [],
     canvasOptions: [],
+    selectedCallCount: 0,
     beginDiagramUpdate() {},
     endDiagramUpdate() {},
     addObject(object) {
@@ -1562,6 +1764,7 @@ function fakeRenderer() {
       this.updatedObjectIds.push(id);
     },
     setSelectedIds(ids) {
+      this.selectedCallCount += 1;
       this.selectedIds = ids.slice();
       return {};
     },

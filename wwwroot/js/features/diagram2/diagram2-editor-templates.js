@@ -6,13 +6,13 @@ import {
   parseAnnotationTemplateUpload,
   portableAnnotationTemplate,
   restoreAnnotationDefaultTemplates
-} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
 import {
   loadDiagram2DefaultTemplateLibrary,
   loadDiagram2TemplateLibrary,
   normalizeDiagram2TemplateLibrary,
   saveDiagram2TemplateLibrary
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-compatibility.js?v=20260729-diagram2-compact-v1";
 
 const maximumDiagram2Templates = 50;
 

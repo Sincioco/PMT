@@ -1,7 +1,7 @@
 import {
   adjustAnnotationEntityRelationshipRoute,
   annotationEntityRelationshipRenderModel
-} from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
 
 const defaultDiagram2RouteBoundsPadding = 9;
 

@@ -1,12 +1,12 @@
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
 
 export const diagram2CompactPhases = Object.freeze([
   "Analyzing Entities",
@@ -157,8 +157,12 @@ export function diagram2CompactScoreImproved(beforeScore, afterScore) {
 export function createDiagram2CompactDiagnostics(beforeStateInput, afterStateInput, meta = {}) {
   const beforeState = normalizeDiagram2CanonicalState(beforeStateInput);
   const afterState = normalizeDiagram2CanonicalState(afterStateInput || beforeStateInput);
-  const beforeScore = scoreDiagram2RelationshipRoutes(beforeState);
-  const afterScore = scoreDiagram2RelationshipRoutes(afterState, { compactRouting: true });
+  const beforeScore = meta.beforeScore && typeof meta.beforeScore === "object"
+    ? meta.beforeScore
+    : scoreDiagram2RelationshipRoutes(beforeState);
+  const afterScore = meta.afterScore && typeof meta.afterScore === "object"
+    ? meta.afterScore
+    : scoreDiagram2RelationshipRoutes(afterState, { compactRouting: true });
   const beforeEntities = beforeState.objects.filter(object => object?.type === "entity");
   const afterById = new Map(afterState.objects.map(object => [object.id, object]));
   const entitiesMoved = beforeEntities.filter(entity => {
@@ -196,6 +200,7 @@ export function createDiagram2CompactDiagnostics(beforeStateInput, afterStateInp
     finalApplyMs: Number(meta.finalApplyMs || 0),
     dirtyFlushCount: Number(meta.dirtyFlushCount || 0),
     fullRenderCount: Number(meta.fullRenderCount || 0),
+    scoringMode: String(meta.scoringMode || "exact"),
     finalStatus: String(meta.finalStatus || "Completed")
   };
 }

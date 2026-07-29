@@ -2,12 +2,12 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-compatibility.js?v=20260729-diagram2-compact-v1";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
@@ -17,7 +17,7 @@ import {
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-editor-entities.js?v=20260729-diagram2-compact-v1";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -30,15 +30,15 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-editor-structure.js?v=20260729-diagram2-compact-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-editor-templates.js?v=20260729-diagram2-compact-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-compact-v1";
 import {
   diagram2AddRelationshipPlan,
   diagram2AdjustRelationshipRoutePlan,
@@ -53,12 +53,13 @@ import {
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260729-diagram2-phase5-closure-v1";
+} from "./diagram2-editor-relationships.js?v=20260729-diagram2-compact-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260729-diagram2-compact-v1";
 const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
@@ -125,6 +126,102 @@ const diagram2ColorStyleNames = new Set([
   "fieldMappingRowHoverFill",
   "fieldMappingHighlightColor"
 ]);
+
+async function runDiagram2CompactEngineResponsive(input = {}) {
+  if (input.signal?.aborted || typeof Worker !== "function") {
+    return runDiagram2CompactEngine(input);
+  }
+  try {
+    return await runDiagram2CompactEngineWorker(input);
+  } catch (error) {
+    if (input.signal?.aborted || error?.diagram2CompactWorkerUnavailable === true) {
+      return runDiagram2CompactEngine(input);
+    }
+    throw error;
+  }
+}
+
+function runDiagram2CompactEngineWorker(input = {}) {
+  return new Promise((resolve, reject) => {
+    let worker = null;
+    let settled = false;
+    const cleanup = () => {
+      input.signal?.removeEventListener?.("abort", abortHandler);
+      worker?.terminate?.();
+    };
+    const finish = (handler, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      handler(value);
+    };
+    const finishCanceled = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      runDiagram2CompactEngine({
+        ...input,
+        signal: { aborted: true },
+        onProgress: null
+      }).then(resolve, reject);
+    };
+    const abortHandler = () => {
+      try {
+        worker?.postMessage?.({ type: "cancel" });
+      } catch {
+        // The worker is about to be terminated; cancel diagnostics are still returned below.
+      }
+      finishCanceled();
+    };
+
+    try {
+      worker = new Worker(new URL(diagram2CompactWorkerModuleUrl, import.meta.url), { type: "module" });
+    } catch (error) {
+      error.diagram2CompactWorkerUnavailable = true;
+      reject(error);
+      return;
+    }
+
+    worker.onmessage = event => {
+      const message = event?.data || {};
+      if (message.type === "progress") {
+        if (typeof input.onProgress === "function") input.onProgress(message.progress);
+        return;
+      }
+      if (message.type === "result") {
+        finish(resolve, message.result);
+        return;
+      }
+      if (message.type === "error") {
+        finish(reject, new Error(message.message || "Diagram 2 Compact worker failed."));
+      }
+    };
+    worker.onerror = event => {
+      const error = event?.error instanceof Error
+        ? event.error
+        : new Error(event?.message || "Diagram 2 Compact worker failed.");
+      finish(reject, error);
+    };
+
+    if (input.signal?.aborted) {
+      finishCanceled();
+      return;
+    }
+    input.signal?.addEventListener?.("abort", abortHandler, { once: true });
+
+    try {
+      worker.postMessage({
+        type: "run",
+        state: input.state,
+        preferredRootId: input.preferredRootId,
+        selectionAfter: input.selectionAfter
+      });
+    } catch (error) {
+      error.diagram2CompactWorkerUnavailable = true;
+      finish(reject, error);
+    }
+  });
+}
 
 export function isDiagram2CoreDrawingTool(tool) {
   return diagram2CoreDrawingTools.has(String(tool || "").trim().toLowerCase());
@@ -276,9 +373,13 @@ export function createDiagram2EditorController(options = {}) {
 
   function setSelection(ids = [], selectionOptions = {}) {
     const exactIds = existingSelectableIds(ids);
-    selectedObjectIds = selectionOptions.expandGroups === false
+    const nextSelectedObjectIds = selectionOptions.expandGroups === false
       ? exactIds
       : expandDiagram2SelectableSelectionIds(exactIds);
+    if (sameDiagram2IdList(selectedObjectIds, nextSelectedObjectIds)) {
+      return selectedObjectIds.slice();
+    }
+    selectedObjectIds = nextSelectedObjectIds;
     const diagnostics = renderer?.setSelectedIds?.(selectedObjectIds);
     emit("selection", { diagnostics });
     return selectedObjectIds.slice();
@@ -1071,7 +1172,7 @@ export function createDiagram2EditorController(options = {}) {
     busy = true;
     emit("busy");
     try {
-      const result = await runDiagram2CompactEngine({
+      const result = await runDiagram2CompactEngineResponsive({
         state: canonicalState,
         preferredRootId,
         selectionAfter: selectedObjectIds,
@@ -2848,6 +2949,13 @@ function uniqueDiagram2Objects(objectsInput = []) {
       seen.add(object.id);
       return true;
     });
+}
+
+function sameDiagram2IdList(leftInput = [], rightInput = []) {
+  const left = Array.isArray(leftInput) ? leftInput : [];
+  const right = Array.isArray(rightInput) ? rightInput : [];
+  if (left.length !== right.length) return false;
+  return left.every((id, index) => String(id || "") === String(right[index] || ""));
 }
 
 function assignUniqueDiagram2ObjectNames(objects, existingObjects) {
