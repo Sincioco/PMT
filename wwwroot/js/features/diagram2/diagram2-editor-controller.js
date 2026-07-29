@@ -2,22 +2,23 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-compatibility.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
   diagram2ApplyEntityDefinitionPlan,
   diagram2MoveEntityFieldPlan,
   diagram2RemoveEntityFieldPlan,
+  diagram2ResetEntityScalePlan,
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-entities.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -30,15 +31,15 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-structure.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260729-diagram2-compact-v1";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-templates.js?v=20260729-diagram2-d1-relationships-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   diagram2AddRelationshipPlan,
   diagram2AdjustRelationshipRoutePlan,
@@ -53,13 +54,13 @@ import {
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-relationships.js?v=20260729-diagram2-d1-relationships-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260729-diagram2-compact-v1";
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260729-diagram2-d1-relationships-v1";
 const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
@@ -1035,6 +1036,15 @@ export function createDiagram2EditorController(options = {}) {
     });
   }
 
+  async function resetEntityScale(objectId, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2ResetEntityScalePlan(canonicalState, objectId);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Reset entity scale",
+      reason: commandOptions.reason || "reset entity scale"
+    });
+  }
+
   async function updateEntityField(objectId, fieldIndex, patch, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const plan = diagram2UpdateEntityFieldPlan(canonicalState, objectId, fieldIndex, patch);
@@ -1866,6 +1876,7 @@ export function createDiagram2EditorController(options = {}) {
     addEntity,
     updateEntityDefinition,
     setEntityOption,
+    resetEntityScale,
     updateEntityField,
     addEntityField,
     removeEntityField,

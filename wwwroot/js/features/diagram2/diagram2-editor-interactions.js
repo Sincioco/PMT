@@ -1,11 +1,11 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-d1-relationships-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -476,7 +476,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
     controller.setSelection([relationshipId], { expandGroups: false });
     options.onStateChange?.();
     const coordinate = relationshipRouteCoordinate(event, axis);
-    const relationshipNode = handle.closest("[data-diagram2-relationship-id]");
+    const relationshipNode = handle.closest("[data-diagram2-relationship-route-overlay-id]")
+      || handle.closest("[data-diagram2-relationship-id]");
     const originalPoints = parseRelationshipRoutePoints(handle);
     const originalPath = diagram2RelationshipPath(originalPoints);
     const abortController = new AbortController();

@@ -7,11 +7,11 @@ import {
   resolveAnnotationEntitySizeChangeLayout,
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility
-} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
+} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
 
 const defaultDiagram2EntityWidth = 520;
 const defaultDiagram2EntityFill = "#ffffff";
@@ -114,6 +114,33 @@ export function diagram2SetEntityOptionPlan(stateInput, objectIdInput, optionNam
     objects: state.objects.map(object => object.id === entity.id ? nextEntity : object)
   });
   return diagram2StatePlan(state, nextState, [entity.id], [entity.id], "Update entity display");
+}
+
+export function diagram2ResetEntityScalePlan(stateInput, objectIdInput) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const objectId = String(objectIdInput || "").trim();
+  const entity = state.objects.find(object => object.id === objectId && object.type === "entity");
+  if (!entity || entity.locked === true) return null;
+
+  const nextEntity = normalizeDiagram2EntitySize({
+    ...entity,
+    width: 1,
+    height: 1,
+    expandedHeight: 1,
+    dataTypeExpandedWidth: 1
+  });
+  const nextState = normalizeDiagram2CanonicalState({
+    ...state,
+    objects: state.objects.map(object => object.id === entity.id ? nextEntity : object)
+  });
+  return diagram2StatePlan(
+    state,
+    nextState,
+    [entity.id],
+    [entity.id],
+    "Reset entity scale",
+    affectedRelationshipIdsForFieldChange(state, nextState, entity.id)
+  );
 }
 
 export function diagram2UpdateEntityFieldPlan(stateInput, objectIdInput, fieldIndexInput, patchInput = {}) {

@@ -487,10 +487,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-compact-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1")
     ]);
     const state = {
       version: 1,
@@ -609,8 +609,8 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
 
   const marqueeCoalesce = await page.evaluate(async () => {
     const [controllerModule, interactionModule] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-compact-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1")
     ]);
     const canvas = document.createElement("div");
     canvas.tabIndex = 0;
@@ -948,11 +948,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260729-diagram2-compact-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260729-diagram2-d1-relationships-v1")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -1329,10 +1329,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-compact-v1"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260729-diagram2-compact-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260729-diagram2-d1-relationships-v1")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -2068,6 +2068,29 @@ CREATE TABLE [pmt].[Phase5Browser](
   expect(relationshipSetup.manualRoutes).toBe(true);
   expect(relationshipSetup.symbols).toBe(true);
   expect(relationshipSetup.routePointCount).toBeGreaterThan(1);
+  expect(await page.locator(".image-annotation-entity-relationship-marker").count()).toBeGreaterThan(0);
+  await expect(page.locator("[data-diagram2-relationship-route-handle]").first()).toBeVisible();
+  const relationshipClickPoint = await page.evaluate(async relationshipId => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    controller.setSelection([]);
+    renderer.setSelectedIds([]);
+    await renderer.whenIdle();
+    const path = document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"] [data-diagram2-relationship-path]`);
+    if (!path || typeof path.getPointAtLength !== "function" || typeof path.getTotalLength !== "function") {
+      return { ready: false };
+    }
+    const point = path.getPointAtLength(path.getTotalLength() / 2);
+    const matrix = path.getScreenCTM();
+    if (!matrix) return { ready: false };
+    const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { ready: true, x: screenPoint.x, y: screenPoint.y };
+  }, relationshipSetup.relationshipId);
+  expect(relationshipClickPoint.ready).toBe(true);
+  await page.mouse.click(relationshipClickPoint.x, relationshipClickPoint.y);
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.selectedRelationshipIds()[0] || "")
+  ).toBe(relationshipSetup.relationshipId);
   await expect(page.locator("[data-diagram2-relationship-route-handle]").first()).toBeVisible();
   await page.locator("[data-diagram2-inspector-tab='entity']").click();
   await expect(page.locator("[data-diagram2-relationship-type]")).toBeEnabled();
@@ -2698,7 +2721,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -3768,7 +3791,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -3878,7 +3901,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4084,7 +4107,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-compact-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4270,7 +4293,8 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
   expect(result.restoredRelationshipPathCount).toBe(result.finalCanonicalRelationships);
   expect(result.restoredRelationshipCommandCount).toBeGreaterThanOrEqual(result.lowRelationshipMaxCommandCount);
   expect(result.readableLowDetailLevel).toBe("low");
-  expect(result.readableLowProjectedRows).toBeLessThan(4);
+  expect(result.readableLowProjectedRows).toBeGreaterThan(4);
+  expect(result.readableLowProjectedRows).toBeLessThan(6);
   expect(result.readableLowTitleCount).toBeGreaterThan(0);
   expect(result.readableLowTitleHasSchema).toBe(false);
   expect(result.readableLowCompactKeyCount).toBe(0);
@@ -4310,6 +4334,8 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     const selectionVisibleBeforeMove = selectionVisible(entityAId);
     const dirtyFlushAfterSelection = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const transformBeforeMove = entityA.getAttribute("transform") || "";
+    const relationshipPathBeforeMove = relationship.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || "";
+    const mergedRelationshipPathBeforeMove = document.querySelector("[data-diagram2-merged-relationship-path]")?.getAttribute("d") || "";
     const undoBeforeMove = Number(svg.dataset.diagram2GeometryPreviewUndoEntryCount || 0);
     const commitBeforeMove = Number(svg.dataset.diagram2GeometryPreviewCommitCount || 0);
     const previewFrameBeforeMove = Number(svg.dataset.diagram2GeometryPreviewFrameCount || 0);
@@ -4320,6 +4346,8 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     renderer.previewGeometry({ deltaX: 72, deltaY: 35 });
     const movePreviewDiagnostics = await renderer.whenIdle();
     const transformDuringMove = entityA.getAttribute("transform") || "";
+    const relationshipPathDuringMove = relationship.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || "";
+    const mergedRelationshipPathDuringMove = document.querySelector("[data-diagram2-merged-relationship-path]")?.getAttribute("d") || "";
     const dirtyFlushDuringPreview = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const previewPathCountDuringMove = document.querySelectorAll("[data-diagram2-relationship-preview-path]").length;
     const selectionHiddenDuringMove = !selectionVisible(entityAId);
@@ -4375,6 +4403,8 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
       selectionRestoredAfterMoveCommit,
       transformMovedDuringPreview: transformBeforeMove !== transformDuringMove,
       previewPathCountDuringMove,
+      relationshipPathUpdatedDuringMove: relationshipPathBeforeMove !== relationshipPathDuringMove,
+      mergedRelationshipPathUpdatedDuringMove: mergedRelationshipPathBeforeMove !== mergedRelationshipPathDuringMove,
       movePreviewRelationshipCount: movePreviewDiagnostics.geometryPreviewRelationshipCount,
       movePreviewPatchedObjectCount: movePreviewDiagnostics.geometryPreviewPatchedObjectCount,
       movePreviewFrameDelta: movePreviewDiagnostics.geometryPreviewFrameCount - previewFrameBeforeMove,
@@ -4415,7 +4445,8 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
   expect(result.selectionHiddenDuringMove).toBe(true);
   expect(result.selectionRestoredAfterMoveCommit).toBe(true);
   expect(result.transformMovedDuringPreview).toBe(true);
-  expect(result.previewPathCountDuringMove).toBeGreaterThan(0);
+  expect(result.previewPathCountDuringMove).toBe(0);
+  expect(result.relationshipPathUpdatedDuringMove || result.mergedRelationshipPathUpdatedDuringMove).toBe(true);
   expect(result.movePreviewRelationshipCount).toBeGreaterThan(0);
   expect(result.movePreviewPatchedObjectCount).toBe(1);
   expect(result.movePreviewFrameDelta).toBeGreaterThanOrEqual(1);

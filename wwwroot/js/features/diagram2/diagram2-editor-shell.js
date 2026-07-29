@@ -7,14 +7,14 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
+} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-compact-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-entities.js?v=20260729-diagram2-d1-relationships-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260729-diagram2-d1-relationships-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -1180,6 +1180,7 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
         </div>
         <div class="image-annotation-entity-display-options diagram2-entity-options">
           <button type="button" data-action="edit-diagram2-entity" data-diagram2-requires-entity data-diagram2-requires-update>Edit Definition</button>
+          <button type="button" data-action="reset-diagram2-entity-scale" data-diagram2-requires-entity data-diagram2-requires-update>Reset Scale</button>
           <button type="button" data-action="add-diagram2-relationship" data-diagram2-requires-update>Add Relationship</button>
           <button type="button" title="Optimize Entity placement and relationship routes for a compact, readable Diagram. Large Diagrams may take several minutes." data-action="auto-format-diagram2-compact" data-diagram2-requires-update>Compact</button>
           <button type="button" class="image-annotation-generate-pmt-schema" data-action="generate-diagram2-pmt-schema" data-diagram2-requires-create>Generate PMT Database Schema</button>

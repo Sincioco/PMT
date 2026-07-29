@@ -331,11 +331,6 @@ body.diagram2-edit-mode-active #app {
   pointer-events: none;
 }
 
-.diagram2-renderer-relationship-preview-node,
-.diagram2-renderer-relationship-preview {
-  pointer-events: none;
-}
-
 .diagram2-renderer-selection {
   pointer-events: none;
 }

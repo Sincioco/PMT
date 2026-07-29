@@ -2,21 +2,21 @@ import {
   adjustAnnotationEntityRelationshipRoute,
   autoFormatAnnotationEntitiesOrgTree,
   formatAnnotationEntityIdentifier
-} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
+} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipType
-} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   compareDiagram2RouteScores,
   createDiagram2CompactDiagnostics,
   scoreDiagram2RelationshipRoutes
-} from "./diagram2-route-costing.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-route-costing.js?v=20260729-diagram2-d1-relationships-v1";
 
 const relationshipObjectType = "entity-relationship";
 const relationshipGroupObjectType = "entity-relationships";

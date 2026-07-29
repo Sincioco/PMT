@@ -157,6 +157,17 @@ test("Diagram 2 derives canonical entity relationships without Diagram 1 render 
   assert.equal(relationships[0].target.id, "entity-users");
   assert.equal(relationships[0].targetField.name, "UserId");
   assert.equal(relationships.some(item => item.source === item.target), false);
+
+  const selfRelationshipState = normalizeAnnotationState({
+    ...state,
+    objects: state.objects.map(object => object.id === "entity-tasks"
+      ? { ...object, showSelfRelationships: true }
+      : object)
+  });
+  const relationshipsWithSelf = diagram2CanonicalRelationships(selfRelationshipState);
+  assert.equal(relationshipsWithSelf.length, 2);
+  assert.equal(relationshipsWithSelf.some(item =>
+    item.source.id === "entity-tasks" && item.target.id === "entity-tasks"), true);
 });
 
 test("Diagram 2 relationship routing module returns stable normalized route geometry", () => {
@@ -369,19 +380,38 @@ test("Diagram 2 relationship lines adopt Diagram 1 route painting rules", async 
     source.indexOf("function patchRelationshipNode"),
     source.indexOf("function lowDetailRelationshipRoute")
   );
+  const relationshipHelperSource = source.slice(
+    source.indexOf("function patchRelationshipNode"),
+    source.indexOf("function relationshipMarkerGeometry")
+  );
+  const relationshipOverlaySource = source.slice(
+    source.indexOf("function patchSelectedRelationshipOverlay"),
+    source.indexOf("function unmountViewportHaloRelationshipNode")
+  );
   const relationshipRouteSource = source.slice(
     source.indexOf("function relationshipRoute"),
     source.indexOf("function diagram2PointListText")
   );
+  const geometryPreviewSource = source.slice(
+    source.indexOf("function patchGeometryRelationshipPreviews"),
+    source.indexOf("function restoreGeometryPreviewRelationships")
+  );
 
   assert.match(source, /function diagram2MergedRelationshipRouteGroups/);
   assert.match(relationshipPatchSource, /diagram2-renderer-relationship-hit-path/);
+  assert.match(relationshipPatchSource, /image-annotation-entity-relationship-hit/);
+  assert.match(relationshipOverlaySource, /data-diagram2-relationship-route-overlay-id/);
+  assert.match(relationshipOverlaySource, /image-annotation-entity-relationship-selection/);
+  assert.match(relationshipHelperSource, /image-annotation-entity-relationship-marker/);
+  assert.match(relationshipHelperSource, /image-annotation-entity-relationship-handle/);
   assert.match(relationshipPatchSource, /"vector-effect": null/);
-  assert.doesNotMatch(relationshipPatchSource, /"vector-effect": "non-scaling-stroke"/);
   assert.match(relationshipRouteSource, /relationshipLane\(start\.x, end\.x, relationship, relationships\)/);
   assert.match(relationshipRouteSource, /relationshipPairIndex\(relationship, relationships\)/);
   assert.match(relationshipRouteSource, /snapRelationshipRouteValue/);
   assert.match(relationshipRouteSource, /compactRelationshipRoutePoints/);
+  assert.match(geometryPreviewSource, /patchMergedRelationshipRoutes/);
+  assert.match(geometryPreviewSource, /patchRelationshipNode/);
+  assert.doesNotMatch(geometryPreviewSource, /data-diagram2-relationship-preview-path/);
 });
 
 test("Diagram 2 style patches remove stale non-scaling strokes from simple objects", async () => {

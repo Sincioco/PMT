@@ -30,7 +30,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-compact-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-d1-relationships-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -163,7 +163,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-compact-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-d1-relationships-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -444,7 +444,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-compact-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-d1-relationships-v1");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -489,7 +489,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-compact-v1");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-d1-relationships-v1");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -544,7 +544,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-compact-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-d1-relationships-v1");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;

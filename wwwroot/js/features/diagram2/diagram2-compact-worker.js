@@ -1,4 +1,4 @@
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-compact-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-d1-relationships-v1";
 
 let canceled = false;
 

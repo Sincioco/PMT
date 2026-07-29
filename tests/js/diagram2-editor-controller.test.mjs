@@ -24,6 +24,9 @@ import {
 import {
   normalizeDiagram2RteSaveState
 } from "../../wwwroot/js/features/diagram2/diagram2-rte-host-adapter.js";
+import {
+  diagram2CanonicalRelationships
+} from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
 
 const sampleImageDataUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNmZmYiLz48L3N2Zz4=";
 
@@ -738,6 +741,71 @@ CREATE TABLE [pmt].[Sprints](
   assert.equal(await controller.redo(), true);
   assert.equal(controller.statusSnapshot().relationshipCount, 0);
   assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 Entity tab reset scale restores selected entity defaults with undo", async () => {
+  const state = phase5TwoEntityState();
+  state.objects = state.objects.map(object => object.id === "entity-tasks"
+    ? {
+        ...object,
+        width: 960,
+        height: 420,
+        expandedHeight: 420,
+        dataTypeExpandedWidth: 960
+      }
+    : object);
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state
+  });
+  controller.setSelection(["entity-tasks"]);
+  const before = controller.getObjectById("entity-tasks");
+
+  assert.equal(await controller.resetEntityScale("entity-tasks"), true);
+
+  const reset = controller.getObjectById("entity-tasks");
+  assert.equal(reset.x, before.x);
+  assert.equal(reset.y, before.y);
+  assert.equal(reset.width < before.width, true);
+  assert.equal(reset.height < before.height, true);
+  assert.deepEqual(controller.selectedObjectIds(), ["entity-tasks"]);
+  assert.deepEqual(renderer.structureStates.at(-1).affectedObjectIds, ["entity-tasks"]);
+  assert.equal(renderer.structureStates.at(-1).affectedRelationshipIds.length > 0, true);
+  assert.equal(renderer.fullRenderCount, 0);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("entity-tasks").width, before.width);
+  assert.equal(controller.getObjectById("entity-tasks").height, before.height);
+
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.getObjectById("entity-tasks").width, reset.width);
+  assert.equal(controller.getObjectById("entity-tasks").height, reset.height);
+});
+
+test("Diagram 2 self relationships show when the entity option is enabled", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: selfRelationshipState()
+  });
+
+  assert.equal(controller.statusSnapshot().relationshipCount, 0);
+  controller.setSelection(["entity-tasks"]);
+  assert.equal(await controller.setEntityOption("entity-tasks", "showSelfRelationships", true), true);
+  assert.equal(controller.getObjectById("entity-tasks").showSelfRelationships, true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 1);
+  assert.equal(renderer.structureStates.at(-1).relationshipCount, 1);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 0);
+  assert.equal(renderer.structureStates.at(-1).relationshipCount, 0);
+
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 1);
+  assert.equal(renderer.structureStates.at(-1).relationshipCount, 1);
 });
 
 test("Diagram 2 route costing prefers resolved, quieter, deterministic routes", () => {
@@ -1523,6 +1591,37 @@ function phase5TwoEntityState() {
   };
 }
 
+function selfRelationshipState() {
+  return {
+    version: 1,
+    width: 900,
+    height: 560,
+    objects: [{
+      id: "entity-tasks",
+      type: "entity",
+      x: 160,
+      y: 120,
+      width: 520,
+      height: 150,
+      entitySchema: "pmt",
+      entityName: "Tasks",
+      fields: [
+        { name: "TaskId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+        { name: "ParentTaskId", dataType: "int", nullable: true, isForeignKey: true },
+        { name: "Title", dataType: "nvarchar(220)", nullable: false }
+      ],
+      foreignKeys: [{
+        name: "FK_Tasks_ParentTask",
+        columns: ["ParentTaskId"],
+        referencedSchema: "pmt",
+        referencedTable: "Tasks",
+        referencedColumns: ["TaskId"],
+        relationshipType: "many-to-one"
+      }]
+    }]
+  };
+}
+
 function lockedTallEntityState() {
   const baseFields = [
     { name: "Id", dataType: "int", nullable: false, isPrimaryKey: true },
@@ -1751,8 +1850,10 @@ function fakeRenderer() {
       this.objectOrders.push(ids.slice());
     },
     setStructureState(state, options = {}) {
+      const relationships = diagram2CanonicalRelationships(state);
       this.structureStates.push({
         objectIds: (state?.objects || []).map(object => object.id),
+        relationshipCount: relationships.length,
         groupNames: { ...(state?.groupNames || {}) },
         groupVisibility: { ...(state?.groupVisibility || {}) },
         affectedObjectIds: [...(options.affectedObjectIds || [])],

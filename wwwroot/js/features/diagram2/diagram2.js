@@ -18,7 +18,7 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
+} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
 import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260724-day36-v3";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
@@ -55,13 +55,13 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-compatibility.js?v=20260729-diagram2-d1-relationships-v1";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-compact-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -82,7 +82,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -91,11 +91,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-editor-templates.js?v=20260729-diagram2-d1-relationships-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -349,6 +349,11 @@ export function createDiagram2Feature({
     if (action === "edit-diagram2-entity") {
       if (!diagram2EditModeActive()) return true;
       await editDiagram2SelectedEntity();
+      return true;
+    }
+    if (action === "reset-diagram2-entity-scale") {
+      if (!diagram2EditModeActive()) return true;
+      await resetDiagram2SelectedEntityScale();
       return true;
     }
     if (action === "add-diagram2-relationship") {
@@ -3088,6 +3093,16 @@ export function createDiagram2Feature({
   function diagram2SelectedEntity() {
     return diagram2Controller?.getObjectsByIds(diagram2Controller.selectedObjectIds())
       .find(object => object?.type === "entity" && object.locked !== true) || null;
+  }
+
+  async function resetDiagram2SelectedEntityScale() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const entity = diagram2SelectedEntity();
+    if (!entity) return false;
+    const applied = await diagram2Controller.resetEntityScale(entity.id);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
   }
 
   async function autoFormatDiagram2Compact() {

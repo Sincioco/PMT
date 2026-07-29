@@ -7,12 +7,12 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260729-diagram2-compact-v1";
+} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel
-} from "./diagram2-routing.js?v=20260729-diagram2-compact-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-d1-relationships-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -35,8 +35,8 @@ const diagram2ViewportHaloMinimumObjectThreshold = 80;
 const diagram2ViewportHaloFullCoverageThreshold = 0.82;
 const diagram2DetailLevelDetailed = "detailed";
 const diagram2DetailLevelLow = "low";
-const diagram2LowDetailEnterRowPixels = 4;
-const diagram2LowDetailExitRowPixels = 6;
+const diagram2LowDetailEnterRowPixels = 6;
+const diagram2LowDetailExitRowPixels = 8;
 const diagram2LowDetailMinimumEntityCount = 80;
 const diagram2LowDetailMinimumTitleFontPixels = 7;
 const diagram2LowDetailMinimumTitleWidthPixels = 28;
@@ -695,24 +695,34 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function setStructureState(stateInput = null, options = {}) {
     if (!canonicalState || !stateInput || typeof stateInput !== "object") return diagnostics();
     const previousState = canonicalState;
+    const nextState = normalizeDiagram2CanonicalState(stateInput);
     const previousObjectsById = new Map(previousState.objects.map(object => [object.id, object]));
-    const nextObjects = Array.isArray(stateInput.objects) ? stateInput.objects : previousState.objects;
+    const nextObjects = nextState.objects;
     const nextObjectsById = new Map(nextObjects.map(object => [object.id, object]));
     const requestedIds = [...new Set((Array.isArray(options.affectedObjectIds) ? options.affectedObjectIds : [])
       .map(id => String(id || "").trim())
       .filter(Boolean))];
+    const requestedRelationshipIds = uniqueDiagram2RendererStrings(options.affectedRelationshipIds);
     const affectedIds = requestedIds.length
       ? requestedIds
       : [...new Set([...previousObjectsById.keys(), ...nextObjectsById.keys()])];
     const previousOrder = previousState.objects.map(object => object.id).join("\n");
     const nextOrder = nextObjects.map(object => object.id).join("\n");
+    const previousRelationships = diagram2CanonicalRelationships(previousState);
+    const nextRelationships = diagram2CanonicalRelationships(nextState);
+    const previousRelationshipIdKey = previousRelationships.map(relationship => relationship.id).sort().join("\n");
+    const nextRelationshipIdKey = nextRelationships.map(relationship => relationship.id).sort().join("\n");
+    const relationshipSetChanged = previousRelationshipIdKey !== nextRelationshipIdKey;
+    const relationshipStyleChanged = JSON.stringify(previousState.relationshipStyle || {})
+      !== JSON.stringify(nextState.relationshipStyle || {});
+    const relationshipRoutingChanged = [
+      "manualEntityRelationshipRoutes",
+      "allowOverlappingEntityLines",
+      "hideAllEntityRelationships",
+      "compactEntityRelationshipRouting"
+    ].some(name => (previousState[name] === true) !== (nextState[name] === true));
 
-    canonicalState = {
-      ...canonicalState,
-      objects: nextObjects,
-      groupNames: plainDiagram2RendererRecord(stateInput.groupNames),
-      groupVisibility: plainDiagram2RendererBooleanRecord(stateInput.groupVisibility)
-    };
+    canonicalState = nextState;
 
     affectedIds.forEach(id => {
       const previousObject = previousObjectsById.get(id) || null;
@@ -738,6 +748,18 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         affectedRelationshipIds: options.affectedRelationshipIds
       });
     });
+
+    requestedRelationshipIds.forEach(id => dirty.relationshipGeometry.add(id));
+    if (relationshipSetChanged || relationshipRoutingChanged) {
+      dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
+      dirty.worldBounds = true;
+      dirty.sectors = true;
+    } else if (relationshipStyleChanged) {
+      const ids = requestedRelationshipIds.length
+        ? requestedRelationshipIds
+        : nextRelationships.map(relationship => relationship.id);
+      ids.forEach(id => dirty.relationshipStyle.add(id));
+    }
 
     if (previousOrder !== nextOrder) dirty.zOrder = true;
     return scheduleDiagramFlush(options.reason || "structure state");
@@ -883,7 +905,6 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       committing: false
     };
 
-    setGeometryPreviewRelationshipsHidden(activeGeometryPreview, true);
     svg.classList.add("is-geometry-previewing");
     bringPreviewObjectsForward(activeGeometryPreview.objectIds);
     activeGeometryPreview.objectIds.forEach(id => {
@@ -1380,7 +1401,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     };
   }
 
-  function patchMergedRelationshipRoutes(relationships, routeOptionsInput = null) {
+  function patchMergedRelationshipRoutes(relationships, routeOptionsInput = null, options = {}) {
     if (!planes.relationships) return 0;
 
     let group = planes.relationships.querySelector(":scope > g[data-diagram2-merged-relationship-routes]");
@@ -1393,10 +1414,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     }
 
     const routeOptions = routeOptionsInput || relationshipRouteOptions(relationships, canonicalState);
+    const useCachedRoutes = options.useCachedRoutes !== false;
     const renderedRelationships = relationships
       .filter(relationship => liveView.mountedRelationshipIds.has(relationship.id))
       .map(relationship => {
-        const route = routing.relationshipRoutesById.get(relationship.id)
+        const route = (useCachedRoutes ? routing.relationshipRoutesById.get(relationship.id) : null)
           || relationshipRoute(relationship, routeOptions);
         const detailLevel = liveView.relationshipDetailLevelsById.get(relationship.id)
           || relationshipDetailLevel(relationship);
@@ -1497,7 +1519,20 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (!routeChanged && !styleChanged && existing) {
       const selected = liveView.selectedIds.has(relationship.id);
       const wasSelected = node.classList.contains("is-selected");
-      patchRelationshipSelection(node, relationship.id, selected);
+      const renderedRoute = routing.relationshipRoutesById.get(relationship.id) || route;
+      patchRelationshipNode(node, relationship, relationship, {
+        route: renderedRoute,
+        detailLevel,
+        selected,
+        manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+        viewportScale: committedViewportTransform.scale
+      });
+      patchSelectedRelationshipOverlay(relationship, renderedRoute, {
+        detailLevel,
+        selected,
+        manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+        viewportScale: committedViewportTransform.scale
+      });
       return {
         patched: wasSelected === selected ? 0 : 1,
         routed: 0,
@@ -1515,7 +1550,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       routeChanged,
       styleChanged,
       selected: liveView.selectedIds.has(relationship.id),
-      manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
+      manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+      viewportScale: committedViewportTransform.scale
+    });
+    patchSelectedRelationshipOverlay(relationship, renderedRoute, {
+      detailLevel,
+      selected: liveView.selectedIds.has(relationship.id),
+      manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+      viewportScale: committedViewportTransform.scale
     });
     liveView.relationshipDataById.set(relationship.id, relationship);
     liveView.relationshipVersionsById.set(relationship.id, relationshipRenderVersion(routeSignature, styleSignature, detailLevel));
@@ -1569,6 +1611,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function removeRelationshipNode(id, options = {}) {
     liveView.relationshipNodesById.get(id)?.remove();
+    planes.overlays?.querySelector(`[data-diagram2-relationship-route-overlay-id="${cssEscape(id)}"]`)?.remove();
     liveView.relationshipNodesById.delete(id);
     liveView.relationshipVersionsById.delete(id);
     liveView.relationshipDataById.delete(id);
@@ -1576,6 +1619,56 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.mountedRelationshipIds.delete(id);
     if (options.preserveSelection !== true) liveView.selectedIds.delete(id);
     if (options.preserveRouting !== true) removeRelationshipRoutingState(id);
+  }
+
+  function patchSelectedRelationshipOverlay(relationship, route, options = {}) {
+    if (!planes.overlays) return;
+    const id = String(relationship?.id || "").trim();
+    if (!id) return;
+    let overlay = planes.overlays.querySelector(`:scope > g[data-diagram2-relationship-route-overlay-id="${cssEscape(id)}"]`);
+    if (options.selected !== true) {
+      overlay?.remove();
+      return;
+    }
+    if (!overlay) {
+      overlay = createSvgElement(host, "g", {
+        "data-diagram2-relationship-route-overlay-id": id,
+        class: "diagram2-renderer-relationship-route-overlay",
+        "pointer-events": "none"
+      });
+      planes.overlays.appendChild(overlay);
+    }
+
+    const renderRoute = options.detailLevel === diagram2DetailLevelLow
+      ? lowDetailRelationshipRoute(relationship, route)
+      : route;
+    setSvgAttributes(overlay, {
+      "data-diagram2-relationship-route-overlay-id": id,
+      class: "diagram2-renderer-relationship-route-overlay",
+      "pointer-events": "none"
+    });
+    let selectionPath = overlay.querySelector(":scope > path[data-diagram2-relationship-selection-path]");
+    if (!selectionPath) {
+      selectionPath = appendSvg(overlay, "path", {
+        "data-diagram2-relationship-selection-path": ""
+      });
+    }
+    setSvgAttributes(selectionPath, {
+      class: "image-annotation-entity-relationship-selection diagram2-renderer-relationship-selection-path",
+      "data-diagram2-relationship-selection-path": "",
+      d: renderRoute.path,
+      fill: "none",
+      "stroke-width": 1,
+      "vector-effect": "non-scaling-stroke",
+      "pointer-events": "none"
+    });
+    patchRelationshipRouteHandles(
+      overlay,
+      relationship,
+      renderRoute,
+      options.manualRoutes === true,
+      options.viewportScale
+    );
   }
 
   function unmountViewportHaloRelationshipNode(id) {
@@ -2470,9 +2563,6 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function patchGeometryRelationshipPreviews(preview, previewObjectsById) {
-    const previewPlane = planes.relationships || planes.overlays;
-    if (!previewPlane) return 0;
-    const desiredIds = new Set(preview.relationshipIds);
     const previewState = {
       ...canonicalState,
       objects: canonicalState.objects.map(object => previewObjectsById.get(object.id) || object)
@@ -2482,97 +2572,66 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const relationshipsById = new Map(previewRelationships.map(relationship => [relationship.id, relationship]));
     let patched = 0;
 
+    patchMergedRelationshipRoutes(previewRelationships, routeOptions, { useCachedRoutes: false });
     preview.relationshipIds.forEach(id => {
       const relationship = relationshipsById.get(id);
       if (!relationship) return;
-      const previewRelationship = relationshipWithPreviewObjects(relationship, previewObjectsById);
-      const route = relationshipRoute(previewRelationship, routeOptions);
-      const style = relationshipStyle(relationship);
-      let node = previewPlane.querySelector(`:scope > g[data-diagram2-relationship-preview-id="${cssEscape(id)}"]`);
-      if (!node) {
-        node = createSvgElement(host, "g", {
-          "data-diagram2-relationship-preview-id": id,
-          class: "diagram2-renderer-relationship-preview-node"
-        });
-        previewPlane.appendChild(node);
-      }
-      let path = node.querySelector(":scope > path[data-diagram2-relationship-preview-path]");
-      if (!path) {
-        path = appendSvg(node, "path", {
-          "data-diagram2-relationship-preview-path": ""
-        });
-      }
-      setSvgAttributes(path, {
-        class: "diagram2-renderer-relationship-preview",
-        "data-diagram2-relationship-preview-path": "",
-        d: route.path,
-        fill: "none",
-        stroke: style.stroke,
-        "stroke-width": Math.max(1, style.strokeWidth),
-        opacity: Math.min(1, style.opacity + 0.08),
-        "stroke-dasharray": "8 6",
-        "stroke-linejoin": "round",
-        "stroke-linecap": "round",
-        "vector-effect": "non-scaling-stroke"
+      const node = liveView.relationshipNodesById.get(id);
+      if (!node) return;
+      const route = relationshipRoute(relationship, routeOptions);
+      patchRelationshipNode(node, relationship, relationship, {
+        route,
+        detailLevel: relationshipDetailLevel(relationship),
+        selected: liveView.selectedIds.has(id),
+        manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+        viewportScale: committedViewportTransform.scale
+      });
+      patchSelectedRelationshipOverlay(relationship, route, {
+        detailLevel: relationshipDetailLevel(relationship),
+        selected: liveView.selectedIds.has(id),
+        manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+        viewportScale: committedViewportTransform.scale
       });
       patched += 1;
     });
 
-    previewPlane.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]").forEach(node => {
-      if (!desiredIds.has(node.getAttribute("data-diagram2-relationship-preview-id"))) node.remove();
-    });
     return patched;
   }
 
-  function setGeometryPreviewRelationshipsHidden(preview, hidden) {
-    if (!preview?.relationshipIds?.length) return;
-    const mergedRoutes = planes.relationships?.querySelector(":scope > g[data-diagram2-merged-relationship-routes]");
-    if (mergedRoutes) {
-      mergedRoutes.classList.toggle("is-geometry-preview-hidden", hidden);
-      if (hidden) {
-        setSvgAttributes(mergedRoutes, {
-          "data-diagram2-geometry-preview-hidden": "true",
-          visibility: "hidden"
-        });
-      } else {
-        mergedRoutes.removeAttribute("data-diagram2-geometry-preview-hidden");
-        mergedRoutes.removeAttribute("visibility");
-      }
-    }
-
+  function restoreGeometryPreviewRelationships(preview) {
+    if (!preview?.relationshipIds?.length || !canonicalState) return 0;
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
+    const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    let patched = 0;
+    patchMergedRelationshipRoutes(relationships, routeOptions);
     preview.relationshipIds.forEach(id => {
+      const relationship = relationshipsById.get(id);
       const node = liveView.relationshipNodesById.get(id);
-      if (!node) return;
-      node.classList.toggle("is-geometry-preview-hidden", hidden);
-      if (hidden) {
-        setSvgAttributes(node, {
-          "data-diagram2-geometry-preview-hidden": "true",
-          visibility: "hidden"
-        });
-        return;
-      }
-      node.removeAttribute("data-diagram2-geometry-preview-hidden");
-      node.removeAttribute("visibility");
+      if (!relationship || !node) return;
+      const route = routing.relationshipRoutesById.get(id) || relationshipRoute(relationship, routeOptions);
+      patchRelationshipNode(node, relationship, relationship, {
+        route,
+        detailLevel: relationshipDetailLevel(relationship),
+        selected: liveView.selectedIds.has(id),
+        manualRoutes: canonicalState.manualEntityRelationshipRoutes === true,
+        viewportScale: committedViewportTransform.scale
+      });
+      patchSelectedRelationshipOverlay(relationship, route, {
+        detailLevel: relationshipDetailLevel(relationship),
+        selected: liveView.selectedIds.has(id),
+        manualRoutes: canonicalState.manualEntityRelationshipRoutes === true,
+        viewportScale: committedViewportTransform.scale
+      });
+      patched += 1;
     });
-  }
-
-  function relationshipWithPreviewObjects(relationship, previewObjectsById) {
-    const previewState = {
-      ...canonicalState,
-      objects: canonicalState.objects.map(object => previewObjectsById.get(object.id) || object)
-    };
-    return diagram2CanonicalRelationships(previewState).find(item => item.id === relationship.id) || {
-      ...relationship,
-      source: previewObjectsById.get(relationship.source?.id) || relationship.source,
-      target: previewObjectsById.get(relationship.target?.id) || relationship.target,
-      diagram2RouteGeometry: null
-    };
+    return patched;
   }
 
   function clearGeometryPreview({ restoreObjects = false, reason = "" } = {}) {
     const preview = activeGeometryPreview;
     svg?.classList.remove("is-geometry-previewing");
-    setGeometryPreviewRelationshipsHidden(preview, false);
+    if (restoreObjects) restoreGeometryPreviewRelationships(preview);
     if (preview && restoreObjects) {
       preview.originalObjectsById.forEach((object, id) => {
         const node = liveView.objectNodesById.get(id);
@@ -2595,8 +2654,6 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (planes.objects && canonicalState?.objects?.length) {
       reconcileObjectOrder(canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState)));
     }
-    planes.relationships?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
-    planes.overlays?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
     activeGeometryPreview = null;
     pendingGeometryPreviewFrame = 0;
     updateGeometryPreviewDiagnostics(reason || (restoreObjects ? "preview cancel" : "preview cleared"), 0, 0);
@@ -4021,28 +4078,7 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
   }
   title.textContent = `${formatEntityIdentifier(relationship.source?.entitySchema, relationship.source?.entityName)}.${relationship.sourceField?.name || ""} -> ${formatEntityIdentifier(relationship.target?.entitySchema, relationship.target?.entityName)}.${relationship.targetField?.name || ""}`;
 
-  let selectionPath = node.querySelector(":scope > path[data-diagram2-relationship-selection-path]");
-  if (flags.selected) {
-    if (!selectionPath) {
-      selectionPath = appendSvg(node, "path", {
-        "data-diagram2-relationship-selection-path": ""
-      });
-    }
-    setSvgAttributes(selectionPath, {
-      class: "diagram2-renderer-relationship-selection-path",
-      "data-diagram2-relationship-selection-path": "",
-      d: renderRoute.path,
-      fill: "none",
-      stroke: "#0c66e4",
-      "stroke-width": Math.max(style.strokeWidth + 6, 8),
-      opacity: 0.35,
-      "stroke-linejoin": "round",
-      "stroke-linecap": "round",
-      "pointer-events": "none"
-    });
-  } else {
-    selectionPath?.remove();
-  }
+  node.querySelector(":scope > path[data-diagram2-relationship-selection-path]")?.remove();
 
   let path = node.querySelector(":scope > path[data-diagram2-relationship-path]");
   if (!path) {
@@ -4051,7 +4087,7 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     });
   }
   setSvgAttributes(path, {
-    class: "diagram2-renderer-relationship-hit-path",
+    class: "image-annotation-entity-relationship-hit diagram2-renderer-relationship-hit-path",
     "data-diagram2-relationship-path": "",
     d: renderRoute.path,
     fill: "none",
@@ -4064,7 +4100,13 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     "pointer-events": "stroke"
   });
   patchRelationshipSymbols(node, relationship, renderRoute, style);
-  patchRelationshipRouteHandles(node, relationship, renderRoute, flags.selected === true && flags.manualRoutes === true);
+  patchRelationshipRouteHandles(
+    node,
+    relationship,
+    renderRoute,
+    false,
+    flags.viewportScale
+  );
 }
 
 function lowDetailRelationshipRoute(relationship, routeInput) {
@@ -4098,7 +4140,7 @@ function patchRelationshipSymbols(node, relationship, route, style) {
       });
     }
     setSvgAttributes(lineMarkers, {
-      class: "diagram2-renderer-relationship-symbol",
+      class: "image-annotation-entity-relationship-marker diagram2-renderer-relationship-symbol",
       d: geometry.lineSegments.map(([first, second]) =>
         `M ${formatNumber(first.x)} ${formatNumber(first.y)} L ${formatNumber(second.x)} ${formatNumber(second.y)}`).join(" "),
       fill: "none",
@@ -4118,7 +4160,7 @@ function patchRelationshipSymbols(node, relationship, route, style) {
     });
   }
   setSvgAttributes(arrow, {
-    class: "diagram2-renderer-relationship-symbol",
+    class: "image-annotation-entity-relationship-marker diagram2-renderer-relationship-symbol",
     points: geometry.arrowPoints.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" "),
     fill: style.stroke,
     opacity: style.opacity,
@@ -4126,7 +4168,7 @@ function patchRelationshipSymbols(node, relationship, route, style) {
   });
 }
 
-function patchRelationshipRouteHandles(node, relationship, route, selected) {
+function patchRelationshipRouteHandles(node, relationship, route, selected, viewportScale = 1) {
   let group = node.querySelector(":scope > g[data-diagram2-relationship-route-handles]");
   const points = Array.isArray(route?.points) ? route.points : [];
   if (!selected || points.length < 2) {
@@ -4168,14 +4210,21 @@ function patchRelationshipRouteHandles(node, relationship, route, selected) {
       });
     }
     setSvgAttributes(circle, {
-      class: "diagram2-renderer-relationship-route-handle",
+      class: "image-annotation-handle image-annotation-entity-relationship-handle diagram2-renderer-relationship-route-handle",
       "data-diagram2-relationship-route-handle": "",
       "data-diagram2-relationship-id": relationship.id,
       "data-diagram2-relationship-segment-index": handle.index,
       "data-diagram2-relationship-segment-axis": handle.axis,
+      "data-annotation-handle": "entity-relationship-segment",
+      "data-annotation-relationship-handle": "segment",
+      "data-annotation-relationship-id": relationship.id,
+      "data-annotation-relationship-segment-index": handle.index,
+      "data-annotation-relationship-segment-axis": handle.axis,
       cx: handle.x,
       cy: handle.y,
-      r: 6,
+      r: 4 / Math.max(minimumViewportScale, positiveNumber(viewportScale, 1)),
+      "stroke-width": 0.75,
+      "pointer-events": "all",
       tabindex: 0,
       role: "button",
       "aria-label": "Adjust relationship route segment"
