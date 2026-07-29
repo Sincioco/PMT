@@ -1,152 +1,175 @@
-# Diagram 2 Phase 5 Closure And Hardening Report
+# Diagram 2 Phase 5 D1 Compact Parity And Closure Report
 
-Generated: 2026-07-29
+Generated: 2026-07-30
 
-Status: Complete for the authorized Diagram 2 Phase 5 closure and hardening pass. No Phase 6 or Phase 7 work was started.
+Status: Complete for the authorized Diagram 2 Phase 5 correction and closure. No Phase 6, Phase 7, or Phase 8 promotion work was started.
 
-## Baseline
+## Baseline And Commits
 
 Starting committed baseline:
 
-`0a5eb9c4c11ad0ec94e71e2d4a494e46f646bc7f`
+`3c31aeed34932709d3f1177e3cea09fa0692e625`
 
-`Sin and Codex: complete Diagram 2 Phase 5 Entity and ERD parity`
+`Sin and Codex: align Diagram 2 relationships with D1`
+
+The starting worktree contained the in-progress Phase 5 relationship-selection, route-joint, self-relationship, Entity Reset Scale, LOD, marquee, browser-test, and screenshot edits. They were preserved and completed as part of this authorized closure. No unrelated worktree edits were discarded.
 
 Final implementation commit:
 
-This report is included in the closure commit. The computed SHA is reported after Git creates the commit.
+`237b229aa208dde69b4d29ecf07eb1335deac083`
 
-## Scope Completed
+`Sin and Codex: make Diagram 2 Compact match Diagram 1`
 
-This pass closed the Phase 5 gaps that were still called out by the prior report:
+This report and the permanent screenshots are included in the separate closure evidence commit.
 
-| Area | Result |
-| --- | --- |
-| Visible Entity field editor | Added field add/edit/delete/reorder controls in the Entity inspector for Diagram 2 top navigation and RTE hosts. |
-| Field flags and references | Name, data type, nullable, PK, FK, identity, important, and reference dropdown edits now flow through shared controller commands. |
-| Relationship-safe field edits | Field renames update source FK columns and target referenced columns; field deletes remove stale source/target relationships and clear orphan FK flags. |
-| Manual route points | Added visible Add Route Point and Remove Route Point controls, while preserving segment drag, keyboard nudge, clear route, and undo/redo behavior. |
-| Compact route costing | Added renderer-neutral route scoring, deterministic candidate comparison, no-worse rejection, diagnostics, and no-improvement handling. |
-| Compact progress/cancel | Added a shared async Compact engine, progress overlay, cancel signal flow, stale revision guard, and worker-capable entry point. |
-| Live schema generation | Added a Diagram 2 `Generate PMT Database Schema` button that uses the live schema API and existing Documentation-backed Diagram create path. |
-| Browser/cache hardening | Cache-busted Diagram 2 JS and CSS to `20260729-diagram2-phase5-closure-v1`. |
+## Final Product Contract
 
-Diagram 1 remains unchanged as the current production editor.
+Given the same canonical Diagram state and selected root Entity, Diagram 2 `Entity -> Auto Format -> Compact` now produces the same:
 
-## Files Changed
+- Entity population, order, positions, width, and height;
+- preferred root, levels, root-side placement, gaps, cycles, and anchor translations;
+- `compactEntityRelationshipRouting` state;
+- Entity annotation-child movement and arrow synchronization;
+- normalized automatic relationship route points;
+- relationship type and cardinality symbols;
+- manual `routeOverride` values; and
+- output bounds
 
-New closure modules:
+as Diagram 1.
 
-| File | Responsibility |
-| --- | --- |
-| `wwwroot/js/features/diagram2/diagram2-route-costing.js` | Renderer-neutral relationship route scoring, score comparison, and Compact diagnostics. |
-| `wwwroot/js/features/diagram2/diagram2-compact-engine.js` | Async Compact phases, progress callbacks, cancel handling, and no-improvement result handling. |
-| `wwwroot/js/features/diagram2/diagram2-compact-worker.js` | Worker-capable Compact entry point for large-layout off-main-thread promotion. |
+Diagram 1 is the executable Compact oracle. Diagram 2 may run that operation in a worker and expose progress/cancellation, but it no longer chooses a different layout.
 
-Updated code:
+## Root Cause And Correction
 
-| Area | Files |
-| --- | --- |
-| Entity commands | `diagram2-editor-entities.js`, `diagram2-editor-controller.js` |
-| Relationship commands | `diagram2-editor-relationships.js`, `diagram2-editor-controller.js` |
-| Shared shell and hosts | `diagram2-editor-shell.js`, `diagram2.js`, `diagram2-rte-host-adapter.js` |
-| Cache busting | `wwwroot/index.html`, `wwwroot/js/app.js`, Diagram 2 ES module import tokens |
-| Styling | `wwwroot/css/features/diagram2.css` |
-| Tests | `tests/js/diagram2-editor-controller.test.mjs`, `tests/browser/diagram2-navigation.spec.mjs`, `tests/browser/diagram2-rte-annotation.spec.mjs` |
-| Evidence | `docs/screenshots/diagram-2-phase-5/*` |
+The reopened implementation audit confirmed all reported output-changing shortcuts:
 
-## Closure Gap Matrix
-
-| Item | Final status | Evidence |
+| Removed behavior | Previous effect | Final behavior |
 | --- | --- | --- |
-| Entity toolbar action | PASS | Existing top-nav/RTE browser coverage still creates Entities through the shared editor. |
-| SQL/table parsing | PASS | Diagram 2 continues to wrap the Diagram 1 parser. |
-| Visible field add | PASS | Inspector Add Field button covered in top-nav and RTE browser tests. |
-| Visible field name/type edit | PASS | Browser and controller tests verify deterministic updates. |
-| Duplicate field handling | PASS | Add/rename paths produce numeric suffixes such as `ProjectId2`. |
-| Nullable flag | PASS | Visible dropdown updates canonical field metadata. |
-| PK/FK/identity/important flags | PASS | Controller coverage verifies command behavior; browser coverage verifies visible important/FK paths. |
-| Field reorder | PASS | Inspector up/down controls and controller command are covered. |
-| Field delete | PASS | Inspector delete button and relationship cleanup are covered. |
-| Field reference dropdowns | PASS | Top-nav and RTE browser tests update target entity/field relationships from visible controls. |
-| Relationship creation/deletion | PASS | Existing shared relationship dialog/controller coverage remains green. |
-| Relationship style/global overrides | PASS | Existing controller/browser coverage remains green. |
-| Manual route capture/clear | PASS | Existing use-current and clear-manual paths remain green. |
-| Manual route segment drag | PASS | Browser route-preview and commit coverage remains green. |
-| Manual route point add/remove | PASS | New inspector buttons are covered by top-nav browser tests and controller tests. |
-| Compact button/tooltip | PASS | Browser tests assert the approved `Compact` label and long-running tooltip. |
-| Compact no-worse/no-improvement | PASS | Route scoring rejects non-improving layouts and leaves history unchanged. |
-| Compact cancel/progress | PASS | Unit tests cover real engine cancel/progress; browser test covers overlay cancel wiring. |
-| Compact stale revision guard | PASS | Controller rejects stale Compact results before committing. |
-| Compact diagnostics | PASS | Controller diagnostics expose `lastCompact` and canonical revision data. |
-| Live PMT schema generation | PASS | Dedicated Playwright test verifies API fetch, SVG upload, and Documentation-backed create payload. |
-| Diagram 1 compatibility | PASS | Shared JS and `image-annotation.spec.mjs` browser coverage pass. |
-| Top-navigation host | PASS | `diagram2-navigation.spec.mjs` passes at 1366 and 1920. |
-| RTE hosts | PASS | `diagram2-rte-annotation.spec.mjs` passes at 1366 and 1920. |
-| Large object/tree gate | PASS | Existing 1,000-object gate remains green. |
-| About 3D flyby | NOT TESTED | Not touched by this phase, per Sin's instruction. |
+| 64-Entity / 120-relationship summary thresholds | Large Diagrams changed scoring behavior. | Diagram size no longer changes the committed result. |
+| `skipRouteAdjustment: true` | Large Diagrams skipped D1 route-contact separation. | Full D1 route adjustment always runs. |
+| Generic grid candidate | D2 could select a grid instead of D1's org-tree result. | User Compact commits only the D1 result. |
+| Separate D2 score veto | D2 could reject the result D1 would apply. | No D2 score can reject or alter the D1 result. |
+| Locked Entities treated as fixed anchors | D2 ran a different locked-Entity layout. | Any locked Entity refuses Compact, matching D1. |
 
-## Entity Behavior
+The smallest safe implementation was used. `autoFormatAnnotationStateEntitiesOrgTree(...)` in `image-annotation.js` wraps D1's existing exported `autoFormatAnnotationEntitiesOrgTree(...)`, applies the exact D1 options, translates Entity annotation children, synchronizes annotation arrows, and enables compact routing. D1 and D2 call this same state operation. A golden test proves the D1 UI result did not change.
 
-Entity field edits now use small command plans rather than whole-document rewrites. The command plans keep Diagram 1-compatible canonical fields and update only the affected Entity and affected relationships.
+## Preconditions And History
 
-Important field-edit rules:
+Compact now matches D1's command contract:
 
-- Primary key fields are forced non-null.
-- Identity toggles maintain or remove the compatible `identity` marker.
-- Duplicate names use deterministic numeric suffixes.
-- Source-field renames update FK `columns`.
-- Target-field renames update FK `referencedColumns`.
-- Source-field deletes remove stale source relationships.
-- Target-field deletes remove stale incoming relationships.
-- Orphan FK flags are cleared when no relationship still references the field.
+- Exactly one Entity must be selected.
+- At least two Entity objects must exist.
+- Every Entity must be unlocked.
+- The selected Entity ID is the `preferredRootId`.
+- Existing Field Rectangle-shaped `type: "entity"` objects participate exactly as D1 handles them.
+- Manual route overrides and unrelated non-Entity objects remain unchanged.
+- No canonical change produces no history entry.
+- Success commits exactly one `Auto Format - Compact` command.
+- Undo restores the exact pre-Compact state and selection.
+- Redo restores the exact D1 result without rerunning Compact.
+- Cancellation and stale-revision rejection leave state, selection, history, renderer, and manual routes unchanged.
 
-## Relationship And Manual Route Behavior
+## Worker And Progress Behavior
 
-Relationships are still stored on source Entity `foreignKeys[]`; no Diagram 2-only relationship file format was introduced.
+Large Diagram 2 Compact work runs the exact D1 operation in the existing worker. The inline fallback invokes the same engine and produces byte-equivalent canonical output.
 
-Manual route behavior now includes:
+The progress phases are:
 
-- Use Current Route.
-- Add Route Point.
-- Remove Route Point.
-- Drag segment with preview.
-- Keyboard route-handle nudge.
-- Clear Manual Route.
-- Save/reopen through the existing `routeOverride` data.
+1. Analyzing Entities
+2. Building Relationship Graph
+3. Assigning Compact Levels
+4. Placing Root-side Entities
+5. Separating Entities from Relationship Routes
+6. Finalizing Automatic Routes
+7. Applying D1 Compact Result
 
-## Auto Format - Compact
+Final statuses are `Completed`, `No change`, `Blocked`, or `Canceled`. The removed `No improvement` score-veto status is no longer part of the user command.
 
-Compact remains explicit and undoable. It does not run during drag, resize, field editing, or ordinary Entity updates.
+## Relationship And Entity Closure
 
-Closure behavior:
+The other reopened Phase 5 items are complete:
 
-- Scores the current route state before layout.
-- Builds deterministic layout candidates.
-- Preserves locked Entity positions.
-- Preserves manual route overrides.
-- Enables compact relationship routing only when the chosen candidate is better.
-- Rejects equal or worse candidates.
-- Reports phase progress.
-- Supports cancel without mutating canonical state or command history.
-- Rejects stale results if the canonical revision changed while Compact was running.
-- Commits one command named `Auto Format - Compact` only on success.
-
-The worker file is present as a worker-capable entry point. The current controller uses the shared async engine directly because the verified fixtures do not require a worker handoff yet.
-
-## Diagnostics And Scale Evidence
-
-| Fixture | Result |
+| Area | Final behavior |
 | --- | --- |
-| PMT schema fixture | 88 canonical objects and 78 relationships verified by browser diagnostics. |
-| 1,000 objects | Existing tree/rendering gate remains green in JS and Playwright. |
-| Route-costing unit fixture | Prefers resolved, quieter, deterministic routes. |
-| Compact cancel/no-improvement fixture | Leaves state and history unchanged. |
-| Compact progress fixture | Reports ordered phases without mutating the canonical input. |
+| Relationship selection | Relationship hit paths are selectable on the canvas and project into the shared selection/Objects model. |
+| Route joints | Selected relationships show D1-style route joints and segment controls. |
+| Joint creation/removal | Double-clicking a route segment adds a joint; right-clicking a route joint removes it when the route remains valid. |
+| Manual adjustment | Joint and segment drags preview the D1 route and commit one undoable route command. |
+| Entity drag routes | Drag previews use the same D1 relationship geometry, with no alternate drag-only route shape. |
+| Self relationships | `Show Self Relationships` now reveals self routes and keeps them selectable/editable. |
+| Cardinality | One-to-one, one-to-many, and many-to-one symbols use D1 direction and placement. |
+| Reset Scale | The selected unlocked Entity can be reset to its natural Diagram 2 width/height from current fields and display settings. |
+| Multi-selection | Marquee selection renders one outer selection rectangle and no per-Entity resize handles for multi-selection. |
 
-## Screenshots
+Relationships remain canonical source Entity `foreignKeys[]`; no Diagram 2-only relationship format was introduced.
 
-Permanent Phase 5 screenshots:
+## Low Detail And Virtualization
+
+Low-detail overview enters only when at least 80 normal Entities are present and the median projected field-row height falls below 6 CSS pixels. It exits after projected rows reach 8 CSS pixels.
+
+At low detail:
+
+- Entity names appear when the projected title font is at least 7 pixels and the Entity projects to at least 28 by 12 pixels.
+- PK/FK summary text appears when the projected summary font is at least 9 pixels and the Entity projects to at least 80 by 32 pixels.
+- Automatic routes use the low-detail route representation.
+- Fine field rows remain suppressed until detailed mode returns.
+
+The 500- and 1,000-Entity browser gates verify low detail, viewport-halo virtualization, and cleanup. Routine selection, marquee, field edit, move, relationship style, manual route, viewport, cancellation, undo, and redo work do not add a full render after the one initial harness render.
+
+## Exact Compact Parity Results
+
+`tests/js/diagram2-compact-parity.test.mjs` emits a structured `DIAGRAM2_COMPACT_PARITY` record for every required fixture. Each record includes D1, inline, and worker timing; mismatch counts; unresolved contacts; fixed-constraint shortcuts; cycle breaks; overlaps; output bounds; full-render count; and final status.
+
+Required aggregate result:
+
+| Metric | Result |
+| --- | ---: |
+| Entity-position mismatches | 0 |
+| Automatic-route-point mismatches | 0 |
+| Locked/manual-route mutations | 0 |
+| Worker versus inline canonical mismatches | 0 |
+| Inline versus D1 canonical mismatches | 0 |
+| Full renders caused by Compact planning | 0 |
+
+Key production-shaped results from the final dedicated run:
+
+| Fixture | Entities | Relationships | D1 | D2 inline | D2 worker | Final status |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| PMT Database Schema | 29 | 78 | 8.48 s | 8.68 s | 8.75 s | Completed |
+| Saved Diagram 23 | 96 | 257 | 195.73 s | 189.11 s | 186.03 s | Completed |
+| Production-shaped large graph | 232 | 624 | 29.93 s | 30.54 s | 32.02 s | Completed |
+| Production-shaped large graph | 500 | 160 | 32.55 s | 32.94 s | 27.19 s | Completed |
+| Focused cancellation graph | 1,000 | 120 | Canceled before oracle completion | Not committed | Canceled cleanly | Canceled |
+
+All small graph, chain, star, inbound/outbound, cycle, disconnected, self, anchor, multiple-anchor, annotation, Field Rectangle, manual-route, overlap, symbol, collapsed/expanded, and data-type fixtures also completed with zero required mismatches. The dedicated file passed 27/27 tests in 933.42 seconds.
+
+The real Diagram 23 fixture is `tests/fixtures/diagram2/diagram-23-state.json`, extracted read-only from saved Diagram document 23. It contains 99 canonical objects, including 96 Entities, and renders 257 relationships.
+
+## 500 And 1,000 Entity Gates
+
+The production browser harness creates actual Entity graphs rather than substituting the earlier 1,000-object tree fixture.
+
+Both the 500- and 1,000-Entity gates verify:
+
+- click selection and marquee selection;
+- one multi-selection outer overlay with zero resize handles;
+- one field edit;
+- one Entity move;
+- one relationship style change;
+- one manual route edit;
+- low-detail mode;
+- viewport-halo virtualization;
+- actual module Worker start;
+- cancellation on the first progress event;
+- unchanged state, selection, history, and revision after cancel;
+- worker termination and controller/renderer cleanup; and
+- one initial full render with no additional full render for the measured operations.
+
+The 1,000-Entity gate is a focused cancellation/editing smoke. Phase 8 still owns promotion timing and sustained-performance evidence.
+
+## Permanent Screenshots
+
+Existing Phase 5 evidence:
 
 | Screenshot | Viewport |
 | --- | --- |
@@ -155,70 +178,87 @@ Permanent Phase 5 screenshots:
 | `docs/screenshots/diagram-2-phase-5/diagram2-phase5-auto-format-compact-1920x1080.png` | 1920 x 1080 |
 | `docs/screenshots/diagram-2-phase-5/diagram2-phase5-rte-entity-editing-1366x768.png` | 1366 x 768 |
 
+D1/D2 Compact parity evidence:
+
+| Screenshot | Viewport |
+| --- | --- |
+| `docs/screenshots/diagram-2-phase-5/compact-parity/compact-d1-pmt-schema-1920x1080.png` | 1920 x 1080 |
+| `docs/screenshots/diagram-2-phase-5/compact-parity/compact-d2-pmt-schema-1920x1080.png` | 1920 x 1080 |
+| `docs/screenshots/diagram-2-phase-5/compact-parity/compact-d1-diagram-23-1920x1080.png` | 1920 x 1080 |
+| `docs/screenshots/diagram-2-phase-5/compact-parity/compact-d2-diagram-23-1920x1080.png` | 1920 x 1080 |
+| `docs/screenshots/diagram-2-phase-5/compact-parity/compact-d1-cycle-anchor-1366x768.png` | 1366 x 768 |
+| `docs/screenshots/diagram-2-phase-5/compact-parity/compact-d2-cycle-anchor-1366x768.png` | 1366 x 768 |
+
+Each pair starts from the same canonical state, selected root, relationship settings, and viewport. Geometry equality is authoritative; D2 intentionally uses low-detail rendering for the 96-Entity Fit overview.
+
 ## Automated Validation
 
-Preflight before editing:
+Final observed commands and closure counts:
 
-- `git status --short` - clean.
-- `git status -sb` - `main...origin/main`.
-- `git log -10 --oneline` - confirmed baseline history.
-- `git rev-parse HEAD` - `0a5eb9c4c11ad0ec94e71e2d4a494e46f646bc7f`.
-- `git diff --stat` - no pre-existing diff.
-- `git diff` - no pre-existing diff.
-- `git diff --check` - clean.
-
-Final validation:
-
-- `cmd /c node --test tests/js/diagram2-editor-controller.test.mjs` - passed, 25 tests.
-- `cmd /c npm.cmd run check:js` - passed, 176 JavaScript modules checked.
-- `cmd /c npm.cmd run test:js` - passed, 384 tests.
-- `cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs --project=chromium-1366` - passed, 10 tests.
-- `cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs --project=chromium-1920` - passed, 10 tests.
+- `cmd /c npm.cmd run check:js` - passed, 177 JavaScript modules checked.
+- `cmd /c npm.cmd run test:js` - passed, 418/418 tests in 958.6 seconds.
+- `node --test tests/js/diagram2-compact-parity.test.mjs` - passed, 27 tests.
+- `cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs --project=chromium-1366` - passed, 11/11 tests in 104.5 seconds.
+- `cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs --project=chromium-1920` - passed, 11/11 tests in 332.9 seconds.
 - `cmd /c npx.cmd playwright test tests/browser/diagram2-rte-annotation.spec.mjs --project=chromium-1366` - passed, 4 tests.
 - `cmd /c npx.cmd playwright test tests/browser/diagram2-rte-annotation.spec.mjs --project=chromium-1920` - passed, 4 tests.
 - `cmd /c npx.cmd playwright test tests/browser/image-annotation.spec.mjs --project=chromium-1366` - passed, 3 tests.
 - `cmd /c npx.cmd playwright test tests/browser/image-annotation.spec.mjs --project=chromium-1920` - passed, 3 tests.
-- `cmd /c dotnet build` - blocked by running process `PMT (39476)` locking `bin\Debug\net6.0\PMT.exe`.
-- `cmd /c dotnet build -p:OutputPath=bin\CodexPhase5\` - passed with the existing .NET 6 end-of-support warning.
-- `git diff --check` - passed after final edits.
+- Browser matrix total - passed, 36/36 tests.
+- `cmd /c dotnet build` - blocked only by running local process `PMT (54932)` locking `bin\Debug\net6.0\PMT.exe`.
+- `cmd /c dotnet build -p:OutputPath=bin\CodexPhase5D1CompactParity\` - passed with 0 errors and the two existing .NET 6 end-of-support warnings.
+- `git diff --check` - passed.
 
-The About 3D flyby was not tested because this phase did not change it.
+The About 3D flyby was not tested because this phase did not change it, per Sin's instruction.
 
 ## Manual Acceptance Checklist
 
-| Check | Expected result |
-| --- | --- |
-| Open Diagram 2, edit the PMT schema Diagram, select an Entity | Entity inspector shows field rows, Entity controls, relationship controls, Compact, and Generate PMT Database Schema. |
-| Add a field from the inspector | A new row appears, duplicate names are suffixed deterministically, and undo removes the command. |
-| Edit field flags or data type | Canonical field metadata updates without replacing unrelated objects. |
-| Set a field reference | The source field becomes an FK and a relationship points at the selected target Entity/field. |
-| Rename/delete referenced fields | Source and target relationship metadata stays consistent or stale relationships are removed. |
-| Add/remove route points | Manual route override changes through one undoable command per button action. |
-| Drag a route handle | A preview route appears during drag and one command commits on release. |
-| Click Compact | A progress overlay appears; successful layouts commit one command; cancel/no-improvement leave state unchanged. |
-| Generate PMT Database Schema | A new Documentation-backed Diagram is created from the live schema endpoint. |
-| Save and reopen | Diagram 2 and Diagram 1 can still parse the saved SVG; renderer-only state is absent. |
+1. Open the same original Diagram in Diagram 1.
+2. Select a known root Entity.
+3. Run `Auto Format -> Compact`.
+4. Save or capture the Diagram 1 result.
+5. Reopen the original starting state in Diagram 2.
+6. Select the same root Entity.
+7. Run `Entity -> Auto Format -> Compact`.
+8. Compare Entity levels, root-side placement, relationship lines, anchors, symbols, and output bounds.
+9. Undo and verify the exact original Diagram 2 state.
+10. Redo and verify the exact Diagram 1-compatible result without another Compact run.
+11. Repeat with the PMT schema and Diagram 23.
+12. Lock any Entity and verify Compact refuses with the D1-equivalent message.
+13. Start Compact, press Cancel, and verify state, selection, routes, and history remain unchanged.
 
-## Cache And Browser Testing
+Also verify relationship editing by selecting a line, dragging its joints, double-clicking a segment to add a joint, right-clicking a joint to remove it, and enabling `Show Self Relationships`.
 
-Browser-loaded Diagram 2 CSS and JS imports were cache-busted to:
+## Cache And Rebuild
 
-`20260729-diagram2-phase5-closure-v1`
+Browser-loaded production modules are cache-busted to:
 
-For local manual testing, no browser cache issue is expected after a hard refresh. Press `Ctrl + F5` in the browser to force the new JS/CSS query strings to load.
+`20260730-diagram2-d1-compact-parity-v1`
 
-## .NET Rebuild Requirement
+Press `Ctrl + F5` once on the running PMT browser page. No CSS or image cache issue is expected because the changed JavaScript module graph has a new query token and the evidence PNGs are documentation artifacts.
 
-No C# files changed. A normal `.NET` rebuild is not required just to see the browser changes if PMT is already running locally; press `Ctrl + F5`.
+No C# files changed. A .NET rebuild is not required to see or test these changes while PMT is already running. The alternate-output build is validation only.
 
-The normal build was blocked only because the local PMT executable is currently running and locking `bin\Debug\net6.0\PMT.exe`. The alternate-output build passed:
+## Known Limitations
 
-`cmd /c dotnet build -p:OutputPath=bin\CodexPhase5\`
+- Exact D1 compatibility carries D1's existing large relationship-routing cost. Saved Diagram 23 takes about three minutes per full Compact execution on this dev machine.
+- Worker execution keeps Diagram 2 responsive and cancelable, but it does not make the D1 algorithm itself faster.
+- The 1,000-Entity Compact gate validates worker start and clean cancellation, not full promotion timing.
+- Phase 8 still owns final 500/1,000 promotion benchmarks, sustained interaction budgets, and any output-preserving optimization of the shared D1 core.
+- At extreme Fit zoom, D2 intentionally suppresses fine Entity field text until the LOD exit threshold is reached.
 
-## Database Impact
+## Phase 6 Prerequisites And Boundary
 
-No database objects, stored procedures, migrations, seed scripts, version markers, or database-backed data contracts were changed. No database migration or `docs/database-versioning.md` action is required. The deployed PMT database baseline remains Version 1.27.
+Phase 6 may begin only after Sin explicitly authorizes it. It must:
 
-## Release Notes Impact
+- preserve the shared D1 Compact state helper and the zero-mismatch parity harness;
+- keep relationship selection, route joints, self relationships, Reset Scale, LOD, worker cancellation, history, and no-routine-full-render gates green;
+- preserve existing Field Rectangle-shaped Entity objects during Compact;
+- add Crop, image upload/drop, Entity annotation authoring, Field Rectangle authoring, Field Mapping authoring, and Field Mapping Table behavior through the existing shared controller and dual-host architecture; and
+- avoid changing Diagram 1-visible behavior or canonical contracts unless separately approved.
 
-Release Notes and What's New were not updated because Sin did not authorize a release-note change for this Phase 5 closure task.
+## Database And Release Impact
+
+No database objects, procedures, migrations, seed scripts, version markers, or database-backed contracts changed. No migration or `docs/database-versioning.md` action is required; the deployed baseline remains Version 1.27.
+
+Release Notes and What's New were not updated because this task is Phase 5 correction/closure, not an authorized release.
