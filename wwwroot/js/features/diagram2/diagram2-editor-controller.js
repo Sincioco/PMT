@@ -2,7 +2,7 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
@@ -12,10 +12,12 @@ import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
   diagram2ApplyEntityDefinitionPlan,
+  diagram2MoveEntityFieldPlan,
   diagram2RemoveEntityFieldPlan,
+  diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-entities.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -28,7 +30,7 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-structure.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
@@ -36,20 +38,22 @@ import {
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
 } from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   diagram2AddRelationshipPlan,
   diagram2AdjustRelationshipRoutePlan,
-  diagram2AutoFormatCompactPlan,
   diagram2ClearRelationshipRoutePlan,
   diagram2DeleteRelationshipsPlan,
+  diagram2InsertRelationshipRoutePointPlan,
   diagram2RelationshipById,
   diagram2RelationshipSelectionObjects,
+  diagram2RemoveRelationshipRoutePointPlan,
   diagram2SelectableRelationshipIds,
   diagram2SetRelationshipRoutingOptionsPlan,
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-relationships.js?v=20260729-diagram2-phase5-closure-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
@@ -202,13 +206,15 @@ export function createDiagram2EditorController(options = {}) {
   let formatPainterStyles = null;
   let drawingDefaults = normalizeDiagram2DrawingDefaults(options.drawingDefaults || options.templateLibrary?.defaults);
   let pasteSequence = 0;
+  let canonicalRevision = 1;
   let busy = false;
   let destroyed = false;
   let canonicalDiagnostics = {
     fullStateNormalizationCount: 1,
     fullStateSerializationCount: 0,
     stateReplacementCount: 1,
-    lastOperation: null
+    lastOperation: null,
+    lastCompact: null
   };
   const listeners = new Set();
   const history = createDiagram2CommandHistory({
@@ -235,6 +241,7 @@ export function createDiagram2EditorController(options = {}) {
 
   function setState(nextState, setOptions = {}) {
     canonicalState = normalizeDiagram2CanonicalState(nextState);
+    canonicalRevision += 1;
     canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     rebuildCanonicalObjectIndex();
     canonicalDiagnostics = {
@@ -954,6 +961,24 @@ export function createDiagram2EditorController(options = {}) {
     });
   }
 
+  async function moveEntityField(objectId, fieldIndex, direction, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2MoveEntityFieldPlan(canonicalState, objectId, fieldIndex, direction);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Move entity field",
+      reason: commandOptions.reason || "move entity field"
+    });
+  }
+
+  async function setEntityFieldReference(objectId, fieldIndex, reference, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2SetEntityFieldReferencePlan(canonicalState, objectId, fieldIndex, reference);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Set field reference",
+      reason: commandOptions.reason || "set entity field reference"
+    });
+  }
+
   async function addRelationship(input, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const plan = diagram2AddRelationshipPlan(canonicalState, input);
@@ -1010,6 +1035,24 @@ export function createDiagram2EditorController(options = {}) {
     });
   }
 
+  async function insertRelationshipRoutePoint(relationshipId, segmentIndex = null, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2InsertRelationshipRoutePointPlan(canonicalState, relationshipId, segmentIndex);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Add manual route point",
+      reason: commandOptions.reason || "add manual route point"
+    });
+  }
+
+  async function removeRelationshipRoutePoint(relationshipId, pointIndex = null, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2RemoveRelationshipRoutePointPlan(canonicalState, relationshipId, pointIndex);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Remove manual route point",
+      reason: commandOptions.reason || "remove manual route point"
+    });
+  }
+
   async function clearRelationshipRoutes(relationshipIds, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const plan = diagram2ClearRelationshipRoutePlan(canonicalState, relationshipIds);
@@ -1021,17 +1064,46 @@ export function createDiagram2EditorController(options = {}) {
 
   async function autoFormatCompact(commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
+    const sourceRevision = canonicalRevision;
     const preferredRootId = selectedObjectIds
       .map(id => getObjectById(id))
       .find(object => object?.type === "entity")?.id || "";
-    const plan = diagram2AutoFormatCompactPlan(canonicalState, {
-      preferredRootId,
-      selectionAfter: selectedObjectIds
-    });
-    return executeDiagram2StatePlan(plan, {
-      label: commandOptions.label || "Auto Format - Compact",
-      reason: commandOptions.reason || "auto format compact"
-    });
+    busy = true;
+    emit("busy");
+    try {
+      const result = await runDiagram2CompactEngine({
+        state: canonicalState,
+        preferredRootId,
+        selectionAfter: selectedObjectIds,
+        signal: commandOptions.signal,
+        onProgress: commandOptions.onProgress
+      });
+      if (result?.diagnostics) {
+        canonicalDiagnostics = {
+          ...canonicalDiagnostics,
+          lastCompact: result.diagnostics
+        };
+      }
+      if (commandOptions.signal?.aborted || result?.status === "Canceled") return false;
+      if (sourceRevision !== canonicalRevision) {
+        canonicalDiagnostics = {
+          ...canonicalDiagnostics,
+          lastCompact: {
+            ...(result?.diagnostics || {}),
+            finalStatus: "Stale"
+          }
+        };
+        return false;
+      }
+      if (!result?.plan?.nextState) return false;
+      return executeDiagram2StatePlan(result.plan, {
+        label: commandOptions.label || "Auto Format - Compact",
+        reason: commandOptions.reason || "auto format compact"
+      });
+    } finally {
+      busy = false;
+      emit("busy");
+    }
   }
 
   async function executeDiagram2StatePlan(plan, commandOptions = {}) {
@@ -1110,6 +1182,7 @@ export function createDiagram2EditorController(options = {}) {
       gridSize: positiveNumber(canonicalState.gridSize, 20),
       busy,
       canRead: security.canRead !== false,
+      canCreate: security.canCreate === true,
       canEdit,
       canExport: security.canExport !== false && host?.canExport !== false,
       canSave: typeof host?.save === "function" && canEdit,
@@ -1147,6 +1220,7 @@ export function createDiagram2EditorController(options = {}) {
       setCanvasOptionCanonical,
       setState(nextState) {
         canonicalState = normalizeDiagram2CanonicalState(nextState);
+        canonicalRevision += 1;
         canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
         rebuildCanonicalObjectIndex();
         canonicalDiagnostics = {
@@ -1637,6 +1711,7 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function recordCanonicalOperation(operation) {
+    if (operation?.changed === true) canonicalRevision += 1;
     canonicalDiagnostics = {
       ...canonicalDiagnostics,
       lastOperation: operation
@@ -1648,10 +1723,12 @@ export function createDiagram2EditorController(options = {}) {
     return {
       canonicalObjectCount: canonicalState.objects.length,
       canonicalIndexSize: objectIndexById.size,
+      canonicalRevision,
       fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount,
       fullStateSerializationCount: canonicalDiagnostics.fullStateSerializationCount,
       stateReplacementCount: canonicalDiagnostics.stateReplacementCount,
-      lastCanonicalOperation: canonicalDiagnostics.lastOperation
+      lastCanonicalOperation: canonicalDiagnostics.lastOperation,
+      lastCompact: canonicalDiagnostics.lastCompact
     };
   }
 
@@ -1691,12 +1768,16 @@ export function createDiagram2EditorController(options = {}) {
     updateEntityField,
     addEntityField,
     removeEntityField,
+    moveEntityField,
+    setEntityFieldReference,
     addRelationship,
     updateRelationshipsStyle,
     setRelationshipType,
     setRelationshipRoutingOptions,
     useRelationshipRoute,
     adjustRelationshipRoute,
+    insertRelationshipRoutePoint,
+    removeRelationshipRoutePoint,
     clearRelationshipRoutes,
     autoFormatCompact,
     deleteSelectedObjects,

@@ -19,6 +19,7 @@ import {
   annotationClipboardImageFile,
   annotationSvgToPngBlob
 } from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260724-day36-v3";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -59,8 +60,8 @@ import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adap
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -69,6 +70,7 @@ import {
   copyDiagram2SelectionArtwork,
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
+  openDiagram2CompactProgress,
   diagram2TemplatePaneHtml,
   openDiagram2EntityEditor,
   openDiagram2RelationshipEditor,
@@ -80,7 +82,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-shell.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -93,7 +95,7 @@ import {
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -123,7 +125,8 @@ export function createDiagram2Feature({
   confirm,
   loadTemplateLibrary,
   loadDefaultTemplateLibrary,
-  saveTemplateLibrary
+  saveTemplateLibrary,
+  loadPmtDatabaseSchema
 } = {}) {
   let active = false;
   let diagram2Creating = false;
@@ -157,6 +160,7 @@ export function createDiagram2Feature({
   let diagram2RendererState = null;
   let diagram2SelectedObjectIds = [];
   let diagram2Busy = false;
+  let diagram2GeneratingDatabaseSchema = false;
   let viewportAbortController = null;
   let viewportPanAbortController = null;
   let diagram2IgnoringScrollEvent = false;
@@ -352,14 +356,46 @@ export function createDiagram2Feature({
       await addDiagram2RelationshipFromDialog();
       return true;
     }
+    if (action === "add-diagram2-entity-field") {
+      if (!diagram2EditModeActive()) return true;
+      await addDiagram2SelectedEntityField();
+      return true;
+    }
+    if (action === "move-diagram2-entity-field-up" || action === "move-diagram2-entity-field-down") {
+      if (!diagram2EditModeActive()) return true;
+      await moveDiagram2SelectedEntityField(
+        Number.parseInt(button?.dataset?.diagram2EntityFieldIndex, 10),
+        action === "move-diagram2-entity-field-up" ? "up" : "down"
+      );
+      return true;
+    }
+    if (action === "remove-diagram2-entity-field") {
+      if (!diagram2EditModeActive()) return true;
+      await removeDiagram2SelectedEntityField(Number.parseInt(button?.dataset?.diagram2EntityFieldIndex, 10));
+      return true;
+    }
     if (action === "auto-format-diagram2-compact") {
       if (!diagram2EditModeActive()) return true;
       await autoFormatDiagram2Compact();
       return true;
     }
+    if (action === "generate-diagram2-pmt-schema") {
+      await generateDiagram2PmtDatabaseSchema();
+      return true;
+    }
     if (action === "use-diagram2-relationship-route") {
       if (!diagram2EditModeActive()) return true;
       await useDiagram2SelectedRelationshipRoute();
+      return true;
+    }
+    if (action === "add-diagram2-relationship-route-point") {
+      if (!diagram2EditModeActive()) return true;
+      await addDiagram2SelectedRelationshipRoutePoint();
+      return true;
+    }
+    if (action === "remove-diagram2-relationship-route-point") {
+      if (!diagram2EditModeActive()) return true;
+      await removeDiagram2SelectedRelationshipRoutePoint();
       return true;
     }
     if (action === "clear-diagram2-relationship-route") {
@@ -1720,6 +1756,8 @@ export function createDiagram2Feature({
       applyStyle: (name, value) => applyDiagram2SelectedStyle(name, value),
       applyGeometry: (name, value) => applyDiagram2SelectedGeometry(name, value),
       applyEntityOption: (name, value) => applyDiagram2SelectedEntityOption(name, value),
+      updateEntityField: (fieldIndex, patch) => applyDiagram2SelectedEntityFieldPatch(fieldIndex, patch),
+      setEntityFieldReference: (fieldIndex, reference) => applyDiagram2SelectedEntityFieldReference(fieldIndex, reference),
       applyRelationshipOption: (name, value) => applyDiagram2RelationshipOption(name, value),
       applyRelationshipStyle: (name, value) => applyDiagram2SelectedRelationshipStyle(name, value),
       applyRelationshipType: value => applyDiagram2SelectedRelationshipType(value),
@@ -2993,13 +3031,115 @@ export function createDiagram2Feature({
     return true;
   }
 
-  async function autoFormatDiagram2Compact() {
-    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
-    const applied = await diagram2Controller.autoFormatCompact();
+  async function addDiagram2SelectedEntityField() {
+    const entity = diagram2SelectedEntity();
+    if (!entity) return false;
+    const added = await diagram2Controller.addEntityField(entity.id, {
+      name: "NewField",
+      dataType: "nvarchar(120)",
+      nullable: true
+    });
+    if (!added) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function applyDiagram2SelectedEntityFieldPatch(fieldIndex, patch) {
+    const entity = diagram2SelectedEntity();
+    if (!entity || !Number.isInteger(fieldIndex)) return false;
+    const beforeName = entity.fields?.[fieldIndex]?.name || "";
+    const applied = await diagram2Controller.updateEntityField(entity.id, fieldIndex, patch);
     if (!applied) return false;
     await finishDiagram2ObjectCommand();
-    notify?.("Diagram 2 entities compacted.");
+    const nextName = diagram2Controller.getObjectById(entity.id)?.fields?.[fieldIndex]?.name || "";
+    if (patch && Object.hasOwn(patch, "name") && beforeName !== nextName && String(patch.name || "").trim() !== nextName) {
+      notify?.(`Duplicate field name resolved as ${nextName}.`);
+    }
     return true;
+  }
+
+  async function applyDiagram2SelectedEntityFieldReference(fieldIndex, reference) {
+    const entity = diagram2SelectedEntity();
+    if (!entity || !Number.isInteger(fieldIndex)) return false;
+    const applied = await diagram2Controller.setEntityFieldReference(entity.id, fieldIndex, reference);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function moveDiagram2SelectedEntityField(fieldIndex, direction) {
+    const entity = diagram2SelectedEntity();
+    if (!entity || !Number.isInteger(fieldIndex)) return false;
+    const moved = await diagram2Controller.moveEntityField(entity.id, fieldIndex, direction);
+    if (!moved) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function removeDiagram2SelectedEntityField(fieldIndex) {
+    const entity = diagram2SelectedEntity();
+    if (!entity || !Number.isInteger(fieldIndex)) return false;
+    const removed = await diagram2Controller.removeEntityField(entity.id, fieldIndex);
+    if (!removed) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  function diagram2SelectedEntity() {
+    return diagram2Controller?.getObjectsByIds(diagram2Controller.selectedObjectIds())
+      .find(object => object?.type === "entity" && object.locked !== true) || null;
+  }
+
+  async function autoFormatDiagram2Compact() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const progress = openDiagram2CompactProgress(app);
+    try {
+      const applied = await diagram2Controller.autoFormatCompact({
+        signal: progress?.signal,
+        onProgress: update => progress?.update(update)
+      });
+      if (!applied) {
+        notify?.(progress?.signal?.aborted ? "Diagram 2 Compact canceled." : "Diagram 2 Compact found no better layout.");
+        updateDiagram2EditorControls();
+        return false;
+      }
+      await finishDiagram2ObjectCommand();
+      notify?.("Diagram 2 entities compacted.");
+      return true;
+    } finally {
+      progress?.close();
+    }
+  }
+
+  async function generateDiagram2PmtDatabaseSchema() {
+    if (diagram2GeneratingDatabaseSchema
+      || typeof loadPmtDatabaseSchema !== "function"
+      || typeof createDiagramDocument !== "function"
+      || !canAccessResource("Documentation", "Create")) {
+      return false;
+    }
+    diagram2GeneratingDatabaseSchema = true;
+    updateDiagram2EditorControls();
+    try {
+      const schema = await loadPmtDatabaseSchema();
+      const diagram = buildPmtDatabaseSchemaDiagram(schema);
+      const result = await createDiagramDocument({
+        title: diagram.title,
+        diagram
+      });
+      selectedDiagramDocumentId = Number(result?.id || 0) || selectedDiagramDocumentId;
+      writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
+      writePreference(preferenceKeys.diagram2SelectedDocument, selectedDiagramDocumentId);
+      notify?.("PMT Database Schema Diagram created.");
+      if (diagram2DocumentMode !== "edit") render();
+      return true;
+    } catch (error) {
+      notify?.(error?.message || "PMT Database Schema Diagram could not be generated.");
+      return false;
+    } finally {
+      diagram2GeneratingDatabaseSchema = false;
+      updateDiagram2EditorControls();
+    }
   }
 
   async function useDiagram2SelectedRelationshipRoute() {
@@ -3007,6 +3147,26 @@ export function createDiagram2Feature({
     const [relationshipId] = diagram2Controller.selectedRelationshipIds();
     if (!relationshipId) return false;
     const applied = await diagram2Controller.useRelationshipRoute(relationshipId);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function addDiagram2SelectedRelationshipRoutePoint() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const [relationshipId] = diagram2Controller.selectedRelationshipIds();
+    if (!relationshipId) return false;
+    const applied = await diagram2Controller.insertRelationshipRoutePoint(relationshipId);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function removeDiagram2SelectedRelationshipRoutePoint() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const [relationshipId] = diagram2Controller.selectedRelationshipIds();
+    if (!relationshipId) return false;
+    const applied = await diagram2Controller.removeRelationshipRoutePoint(relationshipId);
     if (!applied) return false;
     await finishDiagram2ObjectCommand();
     return true;
@@ -3239,7 +3399,7 @@ export function createDiagram2Feature({
     const canUndo = status.history?.canUndo === true;
     const canRedo = status.history?.canRedo === true;
     const dirty = status.dirty === true;
-    const busy = diagram2Busy || status.busy === true;
+    const busy = diagram2Busy || diagram2GeneratingDatabaseSchema || status.busy === true;
     const canEdit = status.canEdit !== false;
     const canExport = status.canExport !== false;
     const saveState = app.querySelector("[data-diagram2-save-state]");

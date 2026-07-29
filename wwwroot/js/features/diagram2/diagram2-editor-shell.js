@@ -13,8 +13,8 @@ import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-phase5-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-entities.js?v=20260729-diagram2-phase5-closure-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260729-diagram2-phase5-closure-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -486,6 +486,7 @@ export async function copyDiagram2SelectionArtwork(state, selectedObjectIds, for
 export function updateDiagram2ShellStatus(root, status = {}) {
   if (!root) return;
   const canEdit = status.canEdit !== false;
+  const canCreate = status.canCreate !== false && status.security?.canCreate !== false;
   const canExport = status.canExport !== false;
   const hasDocument = status.hasDocument !== false && status.canRead !== false;
   const selectedText = status.selectedCount
@@ -513,6 +514,9 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   });
   root.querySelectorAll("[data-diagram2-requires-export]").forEach(control => {
     control.disabled = canExport === false || status.busy === true;
+  });
+  root.querySelectorAll("[data-diagram2-requires-create]").forEach(control => {
+    control.disabled = canCreate === false || status.busy === true;
   });
   root.querySelectorAll("[data-diagram2-requires-update]").forEach(control => {
     control.disabled = canEdit === false || status.busy === true;
@@ -821,6 +825,52 @@ export function updateDiagram2ObjectTreeSelection(root, selectedObjectIds = []) 
   });
 }
 
+export function openDiagram2CompactProgress(root) {
+  const shell = root?.matches?.("[data-diagram2-editor-shell]")
+    ? root
+    : root?.querySelector?.("[data-diagram2-editor-shell]");
+  if (!shell) return null;
+  shell.querySelector("[data-diagram2-compact-progress]")?.remove();
+  const abortController = new AbortController();
+  const overlay = shell.ownerDocument.createElement("div");
+  overlay.className = "diagram2-compact-progress";
+  overlay.dataset.diagram2CompactProgress = "true";
+  overlay.innerHTML = `
+    <div class="diagram2-compact-progress-panel" role="status" aria-live="polite">
+      <strong data-diagram2-compact-phase>Analyzing Entities</strong>
+      <progress max="100" value="0" data-diagram2-compact-bar></progress>
+      <span data-diagram2-compact-detail>0% - 0.0s</span>
+      <button type="button" data-diagram2-compact-cancel>Cancel</button>
+    </div>
+  `;
+  overlay.querySelector("[data-diagram2-compact-cancel]")?.addEventListener("click", () => {
+    abortController.abort();
+    update({
+      phase: "Canceling",
+      percent: 100,
+      elapsedMs: 0
+    });
+  });
+  shell.appendChild(overlay);
+
+  const update = progress => {
+    const phase = String(progress?.phase || "Analyzing Entities");
+    const percent = clampDiagram2Number(Number(progress?.percent || 0), 0, 100);
+    const elapsedSeconds = Math.max(0, Number(progress?.elapsedMs || 0) / 1000);
+    overlay.querySelector("[data-diagram2-compact-phase]").textContent = phase;
+    overlay.querySelector("[data-diagram2-compact-bar]").value = percent;
+    overlay.querySelector("[data-diagram2-compact-detail]").textContent = `${Math.round(percent)}% - ${elapsedSeconds.toFixed(1)}s`;
+  };
+
+  return {
+    signal: abortController.signal,
+    update,
+    close() {
+      overlay.remove();
+    }
+  };
+}
+
 export function bindDiagram2EditorColorPickers(root, options = {}) {
   if (!root) return;
   renderDiagram2ColorMemory(root);
@@ -946,6 +996,29 @@ export function bindDiagram2EditorFormatControls(root, options = {}) {
     const relationshipTypeControl = target.closest("[data-diagram2-relationship-type]");
     if (relationshipTypeControl && root.contains(relationshipTypeControl)) {
       void options.applyRelationshipType?.(relationshipTypeControl.value);
+      return;
+    }
+
+    const entityFieldControl = target.closest("[data-diagram2-entity-field-property]");
+    if (entityFieldControl && root.contains(entityFieldControl)) {
+      const fieldIndex = Number.parseInt(entityFieldControl.dataset.diagram2EntityFieldIndex, 10);
+      const property = entityFieldControl.dataset.diagram2EntityFieldProperty || "";
+      if (!Number.isInteger(fieldIndex) || !property) return;
+      const value = diagram2EntityFieldControlValue(entityFieldControl, property);
+      void options.updateEntityField?.(fieldIndex, { [property]: value });
+      return;
+    }
+
+    const entityFieldReference = target.closest("[data-diagram2-entity-field-reference]");
+    if (entityFieldReference && root.contains(entityFieldReference)) {
+      const row = entityFieldReference.closest("[data-diagram2-entity-field-row]");
+      const fieldIndex = Number.parseInt(row?.dataset?.diagram2EntityFieldIndex, 10);
+      if (!Number.isInteger(fieldIndex)) return;
+      if (entityFieldReference.dataset.diagram2EntityFieldReference === "targetEntityId") {
+        refreshDiagram2EntityFieldReferenceFields(row);
+        if (!row.querySelector("[data-diagram2-entity-field-reference='targetFieldName']")?.value) return;
+      }
+      void options.setEntityFieldReference?.(fieldIndex, diagram2EntityFieldReferenceValue(row));
       return;
     }
 
@@ -1109,6 +1182,7 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
           <button type="button" data-action="edit-diagram2-entity" data-diagram2-requires-entity data-diagram2-requires-update>Edit Definition</button>
           <button type="button" data-action="add-diagram2-relationship" data-diagram2-requires-update>Add Relationship</button>
           <button type="button" title="Optimize Entity placement and relationship routes for a compact, readable Diagram. Large Diagrams may take several minutes." data-action="auto-format-diagram2-compact" data-diagram2-requires-update>Compact</button>
+          <button type="button" class="image-annotation-generate-pmt-schema" data-action="generate-diagram2-pmt-schema" data-diagram2-requires-create>Generate PMT Database Schema</button>
           <label class="inline-check"><input type="checkbox" data-diagram2-entity-option="anchorTable" data-diagram2-requires-entity data-diagram2-requires-update><span>Anchor table</span></label>
           <label class="inline-check"><input type="checkbox" data-diagram2-entity-option="showKeyColumn" data-diagram2-requires-entity data-diagram2-requires-update checked><span>Show PK/FK column</span></label>
           <label class="inline-check"><input type="checkbox" data-diagram2-entity-option="showDataTypes" data-diagram2-requires-entity data-diagram2-requires-update><span>Show data types</span></label>
@@ -1116,6 +1190,15 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
           <label class="inline-check"><input type="checkbox" data-diagram2-entity-option="collapsed" data-diagram2-requires-entity data-diagram2-requires-update><span>Collapse fields</span></label>
           <label class="inline-check"><input type="checkbox" data-diagram2-entity-option="showSelfRelationships" data-diagram2-requires-entity data-diagram2-requires-update><span>Show self relationships</span></label>
         </div>
+      </section>
+      <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2EntityFieldsFormat">
+        <div class="diagram2-section-title-row">
+          <h4 id="diagram2EntityFieldsFormat">Fields</h4>
+          <button type="button" data-action="add-diagram2-entity-field" data-diagram2-requires-entity data-diagram2-requires-update title="Add Field" aria-label="Add Field">+</button>
+        </div>
+        <p class="image-annotation-entity-fields-help">Field names use deterministic numeric suffixes when duplicates are entered.</p>
+        <p class="image-annotation-format-status" data-diagram2-entity-field-status role="status" aria-live="polite"></p>
+        <div class="diagram2-entity-fields" data-diagram2-entity-fields></div>
       </section>
       <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2RelationshipFormat">
         <h4 id="diagram2RelationshipFormat">Relationships</h4>
@@ -1135,6 +1218,8 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
             </select>
           </label>
           <button type="button" data-action="use-diagram2-relationship-route" data-diagram2-requires-relationship data-diagram2-requires-update>Use Current Route</button>
+          <button type="button" data-action="add-diagram2-relationship-route-point" data-diagram2-requires-relationship data-diagram2-requires-update>Add Route Point</button>
+          <button type="button" data-action="remove-diagram2-relationship-route-point" data-diagram2-requires-relationship data-diagram2-requires-update>Remove Route Point</button>
           <button type="button" data-action="clear-diagram2-relationship-route" data-diagram2-requires-relationship data-diagram2-requires-update>Clear Manual Route</button>
           <button type="button" data-action="delete-diagram2-selection" data-diagram2-requires-relationship data-diagram2-requires-update>Delete Relationship</button>
         </div>
@@ -1477,6 +1562,150 @@ function syncDiagram2EntityControls(root, status = {}, options = {}) {
     control.disabled = !canUse || !relationship || relationship.locked === true;
     control.value = relationship?.relationshipType || "";
   });
+  syncDiagram2EntityFieldEditor(root, entity, state, canUse);
+}
+
+function syncDiagram2EntityFieldEditor(root, entity, state = {}, canUse = true) {
+  const container = root.querySelector("[data-diagram2-entity-fields]");
+  if (!container) return;
+  if (!entity) {
+    container.innerHTML = `<p class="image-annotation-object-tree-empty">Select one Entity to edit fields.</p>`;
+    return;
+  }
+  const entities = (Array.isArray(state.objects) ? state.objects : [])
+    .filter(object => object?.type === "entity" && object.entityKind !== "field-rectangle");
+  container.innerHTML = diagram2EntityFieldRowsHtml(entity, entities, canUse && entity.locked !== true);
+}
+
+function diagram2EntityFieldRowsHtml(entity, entities, canEdit) {
+  const fields = Array.isArray(entity?.fields) ? entity.fields : [];
+  if (!fields.length) {
+    return `<p class="image-annotation-object-tree-empty">No fields.</p>`;
+  }
+  return `
+    <div class="diagram2-entity-field-columns" aria-hidden="true">
+      <span>Field</span><span>Type</span><span>Null</span><span>PK</span><span>FK</span><span>ID</span><span>Imp</span><span>Reference</span><span></span>
+    </div>
+    <div class="diagram2-entity-field-list" role="list" aria-label="Entity fields">
+      ${fields.map((field, index) => diagram2EntityFieldRowHtml(entity, field, index, entities, canEdit)).join("")}
+    </div>
+  `;
+}
+
+function diagram2EntityFieldRowHtml(entity, field, index, entities, canEdit) {
+  const fieldName = String(field?.name || `Field ${index + 1}`).trim();
+  const mapping = diagram2EntityFieldReference(entity, fieldName, entities);
+  const disabled = canEdit ? "" : "disabled";
+  const nullableValue = field?.nullable === true ? "true" : field?.nullable === false ? "false" : "";
+  return `
+    <div class="diagram2-entity-field-row" role="listitem" data-diagram2-entity-field-row data-diagram2-entity-field-index="${index}">
+      <input type="text" maxlength="240" autocomplete="off" value="${escapeAttr(fieldName)}" aria-label="Field name ${index + 1}" data-diagram2-entity-field-property="name" data-diagram2-entity-field-index="${index}" ${disabled}>
+      <input type="text" maxlength="240" autocomplete="off" value="${escapeAttr(field?.dataType || "")}" aria-label="Data type for ${escapeAttr(fieldName)}" data-diagram2-entity-field-property="dataType" data-diagram2-entity-field-index="${index}" ${disabled}>
+      <select aria-label="Nullable for ${escapeAttr(fieldName)}" data-diagram2-entity-field-property="nullable" data-diagram2-entity-field-index="${index}" ${disabled}>
+        <option value="" ${nullableValue === "" ? "selected" : ""}>?</option>
+        <option value="false" ${nullableValue === "false" ? "selected" : ""}>No</option>
+        <option value="true" ${nullableValue === "true" ? "selected" : ""}>Yes</option>
+      </select>
+      ${diagram2EntityFieldCheckbox("isPrimaryKey", "PK", field?.isPrimaryKey === true, fieldName, index, disabled)}
+      ${diagram2EntityFieldCheckbox("isForeignKey", "FK", field?.isForeignKey === true, fieldName, index, disabled)}
+      ${diagram2EntityFieldCheckbox("isIdentity", "Identity", field?.isIdentity === true || Boolean(field?.identity), fieldName, index, disabled)}
+      ${diagram2EntityFieldCheckbox("isImportant", "Important", field?.isImportant === true, fieldName, index, disabled)}
+      <span class="diagram2-entity-field-reference">
+        <select aria-label="Referenced Entity for ${escapeAttr(fieldName)}" data-diagram2-entity-field-reference="targetEntityId" ${disabled}>
+          <option value="">No reference</option>
+          ${diagram2EntityReferenceOptionsHtml(entities, mapping.targetEntityId)}
+        </select>
+        <select aria-label="Referenced Field for ${escapeAttr(fieldName)}" data-diagram2-entity-field-reference="targetFieldName" ${disabled}>
+          <option value="">Field</option>
+          ${diagram2EntityReferenceFieldOptionsHtml(mapping.targetEntity, mapping.targetFieldName)}
+        </select>
+      </span>
+      <span class="diagram2-entity-field-actions">
+        <button type="button" data-action="move-diagram2-entity-field-up" data-diagram2-entity-field-index="${index}" title="Move Field Up" aria-label="Move Field Up" ${disabled || index <= 0 ? "disabled" : ""}>&#8593;</button>
+        <button type="button" data-action="move-diagram2-entity-field-down" data-diagram2-entity-field-index="${index}" title="Move Field Down" aria-label="Move Field Down" ${disabled || index >= (entity.fields.length - 1) ? "disabled" : ""}>&#8595;</button>
+        <button type="button" data-action="remove-diagram2-entity-field" data-diagram2-entity-field-index="${index}" title="Delete Field" aria-label="Delete Field" ${disabled}>&#10005;</button>
+      </span>
+    </div>
+  `;
+}
+
+function diagram2EntityFieldCheckbox(property, label, checked, fieldName, index, disabled) {
+  return `<input type="checkbox" aria-label="${escapeAttr(label)} for ${escapeAttr(fieldName)}" data-diagram2-entity-field-property="${escapeAttr(property)}" data-diagram2-entity-field-index="${index}" ${checked ? "checked" : ""} ${disabled}>`;
+}
+
+function diagram2EntityReferenceOptionsHtml(entities, selectedId) {
+  return (Array.isArray(entities) ? entities : [])
+    .map(entity => `<option value="${escapeAttr(entity.id)}" data-diagram2-entity-fields="${escapeAttr(encodeURIComponent(JSON.stringify((entity.fields || []).map(field => field?.name || "").filter(Boolean))))}" ${String(entity.id) === String(selectedId) ? "selected" : ""}>${escapeHtml(diagram2EntityLabel(entity))}</option>`)
+    .join("");
+}
+
+function diagram2EntityReferenceFieldOptionsHtml(entity, selectedFieldName) {
+  return (Array.isArray(entity?.fields) ? entity.fields : [])
+    .map(field => `<option value="${escapeAttr(field?.name || "")}" ${sameDiagram2Identifier(field?.name, selectedFieldName) ? "selected" : ""}>${escapeHtml(field?.name || "Field")}</option>`)
+    .join("");
+}
+
+function diagram2EntityFieldReference(entity, fieldName, entities) {
+  const foreignKey = (Array.isArray(entity?.foreignKeys) ? entity.foreignKeys : [])
+    .find(candidate => (candidate.columns || []).some(column => sameDiagram2Identifier(column, fieldName)));
+  if (!foreignKey) return { targetEntityId: "", targetEntity: null, targetFieldName: "" };
+  const targetEntity = (Array.isArray(entities) ? entities : [])
+    .find(candidate => sameDiagram2Identifier(candidate.entityName, foreignKey.referencedTable)
+      && (!foreignKey.referencedSchema || !candidate.entitySchema || sameDiagram2Identifier(candidate.entitySchema, foreignKey.referencedSchema))) || null;
+  const targetFieldName = (foreignKey.referencedColumns || [])[0] || "";
+  return {
+    targetEntityId: targetEntity?.id || "",
+    targetEntity,
+    targetFieldName
+  };
+}
+
+function diagram2EntityLabel(entity) {
+  return [entity?.entitySchema, entity?.entityName]
+    .map(value => String(value || "").trim())
+    .filter(Boolean)
+    .join(".") || "Entity";
+}
+
+function diagram2EntityFieldControlValue(control, property) {
+  if (control.type === "checkbox") return control.checked === true;
+  if (property === "nullable") {
+    if (control.value === "true") return true;
+    if (control.value === "false") return false;
+    return null;
+  }
+  return control.value;
+}
+
+function diagram2EntityFieldReferenceValue(row) {
+  const targetEntityId = row?.querySelector?.("[data-diagram2-entity-field-reference='targetEntityId']")?.value || "";
+  const targetFieldName = row?.querySelector?.("[data-diagram2-entity-field-reference='targetFieldName']")?.value || "";
+  return {
+    targetEntityId,
+    targetFieldName,
+    relationshipType: "many-to-one"
+  };
+}
+
+function refreshDiagram2EntityFieldReferenceFields(row) {
+  const entitySelect = row?.querySelector?.("[data-diagram2-entity-field-reference='targetEntityId']");
+  const fieldSelect = row?.querySelector?.("[data-diagram2-entity-field-reference='targetFieldName']");
+  if (!entitySelect || !fieldSelect) return;
+  const option = entitySelect.selectedOptions?.[0] || null;
+  let fields = [];
+  try {
+    fields = JSON.parse(decodeURIComponent(option?.dataset?.diagram2EntityFields || "%5B%5D"));
+  } catch {
+    fields = [];
+  }
+  fieldSelect.innerHTML = [
+    `<option value="">Field</option>`,
+    ...fields.map(field => `<option value="${escapeAttr(field)}">${escapeHtml(field)}</option>`)
+  ].join("");
+}
+
+function sameDiagram2Identifier(first, second) {
+  return String(first || "").trim().toLowerCase() === String(second || "").trim().toLowerCase();
 }
 
 function diagram2CurrentInspectorWidth(main, inspector) {

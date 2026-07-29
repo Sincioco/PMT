@@ -8,7 +8,10 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility
 } from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
+import {
+  diagram2CanonicalRelationships,
+  normalizeDiagram2CanonicalState
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
 
 const defaultDiagram2EntityWidth = 520;
 const defaultDiagram2EntityFill = "#ffffff";
@@ -124,9 +127,15 @@ export function diagram2UpdateEntityFieldPlan(stateInput, objectIdInput, fieldIn
 
   const current = fields[fieldIndex];
   const patch = patchInput && typeof patchInput === "object" ? patchInput : {};
+  const requestedName = Object.hasOwn(patch, "name")
+    ? normalizeDiagram2FieldName(patch.name) || current.name
+    : current.name;
+  const nextName = Object.hasOwn(patch, "name")
+    ? uniqueDiagram2FieldName(fields.filter((_field, index) => index !== fieldIndex), requestedName)
+    : requestedName;
   const nextField = {
     ...current,
-    ...(Object.hasOwn(patch, "name") ? { name: normalizeDiagram2FieldName(patch.name) || current.name } : {}),
+    ...(Object.hasOwn(patch, "name") ? { name: nextName } : {}),
     ...(Object.hasOwn(patch, "dataType") ? { dataType: String(patch.dataType || "").trim().slice(0, 240) } : {}),
     ...(Object.hasOwn(patch, "nullable") ? { nullable: patch.nullable === true ? true : patch.nullable === false ? false : null } : {}),
     ...(Object.hasOwn(patch, "isPrimaryKey") ? { isPrimaryKey: patch.isPrimaryKey === true } : {}),
@@ -135,13 +144,25 @@ export function diagram2UpdateEntityFieldPlan(stateInput, objectIdInput, fieldIn
     ...(Object.hasOwn(patch, "isIdentity") ? { isIdentity: patch.isIdentity === true } : {})
   };
   if (!nextField.name) return null;
+  if (nextField.isIdentity === true) nextField.identity = nextField.identity || "IDENTITY";
+  if (nextField.isIdentity !== true && Object.hasOwn(patch, "isIdentity")) delete nextField.identity;
+  if (nextField.isPrimaryKey === true) nextField.nullable = false;
   fields[fieldIndex] = nextField;
-  const nextEntity = normalizeDiagram2EntitySize({ ...entity, fields });
-  const nextState = normalizeDiagram2CanonicalState({
-    ...state,
-    objects: state.objects.map(object => object.id === entity.id ? nextEntity : object)
+  const renamed = !sameIdentifier(current.name, nextField.name);
+  const fkFlagCleared = Object.hasOwn(patch, "isForeignKey") && nextField.isForeignKey !== true;
+  const nextState = stateWithUpdatedEntityFields(state, entity, fields, {
+    oldFieldName: renamed ? current.name : "",
+    newFieldName: renamed ? nextField.name : "",
+    removeSourceRelationshipsForField: fkFlagCleared ? current.name : ""
   });
-  return diagram2StatePlan(state, nextState, [entity.id], [entity.id], "Update entity field");
+  return diagram2StatePlan(
+    state,
+    nextState,
+    affectedObjectIdsForFieldChange(state, nextState, entity.id),
+    [entity.id],
+    "Update entity field",
+    affectedRelationshipIdsForFieldChange(state, nextState, entity.id)
+  );
 }
 
 export function diagram2AddEntityFieldPlan(stateInput, objectIdInput, fieldInput = {}) {
@@ -179,14 +200,104 @@ export function diagram2RemoveEntityFieldPlan(stateInput, objectIdInput, fieldIn
   if (fieldIndex < 0 || fieldIndex >= fields.length) return null;
   const [removed] = fields.splice(fieldIndex, 1);
   const removedName = String(removed?.name || "").trim().toLowerCase();
+  const nextEntity = normalizeDiagram2EntitySize({ ...entity, fields });
+  const nextState = normalizeDiagram2CanonicalState({
+    ...state,
+    objects: state.objects.map(object => cleanupEntityFieldReferences(
+      object.id === entity.id ? nextEntity : object,
+      entity,
+      removedName,
+      { removeSource: true, removeTarget: true }
+    ))
+  });
+  return diagram2StatePlan(
+    state,
+    nextState,
+    affectedObjectIdsForFieldChange(state, nextState, entity.id),
+    [entity.id],
+    "Remove entity field",
+    affectedRelationshipIdsForFieldChange(state, nextState, entity.id)
+  );
+}
+
+export function diagram2MoveEntityFieldPlan(stateInput, objectIdInput, fieldIndexInput, directionInput) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const objectId = String(objectIdInput || "").trim();
+  const fieldIndex = Number.parseInt(fieldIndexInput, 10);
+  const direction = String(directionInput || "").trim().toLowerCase();
+  const entity = state.objects.find(object => object.id === objectId && object.type === "entity");
+  if (!entity || entity.locked === true || !Number.isInteger(fieldIndex)) return null;
+  const fields = Array.isArray(entity.fields) ? entity.fields.map(field => ({ ...field })) : [];
+  if (fieldIndex < 0 || fieldIndex >= fields.length) return null;
+  const targetIndex = direction === "up" ? fieldIndex - 1 : direction === "down" ? fieldIndex + 1 : -1;
+  if (targetIndex < 0 || targetIndex >= fields.length) return null;
+  const [field] = fields.splice(fieldIndex, 1);
+  fields.splice(targetIndex, 0, field);
+  const nextEntity = normalizeDiagram2EntitySize({ ...entity, fields });
+  const nextState = normalizeDiagram2CanonicalState({
+    ...state,
+    objects: state.objects.map(object => object.id === entity.id ? nextEntity : object)
+  });
+  return diagram2StatePlan(
+    state,
+    nextState,
+    [entity.id],
+    [entity.id],
+    "Move entity field",
+    affectedRelationshipIdsForFieldChange(state, nextState, entity.id)
+  );
+}
+
+export function diagram2SetEntityFieldReferencePlan(stateInput, objectIdInput, fieldIndexInput, referenceInput = {}) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const objectId = String(objectIdInput || "").trim();
+  const fieldIndex = Number.parseInt(fieldIndexInput, 10);
+  const entity = state.objects.find(object => object.id === objectId && object.type === "entity");
+  if (!entity || entity.locked === true || !Number.isInteger(fieldIndex)) return null;
+  const fields = Array.isArray(entity.fields) ? entity.fields.map(field => ({ ...field })) : [];
+  const field = fields[fieldIndex];
+  if (!field?.name) return null;
+  const targetEntityId = String(referenceInput?.targetEntityId || "").trim();
+  const targetFieldName = normalizeDiagram2FieldName(referenceInput?.targetFieldName);
+  const targetEntity = targetEntityId
+    ? state.objects.find(object => object.id === targetEntityId && object.type === "entity")
+    : null;
+  const targetField = targetEntity && targetFieldName
+    ? (Array.isArray(targetEntity.fields) ? targetEntity.fields : [])
+        .find(candidate => sameIdentifier(candidate?.name, targetFieldName))
+    : null;
+  const nextField = { ...field };
   const foreignKeys = (Array.isArray(entity.foreignKeys) ? entity.foreignKeys : [])
-    .filter(foreignKey => !(foreignKey.columns || []).some(column => String(column || "").trim().toLowerCase() === removedName));
+    .filter(foreignKey => !(foreignKey.columns || []).some(column => sameIdentifier(column, field.name)));
+
+  if (targetEntity && targetField) {
+    nextField.isForeignKey = true;
+    foreignKeys.push({
+      name: uniqueDiagram2ForeignKeyName(state, entity, field.name, targetEntity),
+      columns: [field.name],
+      referencedSchema: String(targetEntity.entitySchema || "").trim(),
+      referencedTable: String(targetEntity.entityName || "").trim(),
+      referencedColumns: [targetField.name],
+      relationshipType: normalizeDiagram2RelationshipType(referenceInput?.relationshipType)
+    });
+  } else {
+    nextField.isForeignKey = false;
+  }
+
+  fields[fieldIndex] = nextField;
   const nextEntity = normalizeDiagram2EntitySize({ ...entity, fields, foreignKeys });
   const nextState = normalizeDiagram2CanonicalState({
     ...state,
     objects: state.objects.map(object => object.id === entity.id ? nextEntity : object)
   });
-  return diagram2StatePlan(state, nextState, [entity.id], [entity.id], "Remove entity field");
+  return diagram2StatePlan(
+    state,
+    nextState,
+    [entity.id],
+    [entity.id],
+    targetEntity ? "Set field reference" : "Clear field reference",
+    affectedRelationshipIdsForFieldChange(state, nextState, entity.id)
+  );
 }
 
 export function diagram2EntityDialogDefaults(object = null) {
@@ -242,12 +353,12 @@ function normalizeDiagram2EntityDefinition(input) {
   };
 }
 
-function diagram2StatePlan(previousState, nextState, affectedObjectIds, selectionAfter, label) {
+function diagram2StatePlan(previousState, nextState, affectedObjectIds, selectionAfter, label, affectedRelationshipIds = []) {
   if (JSON.stringify(previousState) === JSON.stringify(nextState)) return null;
   return {
     nextState,
-    affectedObjectIds,
-    affectedRelationshipIds: [],
+    affectedObjectIds: uniqueStrings(affectedObjectIds),
+    affectedRelationshipIds: uniqueStrings(affectedRelationshipIds),
     selectionAfter,
     label
   };
@@ -269,6 +380,155 @@ function uniqueDiagram2FieldName(fields, nameInput) {
 
 function normalizeDiagram2FieldName(value) {
   return String(value || "").trim().replace(/^\[|\]$/g, "").slice(0, 240);
+}
+
+function normalizeDiagram2RelationshipType(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return ["one-to-one", "one-to-many", "many-to-one"].includes(text) ? text : "many-to-one";
+}
+
+function stateWithUpdatedEntityFields(state, entity, fields, options = {}) {
+  const oldName = String(options.oldFieldName || "").trim();
+  const newName = String(options.newFieldName || "").trim();
+  const removeSource = String(options.removeSourceRelationshipsForField || "").trim();
+  const sourceUpdatedEntity = {
+    ...entity,
+    fields,
+    foreignKeys: updateForeignKeysForSourceField(entity.foreignKeys, {
+      oldName,
+      newName,
+      removeName: removeSource
+    })
+  };
+  const nextEntity = normalizeDiagram2EntitySize(
+    oldName && newName
+      ? renameEntityFieldReferences(sourceUpdatedEntity, entity, oldName, newName)
+      : sourceUpdatedEntity
+  );
+  return normalizeDiagram2CanonicalState({
+    ...state,
+    objects: state.objects.map(object => {
+      const updated = object.id === entity.id ? nextEntity : object;
+      if (!oldName || !newName || object.id === entity.id) return updated;
+      return renameEntityFieldReferences(updated, entity, oldName, newName);
+    })
+  });
+}
+
+function updateForeignKeysForSourceField(foreignKeysInput, options = {}) {
+  const oldName = String(options.oldName || "").trim();
+  const newName = String(options.newName || "").trim();
+  const removeName = String(options.removeName || "").trim();
+  return (Array.isArray(foreignKeysInput) ? foreignKeysInput : [])
+    .filter(foreignKey => !removeName || !(foreignKey.columns || []).some(column => sameIdentifier(column, removeName)))
+    .map(foreignKey => {
+      if (!oldName || !newName) return foreignKey;
+      const columns = (Array.isArray(foreignKey.columns) ? foreignKey.columns : [])
+        .map(column => sameIdentifier(column, oldName) ? newName : column);
+      return { ...foreignKey, columns };
+    });
+}
+
+function renameEntityFieldReferences(object, targetEntity, oldName, newName) {
+  if (object?.type !== "entity" || !Array.isArray(object.foreignKeys)) return object;
+  let changed = false;
+  const foreignKeys = object.foreignKeys.map(foreignKey => {
+    if (!foreignKeyReferencesEntity(foreignKey, targetEntity)) return foreignKey;
+    const referencedColumns = (Array.isArray(foreignKey.referencedColumns) ? foreignKey.referencedColumns : [])
+      .map(column => {
+        if (!sameIdentifier(column, oldName)) return column;
+        changed = true;
+        return newName;
+      });
+    return changed ? { ...foreignKey, referencedColumns } : foreignKey;
+  });
+  return changed ? { ...object, foreignKeys } : object;
+}
+
+function cleanupEntityFieldReferences(object, targetEntity, normalizedFieldName, options = {}) {
+  if (object?.type !== "entity") return object;
+  const removeSource = options.removeSource === true && object.id === targetEntity.id;
+  const removeTarget = options.removeTarget === true;
+  const foreignKeys = (Array.isArray(object.foreignKeys) ? object.foreignKeys : [])
+    .filter(foreignKey => {
+      if (removeSource && (foreignKey.columns || []).some(column => sameIdentifier(column, normalizedFieldName))) return false;
+      if (removeTarget
+        && foreignKeyReferencesEntity(foreignKey, targetEntity)
+        && (foreignKey.referencedColumns || []).some(column => sameIdentifier(column, normalizedFieldName))) {
+        return false;
+      }
+      return true;
+    });
+  const remainingSourceFkColumns = new Set(foreignKeys
+    .flatMap(foreignKey => Array.isArray(foreignKey.columns) ? foreignKey.columns : [])
+    .map(value => String(value || "").trim().toLowerCase()));
+  const fields = (Array.isArray(object.fields) ? object.fields : []).map(field =>
+    field?.isForeignKey === true && !remainingSourceFkColumns.has(String(field?.name || "").trim().toLowerCase())
+      ? { ...field, isForeignKey: false }
+      : field);
+  return { ...object, fields, foreignKeys };
+}
+
+function foreignKeyReferencesEntity(foreignKey, entity) {
+  if (!foreignKey || !entity) return false;
+  const targetTable = String(foreignKey.referencedTable || "").trim().toLowerCase();
+  const entityTable = String(entity.entityName || "").trim().toLowerCase();
+  const targetSchema = String(foreignKey.referencedSchema || "").trim().toLowerCase();
+  const entitySchema = String(entity.entitySchema || "").trim().toLowerCase();
+  return Boolean(targetTable && entityTable && targetTable === entityTable && (!targetSchema || !entitySchema || targetSchema === entitySchema));
+}
+
+function affectedObjectIdsForFieldChange(previousState, nextState, primaryEntityId) {
+  const ids = new Set([primaryEntityId]);
+  const previousObjects = new Map((previousState.objects || []).map(object => [object.id, object]));
+  (nextState.objects || []).forEach(object => {
+    if (object?.type !== "entity") return;
+    const previous = previousObjects.get(object.id);
+    if (JSON.stringify(previous?.foreignKeys || []) !== JSON.stringify(object.foreignKeys || [])) ids.add(object.id);
+  });
+  return [...ids];
+}
+
+function affectedRelationshipIdsForFieldChange(previousState, nextState, primaryEntityId) {
+  const ids = new Set();
+  const collect = state => diagram2CanonicalRelationships(state)
+    .filter(relationship => relationship.source?.id === primaryEntityId || relationship.target?.id === primaryEntityId)
+    .forEach(relationship => ids.add(relationship.id));
+  collect(previousState);
+  collect(nextState);
+  return [...ids];
+}
+
+function uniqueDiagram2ForeignKeyName(state, sourceEntity, sourceFieldName, targetEntity) {
+  const base = `FK_${safeDiagram2Identifier(sourceEntity.entityName)}_${safeDiagram2Identifier(sourceFieldName)}_${safeDiagram2Identifier(targetEntity.entityName)}`;
+  const used = new Set((state.objects || [])
+    .flatMap(object => Array.isArray(object.foreignKeys) ? object.foreignKeys : [])
+    .map(foreignKey => String(foreignKey?.name || "").trim().toLowerCase())
+    .filter(Boolean));
+  if (!used.has(base.toLowerCase())) return base;
+  let index = 2;
+  while (used.has(`${base}_${index}`.toLowerCase())) index += 1;
+  return `${base}_${index}`;
+}
+
+function safeDiagram2Identifier(value) {
+  return String(value || "Entity").trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "Entity";
+}
+
+function sameIdentifier(first, second) {
+  return String(first || "").trim().toLowerCase() === String(second || "").trim().toLowerCase();
+}
+
+function uniqueStrings(values = []) {
+  const seen = new Set();
+  const result = [];
+  (Array.isArray(values) ? values : [values]).forEach(value => {
+    const text = String(value || "").trim();
+    if (!text || seen.has(text)) return;
+    seen.add(text);
+    result.push(text);
+  });
+  return result;
 }
 
 function diagram2EntityId() {

@@ -1,0 +1,85 @@
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260729-diagram2-phase5-closure-v1";
+import {
+  createDiagram2CompactDiagnostics,
+  diagram2CompactPhases
+} from "./diagram2-route-costing.js?v=20260729-diagram2-phase5-closure-v1";
+
+export async function runDiagram2CompactEngine(input = {}) {
+  const startedAt = performanceNow();
+  const state = input.state;
+  const onProgress = typeof input.onProgress === "function" ? input.onProgress : () => {};
+  const signal = input.signal || null;
+  const phaseCount = diagram2CompactPhases.length;
+  const progress = (phaseIndex, detail = {}) => {
+    onProgress({
+      phase: diagram2CompactPhases[Math.min(phaseIndex, phaseCount - 1)],
+      phaseIndex,
+      phaseCount,
+      percent: Math.round((phaseIndex / Math.max(1, phaseCount - 1)) * 100),
+      elapsedMs: performanceNow() - startedAt,
+      ...detail
+    });
+  };
+  const canceled = finalStatus => ({
+    status: finalStatus,
+    plan: null,
+    diagnostics: createDiagram2CompactDiagnostics(state, state, {
+      totalElapsedMs: performanceNow() - startedAt,
+      finalStatus
+    })
+  });
+
+  for (let index = 0; index < phaseCount - 2; index += 1) {
+    if (signal?.aborted) return canceled("Canceled");
+    progress(index);
+    await yieldToMain();
+  }
+
+  if (signal?.aborted) return canceled("Canceled");
+  progress(phaseCount - 2);
+  const plan = diagram2AutoFormatCompactPlan(state, {
+    preferredRootId: input.preferredRootId,
+    selectionAfter: input.selectionAfter
+  });
+  await yieldToMain();
+
+  if (signal?.aborted) return canceled("Canceled");
+  if (!plan?.nextState) {
+    return {
+      status: "No improvement",
+      plan: null,
+      diagnostics: createDiagram2CompactDiagnostics(state, state, {
+        totalElapsedMs: performanceNow() - startedAt,
+        finalStatus: "No improvement"
+      })
+    };
+  }
+
+  progress(phaseCount - 1);
+  return {
+    status: "Completed",
+    plan: {
+      ...plan,
+      diagnostics: {
+        ...(plan.diagnostics || {}),
+        totalElapsedMs: performanceNow() - startedAt,
+        finalStatus: "Completed"
+      }
+    },
+    diagnostics: {
+      ...(plan.diagnostics || {}),
+      totalElapsedMs: performanceNow() - startedAt,
+      finalStatus: "Completed"
+    }
+  };
+}
+
+function yieldToMain() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function performanceNow() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}

@@ -368,6 +368,100 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   expect(browserErrors).toEqual([]);
 });
 
+test("Diagram 2 generates a live PMT database schema Diagram", async ({ page }) => {
+  const browserErrors = [];
+  let apiState = testState();
+  let schemaRequestCount = 0;
+  let uploadedSvg = "";
+  let createdPayload = null;
+
+  page.on("console", message => {
+    if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+    localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
+  }, releaseNotes[0].seenToken);
+
+  await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
+  await page.route("**/api/login", route => route.fulfill(jsonResponse({
+    userId: 1,
+    nickname: "Sin",
+    isAdmin: true,
+    role: "Admin"
+  })));
+  await page.route("**/api/state", route => route.fulfill(jsonResponse(apiState)));
+  await page.route("**/api/audit-trail", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/recycle-bin", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/orphan-files", route => route.fulfill(jsonResponse({
+    files: [],
+    totalCount: 0,
+    totalByteLength: 0
+  })));
+  await page.route("**/api/diagram/pmt-database-schema", route => {
+    schemaRequestCount += 1;
+    return route.fulfill(jsonResponse(livePmtSchemaFixture()));
+  });
+  await page.route("**/api/uploads/richtext", route => {
+    uploadedSvg = extractMultipartSvg(route.request().postDataBuffer());
+    return route.fulfill(jsonResponse({ url: "/uploads/diagram2-generated-schema.svg" }));
+  });
+  await page.route("**/uploads/diagram2-generated-schema.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: uploadedSvg || buildAnnotationSvg(normalizeAnnotationState({ width: 1, height: 1, objects: [] }))
+  }));
+  await page.route("**/api/blogs", route => {
+    createdPayload = route.request().postDataJSON();
+    const created = {
+      ...createdPayload,
+      id: 142,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      createdAt: "2026-07-29T10:00:00Z",
+      updatedAt: "2026-07-29T10:00:00Z",
+      rowVersion: "row-generated-schema"
+    };
+    apiState = {
+      ...apiState,
+      blogs: [...apiState.blogs, created]
+    };
+    return route.fulfill(jsonResponse(created));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+
+  await openNavigationScreen(page, "Diagram 2");
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await ensureDiagram2ObjectsPaneOpen(page);
+  await page.locator("[data-diagram2-object-tree-row][data-diagram2-object-type='entity']")
+    .first()
+    .locator(".image-annotation-object-tree-label")
+    .click();
+  await page.locator("[data-diagram2-inspector-tab='entity']").click();
+  await expect(page.locator("[data-action='generate-diagram2-pmt-schema']")).toBeEnabled();
+  await page.locator("[data-action='generate-diagram2-pmt-schema']").click();
+
+  await expect.poll(() => schemaRequestCount).toBe(1);
+  await expect.poll(() => createdPayload !== null).toBe(true);
+  expect(createdPayload).toMatchObject({
+    id: 0,
+    title: "PMT's Database Schema",
+    isPrivate: true
+  });
+  expect(uploadedSvg).toContain("PMT's Diagram Tool by Sin");
+  expect(apiState.blogs.some(blog => blog.id === 142 && blog.title === "PMT's Database Schema")).toBe(true);
+  expect(browserErrors).toEqual([]);
+});
+
 test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on("console", message => {
@@ -393,10 +487,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-closure-v1")
     ]);
     const state = {
       version: 1,
@@ -715,7 +809,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-closure-v1">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -726,10 +820,10 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-closure-v1"),
       import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5")
     ]);
     const root = document.querySelector("#phase4Harness");
@@ -1096,7 +1190,7 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-closure-v1">
     <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
 
@@ -1107,10 +1201,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260729-diagram2-phase5-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-closure-v1"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260729-diagram2-phase5-closure-v1")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -1648,7 +1742,103 @@ CREATE TABLE [pmt].[Phase5Browser](
   await expect.poll(() =>
     page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id)?.showDataTypes === true, entityId)
   ).toBe(true);
+  const fieldRows = page.locator("[data-diagram2-entity-field-row]");
+  await expect(fieldRows).toHaveCount(3);
+  await page.locator("[data-action='add-diagram2-entity-field']").click();
+  await expect(fieldRows).toHaveCount(4);
+  const addedFieldName = page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-diagram2-entity-field-property='name']");
+  await addedFieldName.fill("ProjectId");
+  await addedFieldName.dispatchEvent("change");
+  await expect.poll(() =>
+    page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id)?.fields?.[3]?.name || "", entityId)
+  ).toBe("ProjectId2");
+  await expect(page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-diagram2-entity-field-property='name']"))
+    .toHaveValue("ProjectId2");
+  const addedFieldType = page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-diagram2-entity-field-property='dataType']");
+  await addedFieldType.fill("uniqueidentifier");
+  await addedFieldType.dispatchEvent("change");
+  await page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-diagram2-entity-field-property='nullable']").selectOption("false");
+  await page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-diagram2-entity-field-property='isImportant']").check();
+  await expect.poll(() =>
+    page.evaluate(id => {
+      const field = window.__pmtDiagram2EditorCore.getObjectById(id)?.fields?.[3];
+      return `${field?.dataType || ""}|${field?.nullable === false}|${field?.isImportant === true}`;
+    }, entityId)
+  ).toBe("uniqueidentifier|true|true");
+  await page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-action='move-diagram2-entity-field-up']").click();
+  await expect.poll(() =>
+    page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id)?.fields?.[2]?.name || "", entityId)
+  ).toBe("ProjectId2");
+  await page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='2'] [data-action='move-diagram2-entity-field-down']").click();
+  await expect.poll(() =>
+    page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id)?.fields?.[3]?.name || "", entityId)
+  ).toBe("ProjectId2");
+  await page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-action='remove-diagram2-entity-field']").click();
+  await expect(fieldRows).toHaveCount(3);
+  await page.evaluate(async id => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await controller.addEntity({
+      schema: "pmt",
+      name: "Phase5ReferenceParent",
+      fields: [
+        { name: "ReferenceParentId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+        { name: "ReferenceName", dataType: "nvarchar(80)", nullable: true }
+      ]
+    }, { x: 920, y: 180 }, { id: "phase5-browser-reference-parent" });
+    controller.setSelection([id]);
+    renderer.render(controller.state(), { reason: "phase5 reference parent" });
+    await renderer.whenIdle();
+  }, entityId);
+  const projectIdRow = page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='1']");
+  await projectIdRow.locator("[data-diagram2-entity-field-reference='targetEntityId']").selectOption("phase5-browser-reference-parent");
+  await projectIdRow.locator("[data-diagram2-entity-field-reference='targetFieldName']").selectOption("ReferenceParentId");
+  await expect.poll(() =>
+    page.evaluate(id => {
+      const entity = window.__pmtDiagram2EditorCore.getObjectById(id);
+      return entity?.foreignKeys?.some(foreignKey =>
+        foreignKey.columns?.[0] === "ProjectId"
+        && foreignKey.referencedTable === "Phase5ReferenceParent"
+        && foreignKey.referencedColumns?.[0] === "ReferenceParentId"
+      ) === true;
+    }, entityId)
+  ).toBe(true);
+  await expect(page.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='1'] [data-diagram2-entity-field-property='isForeignKey']"))
+    .toBeChecked();
   await captureDiagram2Phase5Screenshot(page, testInfo, "chromium-1366", "diagram2-phase5-entity-inspector-1366x768.png");
+
+  const compactRevisionBeforeCancel = await page.evaluate(() => window.__pmtDiagram2EditorCore.diagnostics().canonicalRevision);
+  await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    window.__diagram2Phase5OriginalCompactCommand = controller.autoFormatCompact.bind(controller);
+    window.__diagram2Phase5CompactSignalPassed = false;
+    window.__diagram2Phase5CompactCanceled = false;
+    controller.autoFormatCompact = async options => new Promise(resolve => {
+      window.__diagram2Phase5CompactSignalPassed = Boolean(options?.signal);
+      options?.onProgress?.({ phase: "Browser Cancel Check", percent: 35, elapsedMs: 250 });
+      options?.signal?.addEventListener("abort", () => {
+        window.__diagram2Phase5CompactCanceled = true;
+        resolve(false);
+      }, { once: true });
+    });
+  });
+  await inspectorCompactButton.click();
+  const compactProgress = page.locator("[data-diagram2-compact-progress]");
+  await expect(compactProgress).toBeVisible();
+  await expect(compactProgress.locator("[data-diagram2-compact-phase]")).toHaveText("Browser Cancel Check");
+  await compactProgress.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(compactProgress).toHaveCount(0);
+  await expect.poll(() =>
+    page.evaluate(() => window.__diagram2Phase5CompactSignalPassed === true && window.__diagram2Phase5CompactCanceled === true)
+  ).toBe(true);
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.diagnostics().canonicalRevision)
+  ).toBe(compactRevisionBeforeCancel);
+  await page.evaluate(() => {
+    if (window.__diagram2Phase5OriginalCompactCommand) {
+      window.__pmtDiagram2EditorCore.autoFormatCompact = window.__diagram2Phase5OriginalCompactCommand;
+    }
+  });
 
   const relationshipSetup = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
@@ -1753,6 +1943,16 @@ CREATE TABLE [pmt].[Phase5Browser](
   await expect(page.locator("[data-diagram2-relationship-route-handle]").first()).toBeVisible();
   await page.locator("[data-diagram2-inspector-tab='entity']").click();
   await expect(page.locator("[data-diagram2-relationship-type]")).toBeEnabled();
+  await page.locator("[data-action='add-diagram2-relationship-route-point']").click();
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0)
+  ).toBeGreaterThan(relationshipSetup.routePointCount);
+  const routePointCountAfterAdd = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0);
+  await page.locator("[data-action='remove-diagram2-relationship-route-point']").click();
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0)
+  ).toBeLessThan(routePointCountAfterAdd);
   await captureDiagram2Phase5Screenshot(page, testInfo, "chromium-1920", "diagram2-phase5-relationship-manual-route-1920x1080.png");
 
   const handle = page.locator("[data-diagram2-relationship-route-handle]").first();
@@ -2370,7 +2570,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -4543,6 +4743,59 @@ function readOnlyState() {
       canExport: true,
       noAccess: false
     }]
+  };
+}
+
+function livePmtSchemaFixture() {
+  return {
+    columns: [
+      schemaColumn("Projects", "ProjectId", { primaryKey: true, identity: true }),
+      schemaColumn("Projects", "Title", { typeName: "nvarchar", maxLength: 440 }),
+      schemaColumn("WorkTasks", "TaskId", { primaryKey: true, identity: true }),
+      schemaColumn("WorkTasks", "ProjectId", { foreignKey: true }),
+      schemaColumn("WorkTasks", "Title", { typeName: "nvarchar", maxLength: 440 }),
+      schemaColumn("Sprints", "SprintId", { primaryKey: true, identity: true }),
+      schemaColumn("Sprints", "ProjectId", { foreignKey: true }),
+      schemaColumn("Sprints", "SprintName", { typeName: "nvarchar", maxLength: 200 })
+    ],
+    foreignKeys: [{
+      schemaName: "pmt",
+      tableName: "WorkTasks",
+      foreignKeyName: "FK_pmt_WorkTasks_Project",
+      columnOrder: 1,
+      columnName: "ProjectId",
+      referencedSchema: "pmt",
+      referencedTable: "Projects",
+      referencedColumn: "ProjectId"
+    }, {
+      schemaName: "pmt",
+      tableName: "Sprints",
+      foreignKeyName: "FK_pmt_Sprints_Project",
+      columnOrder: 1,
+      columnName: "ProjectId",
+      referencedSchema: "pmt",
+      referencedTable: "Projects",
+      referencedColumn: "ProjectId"
+    }]
+  };
+}
+
+function schemaColumn(tableName, columnName, options = {}) {
+  return {
+    schemaName: "pmt",
+    tableName,
+    columnOrder: 1,
+    columnName,
+    typeName: options.typeName || "int",
+    maxLength: options.maxLength ?? 4,
+    precision: options.precision ?? 10,
+    scale: options.scale ?? 0,
+    nullable: options.nullable === true,
+    isIdentity: options.identity === true,
+    identitySeed: options.identity ? "1" : null,
+    identityIncrement: options.identity ? "1" : null,
+    isPrimaryKey: options.primaryKey === true,
+    isForeignKey: options.foreignKey === true
   };
 }
 

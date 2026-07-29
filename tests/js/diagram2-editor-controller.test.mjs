@@ -10,9 +10,14 @@ import {
 import {
   parseDiagram2EntityDefinition
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-entities.js";
+import { runDiagram2CompactEngine } from "../../wwwroot/js/features/diagram2/diagram2-compact-engine.js";
 import {
   diagram2ObjectTreeNodes
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-structure.js";
+import {
+  compareDiagram2RouteScores,
+  scoreDiagram2RoutePoints
+} from "../../wwwroot/js/features/diagram2/diagram2-route-costing.js";
 import {
   captureDiagram2SelectionTemplate
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-templates.js";
@@ -587,6 +592,8 @@ CREATE TABLE [pmt].[Sprints](
   }), true);
   assert.equal(await controller.addEntityField("entity-sprints", { name: "ProjectId", dataType: "uniqueidentifier" }), true);
   assert.equal(controller.getObjectById("entity-sprints").fields.at(-1).name, "ProjectId2");
+  assert.equal(await controller.updateEntityField("entity-sprints", 2, { name: "ProjectId" }), true);
+  assert.equal(controller.getObjectById("entity-sprints").fields[2].name, "ProjectId3");
   assert.equal(await controller.updateEntityDefinition("entity-sprints", {
     schema: "pmt",
     name: "Sprints",
@@ -605,7 +612,27 @@ CREATE TABLE [pmt].[Sprints](
     "ProjectId",
     "ProjectId2"
   ]);
+  assert.equal(await controller.moveEntityField("entity-sprints", 0, "down"), true);
+  assert.deepEqual(controller.getObjectById("entity-sprints").fields.map(field => field.name), [
+    "SprintId",
+    "SprintName",
+    "ProjectId",
+    "ProjectId2"
+  ]);
+  assert.equal(await controller.moveEntityField("entity-sprints", 1, "up"), true);
   assert.equal(renderer.structureStates.at(-1).affectedObjectIds[0], "entity-sprints");
+
+  assert.equal(await controller.setEntityFieldReference("entity-sprints", 2, {
+    targetEntityId: "entity-projects",
+    targetFieldName: "ProjectId",
+    relationshipType: "many-to-one"
+  }), true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 1);
+  assert.equal(controller.getObjectById("entity-sprints").foreignKeys[0].columns[0], "ProjectId");
+  assert.equal(await controller.updateEntityField("entity-sprints", 2, { name: "ProjectIdRenamed" }), true);
+  assert.equal(controller.getObjectById("entity-sprints").foreignKeys[0].columns[0], "ProjectIdRenamed");
+  assert.equal(controller.statusSnapshot().relationshipCount, 1);
+  assert.equal(await controller.updateEntityField("entity-sprints", 2, { name: "ProjectId" }), true);
 
   assert.equal(await controller.addRelationship({
     sourceEntityId: "entity-sprints",
@@ -651,6 +678,11 @@ CREATE TABLE [pmt].[Sprints](
   const coordinate = routeBeforeMove[segmentIndex][axis] + 24;
   assert.equal(await controller.adjustRelationshipRoute(relationshipId, segmentIndex, axis, coordinate), true);
   assert.notDeepEqual(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride, routeBeforeMove);
+  const routeBeforeInsert = controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride;
+  assert.equal(await controller.insertRelationshipRoutePoint(relationshipId), true);
+  assert.ok(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride.length > routeBeforeInsert.length);
+  assert.equal(await controller.removeRelationshipRoutePoint(relationshipId), true);
+  assert.ok(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride.length >= 2);
   assert.equal(await controller.clearRelationshipRoutes([relationshipId]), true);
   assert.equal(Object.hasOwn(controller.getObjectById("entity-sprints").foreignKeys[0], "routeOverride"), false);
 
@@ -677,6 +709,62 @@ CREATE TABLE [pmt].[Sprints](
   assert.equal(await controller.redo(), true);
   assert.equal(controller.statusSnapshot().relationshipCount, 0);
   assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 route costing prefers resolved, quieter, deterministic routes", () => {
+  const obstacle = { id: "entity-obstacle", x: 90, y: 40, width: 80, height: 80 };
+  const direct = scoreDiagram2RoutePoints([
+    { x: 20, y: 80 },
+    { x: 220, y: 80 }
+  ], [obstacle]);
+  const around = scoreDiagram2RoutePoints([
+    { x: 20, y: 80 },
+    { x: 20, y: 20 },
+    { x: 220, y: 20 },
+    { x: 220, y: 80 }
+  ], [obstacle]);
+
+  assert.equal(direct.resolved, false);
+  assert.equal(around.resolved, true);
+  assert.equal(compareDiagram2RouteScores(around, direct), -1);
+  assert.equal(around.canonicalPathKey, "M 20 80 V 20 H 220 V 80");
+});
+
+test("Diagram 2 Compact cancel and no-improvement paths leave state and history unchanged", async () => {
+  const controller = createDiagram2EditorController({
+    renderer: fakeRenderer(),
+    host: editableHost(),
+    state: phase5EntityState()
+  });
+  const before = JSON.stringify(controller.currentState());
+  const canceled = new AbortController();
+  canceled.abort();
+  assert.equal(await controller.autoFormatCompact({ signal: canceled.signal }), false);
+  assert.equal(JSON.stringify(controller.currentState()), before);
+  assert.equal(controller.historyStatus().dirty, false);
+  assert.equal(controller.diagnostics().lastCompact.finalStatus, "Canceled");
+
+  assert.equal(await controller.autoFormatCompact(), false);
+  assert.equal(JSON.stringify(controller.currentState()), before);
+  assert.equal(controller.historyStatus().dirty, false);
+  assert.equal(controller.diagnostics().lastCompact.finalStatus, "No improvement");
+});
+
+test("Diagram 2 Compact engine reports progress phases without mutating canonical input", async () => {
+  const state = phase5TwoEntityState();
+  const progress = [];
+  const result = await runDiagram2CompactEngine({
+    state,
+    preferredRootId: "entity-projects",
+    onProgress: item => progress.push(item.phase)
+  });
+
+  assert.equal(result.status, "Completed");
+  assert.ok(progress.includes("Analyzing Entities"));
+  assert.ok(progress.includes("Evaluating Route Candidates"));
+  assert.equal(state.objects[1].x, 820);
+  assert.notEqual(result.plan.nextState.objects[1].x, 820);
+  assert.equal(result.plan.label, "Auto Format - Compact");
 });
 
 test("Diagram 2 Phase 4 Objects tree handles 1,000 structured objects through shared incremental commands", async t => {
@@ -1254,6 +1342,64 @@ function phase5EntityState() {
       foreignKeys: [],
       locked: true
     }]
+  };
+}
+
+function phase5TwoEntityState() {
+  return {
+    version: 1,
+    width: 1400,
+    height: 800,
+    objects: [
+      {
+        id: "entity-projects",
+        type: "entity",
+        x: 80,
+        y: 90,
+        width: 520,
+        height: 130,
+        fill: "#ffffff",
+        stroke: "#42526b",
+        strokeWidth: 2,
+        opacity: 1,
+        entitySchema: "pmt",
+        entityName: "Projects",
+        fields: [
+          { name: "ProjectId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+          { name: "ProjectName", dataType: "nvarchar(200)", nullable: false }
+        ],
+        foreignKeys: [],
+        locked: false
+      },
+      {
+        id: "entity-tasks",
+        type: "entity",
+        x: 820,
+        y: 360,
+        width: 520,
+        height: 150,
+        fill: "#ffffff",
+        stroke: "#42526b",
+        strokeWidth: 2,
+        opacity: 1,
+        entitySchema: "pmt",
+        entityName: "WorkTasks",
+        fields: [
+          { name: "TaskId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+          { name: "ProjectId", dataType: "int", nullable: false, isForeignKey: true },
+          { name: "Title", dataType: "nvarchar(220)", nullable: false }
+        ],
+        foreignKeys: [{
+          name: "FK_WorkTasks_ProjectId_Projects",
+          columns: ["ProjectId"],
+          referencedSchema: "pmt",
+          referencedTable: "Projects",
+          referencedColumns: ["ProjectId"],
+          relationshipType: "many-to-one"
+        }],
+        locked: false
+      }
+    ]
   };
 }
 

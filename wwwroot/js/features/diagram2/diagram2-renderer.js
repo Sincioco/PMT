@@ -12,7 +12,7 @@ import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";

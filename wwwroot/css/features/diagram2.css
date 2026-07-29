@@ -400,6 +400,7 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-editor-shell {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
@@ -753,6 +754,123 @@ body.diagram2-edit-mode-active #app {
 .diagram2-editor-inspector .image-annotation-inspector-tabs button[hidden],
 .diagram2-editor-inspector [data-diagram2-inspector-panel][hidden] {
   display: none;
+}
+
+.diagram2-section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.diagram2-section-title-row h4 {
+  margin: 0;
+}
+
+.diagram2-section-title-row button {
+  min-width: 32px;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+}
+
+.diagram2-entity-fields {
+  display: grid;
+  gap: var(--space-2);
+  overflow-x: auto;
+}
+
+.diagram2-entity-field-columns,
+.diagram2-entity-field-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(68px, 0.85fr) 46px repeat(4, 20px) minmax(108px, 1fr) 66px;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.diagram2-entity-field-columns {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.diagram2-entity-field-list {
+  display: grid;
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  gap: 3px;
+}
+
+.diagram2-entity-field-row {
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.diagram2-entity-field-row input[type="text"],
+.diagram2-entity-field-row select {
+  min-width: 0;
+  height: 28px;
+  padding: 2px var(--space-1);
+  font-size: 11px;
+}
+
+.diagram2-entity-field-row input[type="checkbox"] {
+  justify-self: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.diagram2-entity-field-reference {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+
+.diagram2-entity-field-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 20px);
+  justify-content: end;
+  gap: 2px;
+}
+
+.diagram2-entity-field-actions button {
+  min-width: 20px;
+  min-height: 22px;
+  padding: 0;
+  line-height: 1;
+}
+
+.diagram2-compact-progress {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.diagram2-compact-progress-panel {
+  display: grid;
+  width: min(360px, calc(100% - 32px));
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface);
+  pointer-events: auto;
+}
+
+.diagram2-compact-progress-panel progress {
+  width: 100%;
+}
+
+.diagram2-compact-progress-panel span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .diagram2-editor-objects-pane .diagram2-editor-left-pane-scroll,

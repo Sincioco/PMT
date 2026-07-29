@@ -6,12 +6,17 @@ import {
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipType
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
+import {
+  compareDiagram2RouteScores,
+  createDiagram2CompactDiagnostics,
+  scoreDiagram2RelationshipRoutes
+} from "./diagram2-route-costing.js?v=20260729-diagram2-phase5-closure-v1";
 
 const relationshipObjectType = "entity-relationship";
 const relationshipGroupObjectType = "entity-relationships";
@@ -230,6 +235,38 @@ export function diagram2AdjustRelationshipRoutePlan(stateInput, idInput, segment
   return updateRelationshipRouteOverride(state, relationship, points, "Adjust manual relationship route");
 }
 
+export function diagram2InsertRelationshipRoutePointPlan(stateInput, idInput, segmentIndexInput = null) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const relationship = diagram2RelationshipById(state, idInput);
+  if (!relationship || relationship.source?.locked === true) return null;
+  const baseRoute = relationship.foreignKeySource?.routeOverride?.length
+    ? relationship.foreignKeySource.routeOverride
+    : diagram2RelationshipRouteFromModel(
+        relationship,
+        createDiagram2RelationshipRouteModel(state, { manualRoutes: false })
+      )?.points;
+  const points = insertRelationshipRouteJog(baseRoute, segmentIndexInput);
+  if (!points?.length) return null;
+  return updateRelationshipRouteOverride(state, relationship, points, "Add manual route point");
+}
+
+export function diagram2RemoveRelationshipRoutePointPlan(stateInput, idInput, pointIndexInput = null) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const relationship = diagram2RelationshipById(state, idInput);
+  if (!relationship || relationship.source?.locked === true) return null;
+  const route = relationship.foreignKeySource?.routeOverride?.length
+    ? relationship.foreignKeySource.routeOverride.map(point => ({ ...point }))
+    : null;
+  if (!route || route.length <= 2) return null;
+  const requestedIndex = Number.parseInt(pointIndexInput, 10);
+  const pointIndex = Number.isInteger(requestedIndex) && requestedIndex > 0 && requestedIndex < route.length - 1
+    ? requestedIndex
+    : route.length - 2;
+  route.splice(pointIndex, 1);
+  if (route.length < 2) return null;
+  return updateRelationshipRouteOverride(state, relationship, route, "Remove manual route point");
+}
+
 export function diagram2ClearRelationshipRoutePlan(stateInput, idsInput = []) {
   const state = normalizeDiagram2CanonicalState(stateInput);
   const ids = new Set(uniqueStrings(idsInput));
@@ -257,8 +294,104 @@ export function diagram2ClearRelationshipRoutePlan(stateInput, idsInput = []) {
   return statePlan(state, nextState, [...bySourceId.keys()], [...ids], [...ids], "Clear manual relationship route");
 }
 
+function insertRelationshipRouteJog(pointsInput = [], segmentIndexInput = null) {
+  const points = (Array.isArray(pointsInput) ? pointsInput : [])
+    .map(point => ({ x: finiteNumber(point?.x, 0), y: finiteNumber(point?.y, 0) }))
+    .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (points.length < 2) return null;
+  const requestedIndex = Number.parseInt(segmentIndexInput, 10);
+  const segmentIndex = Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < points.length - 1
+    ? requestedIndex
+    : longestRouteSegmentIndex(points);
+  const start = points[segmentIndex];
+  const end = points[segmentIndex + 1];
+  if (!start || !end) return null;
+  const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+  const offset = 36;
+  const middle = horizontal
+    ? Math.round((start.x + end.x) / 2)
+    : Math.round((start.y + end.y) / 2);
+  const jog = horizontal
+    ? [
+        { x: middle, y: start.y },
+        { x: middle, y: start.y + offset },
+        { x: end.x, y: start.y + offset }
+      ]
+    : [
+        { x: start.x, y: middle },
+        { x: start.x + offset, y: middle },
+        { x: start.x + offset, y: end.y }
+      ];
+  return [
+    ...points.slice(0, segmentIndex + 1),
+    ...jog,
+    ...points.slice(segmentIndex + 1)
+  ];
+}
+
+function longestRouteSegmentIndex(points) {
+  let bestIndex = 0;
+  let bestLength = -1;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    const length = Math.abs((next?.x || 0) - (current?.x || 0)) + Math.abs((next?.y || 0) - (current?.y || 0));
+    if (length > bestLength) {
+      bestIndex = index;
+      bestLength = length;
+    }
+  }
+  return bestIndex;
+}
+
 export function diagram2AutoFormatCompactPlan(stateInput, options = {}) {
+  const startedAt = performanceNow();
   const state = normalizeDiagram2CanonicalState(stateInput);
+  const beforeScore = scoreDiagram2RelationshipRoutes(state);
+  const candidates = [
+    diagram2OrgTreeCompactCandidate(state, options),
+    diagram2GridCompactCandidate(state)
+  ].filter(Boolean);
+  let best = null;
+  candidates.forEach(candidate => {
+    const score = scoreDiagram2RelationshipRoutes(candidate.state, { compactRouting: true });
+    if (!best || compareDiagram2RouteScores(score, best.score) < 0) {
+      best = { ...candidate, score };
+    }
+  });
+  if (!best || compareDiagram2RouteScores(best.score, beforeScore) >= 0) {
+    return null;
+  }
+  const nextState = best.state;
+  const originalPositions = new Map(state.objects.map(object => [object.id, { x: object.x, y: object.y }]));
+  const affectedObjectIds = nextState.objects
+    .filter(object => {
+      const original = originalPositions.get(object.id);
+      return original && (original.x !== object.x || original.y !== object.y);
+    })
+    .map(object => object.id);
+  const relationships = diagram2CanonicalRelationships(nextState);
+  const diagnostics = createDiagram2CompactDiagnostics(state, nextState, {
+    ...(best.diagnostics || {}),
+    layoutsGenerated: candidates.length,
+    layoutsEvaluated: candidates.length,
+    totalElapsedMs: performanceNow() - startedAt,
+    finalStatus: "Completed"
+  });
+  return {
+    ...statePlan(
+      state,
+      nextState,
+      affectedObjectIds,
+      relationships.map(relationship => relationship.id),
+      options.selectionAfter || [],
+      "Auto Format - Compact"
+    ),
+    diagnostics
+  };
+}
+
+function diagram2OrgTreeCompactCandidate(state, options = {}) {
   const objects = state.objects.map(object => ({ ...object }));
   const originalPositions = new Map(objects.map(object => [object.id, { x: object.x, y: object.y, anchorTable: object.anchorTable === true }]));
   objects.forEach(object => {
@@ -279,28 +412,71 @@ export function diagram2AutoFormatCompactPlan(stateInput, options = {}) {
     }
     object.anchorTable = original.anchorTable;
   });
-  const affectedObjectIds = objects
-    .filter(object => {
-      const original = originalPositions.get(object.id);
-      return original && (original.x !== object.x || original.y !== object.y);
-    })
-    .map(object => object.id);
-  const nextState = normalizeDiagram2CanonicalState({
-    ...state,
-    compactEntityRelationshipRouting: true,
-    objects
-  });
-  const relationships = diagram2CanonicalRelationships(nextState);
   return {
-    ...statePlan(
-      state,
-      nextState,
-      affectedObjectIds,
-      relationships.map(relationship => relationship.id),
-      options.selectionAfter || [],
-      "Auto Format - Compact"
-    ),
-    diagnostics: result
+    name: "org-tree",
+    state: normalizeDiagram2CanonicalState({
+      ...state,
+      compactEntityRelationshipRouting: true,
+      objects
+    }),
+    diagnostics: {
+      ...(result || {}),
+      layoutName: "org-tree"
+    }
+  };
+}
+
+function diagram2GridCompactCandidate(state) {
+  const entities = state.objects.filter(object => object?.type === "entity" && object.entityKind !== "field-rectangle");
+  if (entities.length < 2) return null;
+  const unlocked = entities.filter(entity => entity.locked !== true);
+  if (!unlocked.length) return null;
+  const gridSize = positiveNumber(state.gridSize, 20);
+  const padding = Math.max(gridSize * 2, 48);
+  const columns = Math.max(1, Math.ceil(Math.sqrt(unlocked.length)));
+  const cellWidth = Math.max(...unlocked.map(entity => positiveNumber(entity.width, 240))) + padding;
+  const cellHeight = Math.max(...unlocked.map(entity => positiveNumber(entity.height, 120))) + padding;
+  const lockedBounds = entities
+    .filter(entity => entity.locked === true)
+    .map(entity => ({
+      x: finiteNumber(entity.x, 0),
+      y: finiteNumber(entity.y, 0),
+      width: positiveNumber(entity.width, 1),
+      height: positiveNumber(entity.height, 1)
+    }));
+  const startX = Math.min(...entities.map(entity => finiteNumber(entity.x, 0)));
+  const startY = Math.min(...entities.map(entity => finiteNumber(entity.y, 0)));
+  const nextById = new Map();
+  unlocked
+    .slice()
+    .sort((left, right) => relationshipSortName(left).localeCompare(relationshipSortName(right)))
+    .forEach((entity, index) => {
+      let row = Math.floor(index / columns);
+      let column = index % columns;
+      let candidate = {
+        x: snapToGrid(startX + (column * cellWidth), gridSize),
+        y: snapToGrid(startY + (row * cellHeight), gridSize)
+      };
+      while (lockedBounds.some(bounds => rectsOverlap({ ...candidate, width: entity.width, height: entity.height }, bounds))) {
+        row += 1;
+        candidate = {
+          x: snapToGrid(startX + (column * cellWidth), gridSize),
+          y: snapToGrid(startY + (row * cellHeight), gridSize)
+        };
+      }
+      nextById.set(entity.id, { ...entity, ...candidate });
+    });
+  const objects = state.objects.map(object => nextById.get(object.id) || { ...object });
+  return {
+    name: "grid-pack",
+    state: normalizeDiagram2CanonicalState({
+      ...state,
+      compactEntityRelationshipRouting: true,
+      objects
+    }),
+    diagnostics: {
+      layoutName: "grid-pack"
+    }
   };
 }
 
@@ -430,6 +606,32 @@ function safeIdentifier(value) {
   return String(value || "Entity").trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "Entity";
 }
 
+function relationshipSortName(entity) {
+  return [
+    entity?.entitySchema,
+    entity?.entityName,
+    entity?.id
+  ].map(value => String(value || "").trim().toLowerCase()).join(".");
+}
+
+function snapToGrid(value, gridSize) {
+  const size = positiveNumber(gridSize, 20);
+  return Math.round(finiteNumber(value, 0) / size) * size;
+}
+
+function rectsOverlap(first, second) {
+  return first.x < second.x + second.width
+    && first.x + first.width > second.x
+    && first.y < second.y + second.height
+    && first.y + first.height > second.y;
+}
+
+function performanceNow() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
 function equalsIdentifier(first, second) {
   return String(first || "").trim().toLowerCase() === String(second || "").trim().toLowerCase();
 }
@@ -453,6 +655,11 @@ function safeOpacity(value) {
 function positiveNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function finiteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function clampNumber(value, min, max) {

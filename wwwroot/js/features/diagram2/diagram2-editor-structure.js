@@ -7,8 +7,8 @@ import {
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
-import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
+import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {
   const state = normalizeDiagram2CanonicalState(stateInput);

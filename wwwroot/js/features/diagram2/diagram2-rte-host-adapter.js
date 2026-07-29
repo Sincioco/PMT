@@ -8,12 +8,12 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -23,6 +23,7 @@ import {
   diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
   diagram2TemplatePaneHtml,
+  openDiagram2CompactProgress,
   openDiagram2EntityEditor,
   openDiagram2RelationshipEditor,
   openDiagram2TextEditor,
@@ -33,7 +34,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-shell.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -342,6 +343,8 @@ function bindDiagram2RteHostEvents(options = {}) {
     applyStyle: (name, value) => applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, value),
     applyGeometry: (name, value) => applyDiagram2RteSelectedGeometry(dialog, controller, renderer, name, value),
     applyEntityOption: (name, value) => applyDiagram2RteSelectedEntityOption(dialog, controller, renderer, name, value),
+    updateEntityField: (fieldIndex, patch) => applyDiagram2RteSelectedEntityFieldPatch(dialog, controller, renderer, fieldIndex, patch, notify),
+    setEntityFieldReference: (fieldIndex, reference) => applyDiagram2RteSelectedEntityFieldReference(dialog, controller, renderer, fieldIndex, reference),
     applyRelationshipOption: (name, value) => applyDiagram2RteRelationshipOption(dialog, controller, renderer, name, value),
     applyRelationshipStyle: (name, value) => applyDiagram2RteSelectedRelationshipStyle(dialog, controller, renderer, name, value),
     applyRelationshipType: value => applyDiagram2RteSelectedRelationshipType(dialog, controller, renderer, value),
@@ -393,12 +396,43 @@ function bindDiagram2RteHostEvents(options = {}) {
       void addDiagram2RteRelationshipFromDialog(dialog, controller, renderer);
       return;
     }
+    if (action === "add-diagram2-entity-field") {
+      void addDiagram2RteSelectedEntityField(dialog, controller, renderer);
+      return;
+    }
+    if (action === "move-diagram2-entity-field-up" || action === "move-diagram2-entity-field-down") {
+      void moveDiagram2RteSelectedEntityField(
+        dialog,
+        controller,
+        renderer,
+        Number.parseInt(actionElement.dataset.diagram2EntityFieldIndex, 10),
+        action === "move-diagram2-entity-field-up" ? "up" : "down"
+      );
+      return;
+    }
+    if (action === "remove-diagram2-entity-field") {
+      void removeDiagram2RteSelectedEntityField(
+        dialog,
+        controller,
+        renderer,
+        Number.parseInt(actionElement.dataset.diagram2EntityFieldIndex, 10)
+      );
+      return;
+    }
     if (action === "auto-format-diagram2-compact") {
       void autoFormatDiagram2RteCompact(dialog, controller, renderer, notify);
       return;
     }
     if (action === "use-diagram2-relationship-route") {
       void useDiagram2RteSelectedRelationshipRoute(dialog, controller, renderer);
+      return;
+    }
+    if (action === "add-diagram2-relationship-route-point") {
+      void addDiagram2RteSelectedRelationshipRoutePoint(dialog, controller, renderer);
+      return;
+    }
+    if (action === "remove-diagram2-relationship-route-point") {
+      void removeDiagram2RteSelectedRelationshipRoutePoint(dialog, controller, renderer);
       return;
     }
     if (action === "clear-diagram2-relationship-route") {
@@ -812,18 +846,106 @@ async function addDiagram2RteRelationshipFromDialog(dialog, controller, renderer
   return true;
 }
 
-async function autoFormatDiagram2RteCompact(dialog, controller, renderer, notify) {
-  const applied = await controller.autoFormatCompact();
+async function addDiagram2RteSelectedEntityField(dialog, controller, renderer) {
+  const entity = diagram2RteSelectedEntity(controller);
+  if (!entity) return false;
+  const added = await controller.addEntityField(entity.id, {
+    name: "NewField",
+    dataType: "nvarchar(120)",
+    nullable: true
+  });
+  if (!added) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function applyDiagram2RteSelectedEntityFieldPatch(dialog, controller, renderer, fieldIndex, patch, notify) {
+  const entity = diagram2RteSelectedEntity(controller);
+  if (!entity || !Number.isInteger(fieldIndex)) return false;
+  const applied = await controller.updateEntityField(entity.id, fieldIndex, patch);
   if (!applied) return false;
   await finishDiagram2RteObjectCommand(dialog, controller, renderer);
-  notify?.("Diagram 2 entities compacted.");
+  const nextName = controller.getObjectById(entity.id)?.fields?.[fieldIndex]?.name || "";
+  if (patch && Object.hasOwn(patch, "name") && String(patch.name || "").trim() !== nextName) {
+    notify?.(`Duplicate field name resolved as ${nextName}.`);
+  }
   return true;
+}
+
+async function applyDiagram2RteSelectedEntityFieldReference(dialog, controller, renderer, fieldIndex, reference) {
+  const entity = diagram2RteSelectedEntity(controller);
+  if (!entity || !Number.isInteger(fieldIndex)) return false;
+  const applied = await controller.setEntityFieldReference(entity.id, fieldIndex, reference);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function moveDiagram2RteSelectedEntityField(dialog, controller, renderer, fieldIndex, direction) {
+  const entity = diagram2RteSelectedEntity(controller);
+  if (!entity || !Number.isInteger(fieldIndex)) return false;
+  const moved = await controller.moveEntityField(entity.id, fieldIndex, direction);
+  if (!moved) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function removeDiagram2RteSelectedEntityField(dialog, controller, renderer, fieldIndex) {
+  const entity = diagram2RteSelectedEntity(controller);
+  if (!entity || !Number.isInteger(fieldIndex)) return false;
+  const removed = await controller.removeEntityField(entity.id, fieldIndex);
+  if (!removed) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+function diagram2RteSelectedEntity(controller) {
+  return controller?.getObjectsByIds(controller.selectedObjectIds())
+    .find(object => object?.type === "entity" && object.locked !== true) || null;
+}
+
+async function autoFormatDiagram2RteCompact(dialog, controller, renderer, notify) {
+  const progress = openDiagram2CompactProgress(dialog);
+  try {
+    const applied = await controller.autoFormatCompact({
+      signal: progress?.signal,
+      onProgress: update => progress?.update(update)
+    });
+    if (!applied) {
+      notify?.(progress?.signal?.aborted ? "Diagram 2 Compact canceled." : "Diagram 2 Compact found no better layout.");
+      updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+      return false;
+    }
+    await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+    notify?.("Diagram 2 entities compacted.");
+    return true;
+  } finally {
+    progress?.close();
+  }
 }
 
 async function useDiagram2RteSelectedRelationshipRoute(dialog, controller, renderer) {
   const [relationshipId] = controller.selectedRelationshipIds();
   if (!relationshipId) return false;
   const applied = await controller.useRelationshipRoute(relationshipId);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function addDiagram2RteSelectedRelationshipRoutePoint(dialog, controller, renderer) {
+  const [relationshipId] = controller.selectedRelationshipIds();
+  if (!relationshipId) return false;
+  const applied = await controller.insertRelationshipRoutePoint(relationshipId);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function removeDiagram2RteSelectedRelationshipRoutePoint(dialog, controller, renderer) {
+  const [relationshipId] = controller.selectedRelationshipIds();
+  if (!relationshipId) return false;
+  const applied = await controller.removeRelationshipRoutePoint(relationshipId);
   if (!applied) return false;
   await finishDiagram2RteObjectCommand(dialog, controller, renderer);
   return true;

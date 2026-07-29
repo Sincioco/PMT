@@ -1,11 +1,11 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-closure-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
+} from "./diagram2-routing.js?v=20260729-diagram2-phase5-closure-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
