@@ -27,6 +27,10 @@ import {
 import {
   diagram2CanonicalRelationships
 } from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
+import {
+  createDiagram2RelationshipRouteModel,
+  diagram2RelationshipRouteFromModel
+} from "../../wwwroot/js/features/diagram2/diagram2-routing.js";
 
 const sampleImageDataUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNmZmYiLz48L3N2Zz4=";
 
@@ -718,11 +722,51 @@ CREATE TABLE [pmt].[Sprints](
   assert.equal(await controller.clearRelationshipRoutes([relationshipId]), true);
   assert.equal(Object.hasOwn(controller.getObjectById("entity-sprints").foreignKeys[0], "routeOverride"), false);
 
-  const beforeCompact = controller.getObjectById("entity-sprints");
+  assert.equal(await controller.setRelationshipRoutingOptions({ manualEntityRelationshipRoutes: false }), true);
+  assert.equal(controller.currentState().manualEntityRelationshipRoutes, false);
+  const autoRelationship = diagram2CanonicalRelationships(controller.currentState())
+    .find(relationship => relationship.id === relationshipId);
+  const autoRoute = diagram2RelationshipRouteFromModel(
+    autoRelationship,
+    createDiagram2RelationshipRouteModel(controller.currentState(), { manualRoutes: false })
+  );
+  assert.ok(autoRoute?.points?.length > 1);
+  const firstSegmentPoint = {
+    x: (autoRoute.points[0].x + autoRoute.points[1].x) / 2,
+    y: (autoRoute.points[0].y + autoRoute.points[1].y) / 2
+  };
+  assert.equal(await controller.insertRelationshipRoutePoint(relationshipId, 0, { point: firstSegmentPoint }), true);
+  assert.equal(controller.currentState().manualEntityRelationshipRoutes, true);
+  assert.ok(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride.length > autoRoute.points.length);
+  assert.equal(await controller.clearRelationshipRoutes([relationshipId]), true);
+  assert.equal(await controller.setRelationshipRoutingOptions({ manualEntityRelationshipRoutes: false }), true);
+  if (autoRoute.points.length > 2) {
+    assert.equal(await controller.removeRelationshipRoutePoint(relationshipId, 1), true);
+    assert.equal(controller.currentState().manualEntityRelationshipRoutes, true);
+    assert.equal(Object.hasOwn(controller.getObjectById("entity-sprints").foreignKeys[0], "routeOverride"), true);
+  }
+  if (Object.hasOwn(controller.getObjectById("entity-sprints").foreignKeys[0], "routeOverride")) {
+    assert.equal(await controller.clearRelationshipRoutes([relationshipId]), true);
+  }
+  if (controller.currentState().manualEntityRelationshipRoutes !== true) {
+    assert.equal(await controller.setRelationshipRoutingOptions({
+      manualEntityRelationshipRoutes: true,
+      allowOverlappingEntityLines: true
+    }), true);
+  }
+
   controller.setSelection(["entity-projects"]);
+  assert.equal(controller.compactAvailability().allowed, false);
+  assert.equal(
+    controller.compactAvailability().message,
+    "Unlock every Entity before using Auto Format - Compact."
+  );
+  assert.equal(await controller.autoFormatCompact(), false);
+  assert.equal(await controller.setSelectedObjectsLocked(false), true);
+  const beforeCompact = controller.getObjectById("entity-sprints");
   assert.equal(await controller.autoFormatCompact(), true);
   assert.equal(controller.getObjectById("entity-projects").x, 80);
-  assert.equal(controller.getObjectById("entity-projects").y, 90);
+  assert.equal(controller.getObjectById("entity-projects").y, 60);
   assert.equal(controller.currentState().compactEntityRelationshipRouting, true);
   assert.notDeepEqual({
     x: controller.getObjectById("entity-sprints").x,
@@ -827,12 +871,13 @@ test("Diagram 2 route costing prefers resolved, quieter, deterministic routes", 
   assert.equal(around.canonicalPathKey, "M 20 80 V 20 H 220 V 80");
 });
 
-test("Diagram 2 Compact cancel and no-improvement paths leave state and history unchanged", async () => {
+test("Diagram 2 Compact cancel and no-change paths leave state and history unchanged", async () => {
   const controller = createDiagram2EditorController({
     renderer: fakeRenderer(),
     host: editableHost(),
-    state: phase5EntityState()
+    state: phase5TwoEntityState()
   });
+  controller.setSelection(["entity-projects"]);
   const before = JSON.stringify(controller.currentState());
   const canceled = new AbortController();
   canceled.abort();
@@ -841,10 +886,22 @@ test("Diagram 2 Compact cancel and no-improvement paths leave state and history 
   assert.equal(controller.historyStatus().dirty, false);
   assert.equal(controller.diagnostics().lastCompact.finalStatus, "Canceled");
 
-  assert.equal(await controller.autoFormatCompact(), false);
-  assert.equal(JSON.stringify(controller.currentState()), before);
-  assert.equal(controller.historyStatus().dirty, false);
-  assert.equal(controller.diagnostics().lastCompact.finalStatus, "No improvement");
+  const compacted = await runDiagram2CompactEngine({
+    state: phase5TwoEntityState(),
+    preferredRootId: "entity-projects",
+    selectionAfter: ["entity-projects"]
+  });
+  const noChangeController = createDiagram2EditorController({
+    renderer: fakeRenderer(),
+    host: editableHost(),
+    state: compacted.plan.nextState
+  });
+  noChangeController.setSelection(["entity-projects"]);
+  const compactedBefore = JSON.stringify(noChangeController.currentState());
+  assert.equal(await noChangeController.autoFormatCompact(), false);
+  assert.equal(JSON.stringify(noChangeController.currentState()), compactedBefore);
+  assert.equal(noChangeController.historyStatus().dirty, false);
+  assert.equal(noChangeController.diagnostics().lastCompact.finalStatus, "No change");
 });
 
 test("Diagram 2 Compact engine reports progress phases without mutating canonical input", async () => {
@@ -853,12 +910,14 @@ test("Diagram 2 Compact engine reports progress phases without mutating canonica
   const result = await runDiagram2CompactEngine({
     state,
     preferredRootId: "entity-projects",
+    selectionAfter: ["entity-projects"],
     onProgress: item => progress.push(item.phase)
   });
 
   assert.equal(result.status, "Completed");
   assert.ok(progress.includes("Analyzing Entities"));
-  assert.ok(progress.includes("Evaluating Route Candidates"));
+  assert.ok(progress.includes("Separating Entities from Relationship Routes"));
+  assert.ok(progress.includes("Applying D1 Compact Result"));
   assert.equal(state.objects[1].x, 820);
   assert.notEqual(result.plan.nextState.objects[1].x, 820);
   assert.equal(result.plan.label, "Auto Format - Compact");
@@ -885,7 +944,7 @@ test("Diagram 2 Compact controller runs the planner in a module worker when avai
           data: {
             type: "progress",
             progress: {
-              phase: "Evaluating Route Candidates",
+              phase: "Separating Entities from Relationship Routes",
               percent: 60,
               elapsedMs: 5
             }
@@ -921,7 +980,7 @@ test("Diagram 2 Compact controller runs the planner in a module worker when avai
     assert.equal(workerRuns.length, 1);
     assert.equal(workerRuns[0].options.type, "module");
     assert.match(workerRuns[0].url, /diagram2-compact-worker\.js/);
-    assert.ok(workerProgress.includes("Evaluating Route Candidates"));
+    assert.ok(workerProgress.includes("Separating Entities from Relationship Routes"));
     assert.equal(terminated, true);
     assert.equal(controller.currentState().compactEntityRelationshipRouting, true);
   } finally {
@@ -933,26 +992,77 @@ test("Diagram 2 Compact controller runs the planner in a module worker when avai
   }
 });
 
-test("Diagram 2 Compact grid fallback caps locked-column probing", async () => {
-  const state = lockedTallEntityState();
-  const startedAt = performance.now();
-  const result = await runDiagram2CompactEngine({ state });
-  const elapsedMs = performance.now() - startedAt;
+test("Diagram 2 Compact discards a stale worker result after canonical replacement", async () => {
+  const hadWorker = Object.hasOwn(globalThis, "Worker");
+  const originalWorker = globalThis.Worker;
 
-  assert.ok(["Completed", "No improvement"].includes(result.status));
-  assert.ok(elapsedMs < 1000, `Compact grid probe took ${elapsedMs.toFixed(1)}ms`);
+  class DelayedCompactWorker {
+    postMessage(message = {}) {
+      if (message.type !== "run") return;
+      setTimeout(async () => {
+        const result = await runDiagram2CompactEngine({
+          state: message.state,
+          preferredRootId: message.preferredRootId,
+          selectionAfter: message.selectionAfter
+        });
+        this.onmessage?.({ data: { type: "result", result } });
+      }, 20);
+    }
+
+    terminate() {}
+  }
+
+  globalThis.Worker = DelayedCompactWorker;
+  try {
+    const controller = createDiagram2EditorController({
+      renderer: fakeRenderer(),
+      host: editableHost(),
+      state: phase5TwoEntityState()
+    });
+    controller.setSelection(["entity-projects"]);
+    const operation = controller.autoFormatCompact();
+    const replacement = phase5TwoEntityState();
+    replacement.objects[0].x = 260;
+    controller.setState(replacement, { reason: "stale Compact replacement", saved: true });
+
+    assert.equal(await operation, false);
+    assert.equal(controller.getObjectById("entity-projects").x, 260);
+    assert.equal(controller.diagnostics().lastCompact.finalStatus, "Stale");
+    assert.equal(controller.historyStatus().entryCount, 0);
+  } finally {
+    if (hadWorker) globalThis.Worker = originalWorker;
+    else delete globalThis.Worker;
+  }
 });
 
-test("Diagram 2 Compact uses summary scoring for large Entity diagrams", async () => {
-  const state = largeCompactEntityState(70);
+test("Diagram 2 Compact refuses locked Entities with the D1 message", async () => {
+  const state = lockedTallEntityState();
   const startedAt = performance.now();
-  const result = await runDiagram2CompactEngine({ state });
+  const result = await runDiagram2CompactEngine({
+    state,
+    preferredRootId: "entity-child-a",
+    selectionAfter: ["entity-child-a"]
+  });
   const elapsedMs = performance.now() - startedAt;
 
+  assert.equal(result.status, "Blocked");
+  assert.equal(result.diagnostics.message, "Unlock every Entity before using Auto Format - Compact.");
+  assert.ok(elapsedMs < 1000, `Locked Compact refusal took ${elapsedMs.toFixed(1)}ms`);
+});
+
+test("Diagram 2 Compact uses the exact D1 oracle above the former summary threshold", async () => {
+  const state = largeCompactEntityState(70);
+  const result = await runDiagram2CompactEngine({
+    state,
+    preferredRootId: "entity-large-0",
+    selectionAfter: ["entity-large-0"]
+  });
+
   assert.equal(result.status, "Completed");
-  assert.equal(result.diagnostics.scoringMode, "summary");
+  assert.equal(result.diagnostics.scoringMode, "d1-oracle");
   assert.equal(result.diagnostics.entityCount, 70);
-  assert.ok(elapsedMs < 1000, `Large Compact took ${elapsedMs.toFixed(1)}ms`);
+  assert.equal(result.diagnostics.layoutsGenerated, 1);
+  assert.equal(result.diagnostics.layoutsEvaluated, 1);
 });
 
 test("Diagram 2 Phase 4 Objects tree handles 1,000 structured objects through shared incremental commands", async t => {

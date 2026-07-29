@@ -2,12 +2,12 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
@@ -18,7 +18,7 @@ import {
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -31,19 +31,20 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-structure.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260729-diagram2-d1-relationships-v1";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-d1-compact-parity-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   diagram2AddRelationshipPlan,
   diagram2AdjustRelationshipRoutePlan,
   diagram2ClearRelationshipRoutePlan,
+  diagram2CompactAvailability,
   diagram2DeleteRelationshipsPlan,
   diagram2InsertRelationshipRoutePointPlan,
   diagram2RelationshipById,
@@ -54,13 +55,13 @@ import {
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-relationships.js?v=20260730-diagram2-d1-compact-parity-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260729-diagram2-d1-relationships-v1";
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260730-diagram2-d1-compact-parity-v1";
 const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
@@ -1148,7 +1149,7 @@ export function createDiagram2EditorController(options = {}) {
 
   async function insertRelationshipRoutePoint(relationshipId, segmentIndex = null, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
-    const plan = diagram2InsertRelationshipRoutePointPlan(canonicalState, relationshipId, segmentIndex);
+    const plan = diagram2InsertRelationshipRoutePointPlan(canonicalState, relationshipId, segmentIndex, commandOptions.point);
     return executeDiagram2StatePlan(plan, {
       label: commandOptions.label || "Add manual route point",
       reason: commandOptions.reason || "add manual route point"
@@ -1173,12 +1174,26 @@ export function createDiagram2EditorController(options = {}) {
     });
   }
 
+  function compactAvailability() {
+    return diagram2CompactAvailability(canonicalState, selectedObjectIds);
+  }
+
   async function autoFormatCompact(commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
+    const availability = compactAvailability();
+    if (!availability.allowed) {
+      canonicalDiagnostics = {
+        ...canonicalDiagnostics,
+        lastCompact: {
+          finalStatus: "Blocked",
+          message: availability.message
+        }
+      };
+      emit("compact blocked");
+      return false;
+    }
     const sourceRevision = canonicalRevision;
-    const preferredRootId = selectedObjectIds
-      .map(id => getObjectById(id))
-      .find(object => object?.type === "entity")?.id || "";
+    const preferredRootId = availability.preferredRootId;
     busy = true;
     emit("busy");
     try {
@@ -1891,6 +1906,7 @@ export function createDiagram2EditorController(options = {}) {
     insertRelationshipRoutePoint,
     removeRelationshipRoutePoint,
     clearRelationshipRoutes,
+    compactAvailability,
     autoFormatCompact,
     deleteSelectedObjects,
     duplicateSelectedObjects,

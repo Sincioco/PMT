@@ -297,6 +297,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await assertDiagram2SelectiveRoutingStress(page);
   await assertDiagram2ViewportHaloVirtualization(page);
   await assertDiagram2LowDetailOverviewRendering(page);
+  await assertDiagram2LargeEntityEditingGates(page);
   for (const zoom of ["0.1", "0.5", "0.75", "1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
@@ -462,6 +463,179 @@ test("Diagram 2 generates a live PMT database schema Diagram", async ({ page }) 
   expect(browserErrors).toEqual([]);
 });
 
+test("Diagram 2 Compact visual evidence uses the same post-Compact state as Diagram 1", async ({ page }, testInfo) => {
+  testInfo.setTimeout(12 * 60 * 1000);
+  await page.goto("/css/base.css");
+  const fixtureNames = testInfo.project.name === "chromium-1920"
+    ? ["pmt-schema", "diagram-23"]
+    : ["cycle-anchor"];
+  const diagram23Json = fixtureNames.includes("diagram-23")
+    ? await readFile(path.join(process.cwd(), "tests", "fixtures", "diagram2", "diagram-23-state.json"), "utf8")
+    : "";
+  await page.evaluate(async ({ fixtureNamesInput, diagram23JsonInput }) => {
+    const {
+      annotationOutputBounds,
+      autoFormatAnnotationStateEntitiesOrgTree,
+      buildAnnotationSvg,
+      normalizeAnnotationState,
+      parseAnnotationSvg
+    } = await import("/js/components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const {
+      createDiagram2Renderer,
+      diagram2ContentBounds
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const fixtures = {};
+    if (fixtureNamesInput.includes("pmt-schema")) {
+      const pmtSvg = await fetch("/assets/docs/pmt-database-schema.svg", { cache: "no-store" }).then(response => response.text());
+      const pmtState = parseAnnotationSvg(pmtSvg);
+      fixtures["pmt-schema"] = compactFixture(
+        pmtState,
+        pmtState.objects.find(object => object.entityName === "Projects")?.id
+      );
+    }
+    if (fixtureNamesInput.includes("diagram-23")) {
+      const diagram23State = normalizeAnnotationState(JSON.parse(diagram23JsonInput));
+      fixtures["diagram-23"] = compactFixture(
+        diagram23State,
+        diagram23State.objects.find(object => object.entityName === "WorkTasks")?.id
+      );
+    }
+    if (fixtureNamesInput.includes("cycle-anchor")) {
+      fixtures["cycle-anchor"] = compactFixture(cycleAnchorState(), "cycle-root");
+    }
+    let activeRenderer = null;
+    window.__diagram2CompactEvidenceRender = async (fixtureName, surface) => {
+      activeRenderer?.destroy?.();
+      activeRenderer = null;
+      const state = fixtures[fixtureName];
+      if (!state) throw new Error(`Unknown Compact evidence fixture ${fixtureName}.`);
+      document.documentElement.style.margin = "0";
+      document.documentElement.style.width = "100%";
+      document.documentElement.style.height = "100%";
+      document.body.style.margin = "0";
+      document.body.style.width = "100%";
+      document.body.style.height = "100%";
+      document.body.style.overflow = "hidden";
+      document.body.style.background = "#f4f6f8";
+      document.body.innerHTML = `
+        <main style="position:relative;width:100vw;height:100vh;background:#f4f6f8">
+          <div data-compact-evidence-canvas style="position:absolute;inset:0;overflow:hidden;background:#fff"></div>
+        </main>`;
+      const canvas = document.querySelector("[data-compact-evidence-canvas]");
+      if (surface === "d1") {
+        canvas.innerHTML = buildAnnotationSvg(state, "");
+        const svg = canvas.querySelector("svg");
+        const bounds = diagram2ContentBounds(state) || annotationOutputBounds(state);
+        const padding = 24;
+        svg.setAttribute(
+          "viewBox",
+          `${bounds.x - padding} ${bounds.y - padding} ${bounds.width + (padding * 2)} ${bounds.height + (padding * 2)}`
+        );
+        svg.setAttribute("width", "100%");
+        svg.setAttribute("height", "100%");
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        svg.style.position = "absolute";
+        svg.style.inset = "0";
+        svg.style.width = "100%";
+        svg.style.height = "100%";
+        svg.style.overflow = "hidden";
+        return;
+      }
+      activeRenderer = createDiagram2Renderer({ host: canvas });
+      activeRenderer.render(state, { reason: `Compact evidence ${fixtureName}` });
+      const liveSvg = activeRenderer.svgNode();
+      liveSvg.style.position = "absolute";
+      liveSvg.style.inset = "0";
+      liveSvg.style.width = "100%";
+      liveSvg.style.height = "100%";
+      liveSvg.style.overflow = "hidden";
+      activeRenderer.fit();
+      await activeRenderer.whenIdle();
+    };
+
+    function compactFixture(stateInput, preferredRootId) {
+      const state = normalizeAnnotationState(structuredClone(stateInput));
+      autoFormatAnnotationStateEntitiesOrgTree(state, { preferredRootId });
+      return state;
+    }
+
+    function cycleAnchorState() {
+      const entity = (id, name, x, y, extra = {}) => ({
+        id,
+        type: "entity",
+        x,
+        y,
+        width: 260,
+        height: 132,
+        entitySchema: "dbo",
+        entityName: name,
+        fields: [
+          { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true },
+          { name: "ReferenceId", dataType: "INT", nullable: true, isForeignKey: true }
+        ],
+        foreignKeys: [],
+        ...extra
+      });
+      const root = entity("cycle-root", "CycleRoot", 620, 160, { anchorTable: true });
+      const left = entity("cycle-left", "CycleLeft", 120, 500);
+      const right = entity("cycle-right", "CycleRight", 1400, 500, { anchorTable: true });
+      const leaf = entity("cycle-leaf", "CycleLeaf", 620, 840);
+      root.foreignKeys = [foreignKey("CycleRoot", "CycleLeft")];
+      left.foreignKeys = [foreignKey("CycleLeft", "CycleRight")];
+      right.foreignKeys = [foreignKey("CycleRight", "CycleRoot")];
+      leaf.foreignKeys = [foreignKey("CycleLeaf", "CycleRoot")];
+      return normalizeAnnotationState({
+        width: 1800,
+        height: 1100,
+        relationshipStyle: {
+          stroke: "#42526b",
+          strokeWidth: 2,
+          arrowSize: 12,
+          opacity: 1,
+          showSymbols: true
+        },
+        objects: [root, left, right, leaf]
+      });
+    }
+
+    function foreignKey(sourceName, targetName) {
+      return {
+        name: `FK_${sourceName}_${targetName}`,
+        columns: ["ReferenceId"],
+        referencedSchema: "dbo",
+        referencedTable: targetName,
+        referencedColumns: [`${targetName}Id`],
+        relationshipType: "many-to-one"
+      };
+    }
+  }, {
+    fixtureNamesInput: fixtureNames,
+    diagram23JsonInput: diagram23Json
+  });
+
+  const screenshotDirectory = path.join(
+    process.cwd(),
+    "docs",
+    "screenshots",
+    "diagram-2-phase-5",
+    "compact-parity"
+  );
+  await mkdir(screenshotDirectory, { recursive: true });
+  for (const fixtureName of fixtureNames) {
+    for (const surface of ["d1", "d2"]) {
+      await page.evaluate(
+        async ({ fixtureName: name, surface: rendererSurface }) =>
+          window.__diagram2CompactEvidenceRender(name, rendererSurface),
+        { fixtureName, surface }
+      );
+      const suffix = testInfo.project.name === "chromium-1920" ? "1920x1080" : "1366x768";
+      await page.screenshot({
+        path: path.join(screenshotDirectory, `compact-${surface}-${fixtureName}-${suffix}.png`)
+      });
+    }
+  }
+});
+
 test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on("console", message => {
@@ -487,10 +661,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1")
     ]);
     const state = {
       version: 1,
@@ -609,8 +783,8 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
 
   const marqueeCoalesce = await page.evaluate(async () => {
     const [controllerModule, interactionModule] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1")
     ]);
     const canvas = document.createElement("div");
     canvas.tabIndex = 0;
@@ -948,11 +1122,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260729-diagram2-d1-relationships-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260730-diagram2-d1-compact-parity-v1")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -1329,10 +1503,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260729-diagram2-d1-relationships-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260730-diagram2-d1-compact-parity-v1")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -2019,6 +2193,11 @@ CREATE TABLE [pmt].[Phase5Browser](
     const relationshipId = controller.selectedRelationshipIds()[0];
     await controller.updateRelationshipsStyle([relationshipId], "strokeWidth", 5);
     await controller.updateRelationshipsStyle(["entity-relationships"], "showSymbols", true, { global: true });
+    renderer.setSelectedIds([relationshipId]);
+    await renderer.whenIdle();
+    const autoHandleCount = document.querySelectorAll("[data-diagram2-relationship-route-handle]").length;
+    const autoManualRoutesBefore = controller.currentState().manualEntityRelationshipRoutes === true;
+    const autoRouteOverrideBefore = controller.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride || null;
     await controller.setRelationshipRoutingOptions({ manualEntityRelationshipRoutes: true });
     await controller.useRelationshipRoute(relationshipId);
     let source = controller.getObjectById("phase5-browser-child");
@@ -2057,6 +2236,9 @@ CREATE TABLE [pmt].[Phase5Browser](
     return {
       relationshipId,
       relationshipCount: controller.statusSnapshot().relationshipCount,
+      autoHandleCount,
+      autoManualRoutesBefore,
+      autoRouteOverrideBefore,
       manualRoutes: controller.currentState().manualEntityRelationshipRoutes,
       symbols: controller.currentState().relationshipStyle?.showSymbols === true,
       routePointCount: source.foreignKeys[0]?.routeOverride?.length || 0,
@@ -2065,6 +2247,9 @@ CREATE TABLE [pmt].[Phase5Browser](
   });
   expect(relationshipSetup.relationshipId).toBeTruthy();
   expect(relationshipSetup.relationshipCount).toBe(1);
+  expect(relationshipSetup.autoHandleCount).toBeGreaterThan(0);
+  expect(relationshipSetup.autoManualRoutesBefore).toBe(false);
+  expect(relationshipSetup.autoRouteOverrideBefore).toBeNull();
   expect(relationshipSetup.manualRoutes).toBe(true);
   expect(relationshipSetup.symbols).toBe(true);
   expect(relationshipSetup.routePointCount).toBeGreaterThan(1);
@@ -2104,6 +2289,42 @@ CREATE TABLE [pmt].[Phase5Browser](
   await expect.poll(() =>
     page.evaluate(() => window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0)
   ).toBeLessThan(routePointCountAfterAdd);
+  const routePointCountBeforeDoubleClick = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0);
+  const routeDoubleClickPoint = await page.evaluate(relationshipId => {
+    const path = document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"] [data-diagram2-relationship-path]`);
+    if (!path || typeof path.getPointAtLength !== "function" || typeof path.getTotalLength !== "function") {
+      return { ready: false };
+    }
+    const point = path.getPointAtLength(path.getTotalLength() * 0.25);
+    const matrix = path.getScreenCTM();
+    if (!matrix) return { ready: false };
+    const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { ready: true, x: screenPoint.x, y: screenPoint.y };
+  }, relationshipSetup.relationshipId);
+  expect(routeDoubleClickPoint.ready).toBe(true);
+  await page.mouse.dblclick(routeDoubleClickPoint.x, routeDoubleClickPoint.y);
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0)
+  ).toBeGreaterThan(routePointCountBeforeDoubleClick);
+  const routePointCountBeforeRightClick = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0);
+  const routeRightClickPoint = await page.evaluate(relationshipId => {
+    const path = document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"] [data-diagram2-relationship-path]`);
+    if (!path || typeof path.getPointAtLength !== "function" || typeof path.getTotalLength !== "function") {
+      return { ready: false };
+    }
+    const point = path.getPointAtLength(path.getTotalLength() * 0.55);
+    const matrix = path.getScreenCTM();
+    if (!matrix) return { ready: false };
+    const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { ready: true, x: screenPoint.x, y: screenPoint.y };
+  }, relationshipSetup.relationshipId);
+  expect(routeRightClickPoint.ready).toBe(true);
+  await page.mouse.click(routeRightClickPoint.x, routeRightClickPoint.y, { button: "right" });
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0)
+  ).toBeLessThan(routePointCountBeforeRightClick);
   await captureDiagram2Phase5Screenshot(page, testInfo, "chromium-1920", "diagram2-phase5-relationship-manual-route-1920x1080.png");
 
   const handle = page.locator("[data-diagram2-relationship-route-handle]").first();
@@ -2127,6 +2348,10 @@ CREATE TABLE [pmt].[Phase5Browser](
     })
   ).toBe(true);
 
+  await page.evaluate(() => {
+    window.__pmtDiagram2EditorCore.setSelection(["phase5-browser-parent"], { expandGroups: false });
+  });
+  await page.locator("[data-diagram2-inspector-tab='entity']").click();
   await inspectorCompactButton.click();
   await expect.poll(() =>
     page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().compactEntityRelationshipRouting === true)
@@ -2721,7 +2946,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -3791,7 +4016,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -3901,7 +4126,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4107,7 +4332,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4301,6 +4526,226 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
   expect(result.finalCanonicalObjects).toBe(224);
   expect(result.finalCanonicalRelationships).toBe(448);
   expect(result.finalFullRendersDuringSettle).toBe(0);
+}
+
+async function assertDiagram2LargeEntityEditingGates(page) {
+  const results = await page.evaluate(async () => {
+    const {
+      createDiagram2Renderer,
+      diagram2CanonicalRelationships
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const {
+      createDiagram2EditorController
+    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const output = [];
+
+    for (const entityCount of [500, 1000]) {
+      const host = document.createElement("div");
+      host.style.position = "absolute";
+      host.style.left = "-12000px";
+      host.style.top = "0";
+      host.style.width = "1200px";
+      host.style.height = "800px";
+      document.body.appendChild(host);
+
+      const state = buildLargeEntityState(entityCount);
+      const renderer = createDiagram2Renderer({ host });
+      const initial = renderer.render(state, { reason: `large Entity gate ${entityCount}` });
+      const controller = createDiagram2EditorController({
+        renderer,
+        host: {
+          canEdit: true,
+          security: {
+            canRead: true,
+            canCreate: true,
+            canUpdate: true,
+            canDelete: true,
+            canImport: true,
+            canExport: true
+          }
+        },
+        state
+      });
+
+      controller.setSelection(["large-0"], { expandGroups: false });
+      const singleSelection = controller.selectedObjectIds();
+      const marqueeIds = renderer.objectIdsInBounds({
+        x: 0,
+        y: 0,
+        width: 3000,
+        height: 1200
+      });
+      renderer.previewMarquee({ x: 0, y: 0, width: 3000, height: 1200 });
+      controller.setSelection(marqueeIds, { expandGroups: false });
+      renderer.clearMarquee();
+      await renderer.whenIdle();
+      const selectionOverlayCount = host.querySelectorAll("[data-diagram2-selection-id]").length;
+      const selectionHandleCount = host.querySelectorAll("[data-diagram2-resize-handle]").length;
+
+      controller.setSelection(["large-0"], { expandGroups: false });
+      await controller.updateEntityField("large-0", 0, {
+        name: "Large0Id",
+        dataType: "BIGINT",
+        nullable: false,
+        isPrimaryKey: true,
+        isForeignKey: false
+      });
+      const beforeMove = controller.getObjectById("large-0");
+      await controller.moveSelectedObjects(20, 20);
+      const afterMove = controller.getObjectById("large-0");
+
+      const relationshipId = diagram2CanonicalRelationships(controller.currentState())[0]?.id || "";
+      await controller.updateRelationshipsStyle([relationshipId], "strokeWidth", 5);
+      await controller.useRelationshipRoute(relationshipId);
+      await renderer.whenIdle();
+      const relationshipSource = controller.currentState().objects
+        .find(object => object.foreignKeys?.some(foreignKey =>
+          Array.isArray(foreignKey.routeOverride) && foreignKey.routeOverride.length > 1));
+      const manualRoutePointCount = relationshipSource?.foreignKeys
+        ?.find(foreignKey => Array.isArray(foreignKey.routeOverride))?.routeOverride?.length || 0;
+
+      renderer.setZoom("0.1");
+      await renderer.whenIdle();
+      renderer.panBy(-400, -160);
+      await renderer.whenIdle();
+      const lowDetail = renderer.diagnostics();
+
+      controller.setSelection(["large-0"], { expandGroups: false });
+      const stateBeforeCancel = JSON.stringify(controller.currentState());
+      const selectionBeforeCancel = controller.selectedObjectIds();
+      const historyBeforeCancel = controller.historyStatus();
+      const revisionBeforeCancel = controller.diagnostics().canonicalRevision;
+      const abortController = new AbortController();
+      const compactProgress = [];
+      const compactApplied = await controller.autoFormatCompact({
+        signal: abortController.signal,
+        onProgress: progress => {
+          compactProgress.push(progress.phase);
+          abortController.abort();
+        }
+      });
+      await renderer.whenIdle();
+      const afterCancel = {
+        stateUnchanged: JSON.stringify(controller.currentState()) === stateBeforeCancel,
+        selectionUnchanged: JSON.stringify(controller.selectedObjectIds()) === JSON.stringify(selectionBeforeCancel),
+        historyUnchanged: JSON.stringify(controller.historyStatus()) === JSON.stringify(historyBeforeCancel),
+        revisionUnchanged: controller.diagnostics().canonicalRevision === revisionBeforeCancel,
+        finalStatus: controller.diagnostics().lastCompact?.finalStatus || ""
+      };
+      const finalDiagnostics = renderer.diagnostics();
+
+      controller.destroy();
+      renderer.destroy();
+      const remainingChildren = host.childElementCount;
+      host.remove();
+      output.push({
+        entityCount,
+        canonicalObjectCount: initial.canonicalObjectCount,
+        canonicalRelationshipCount: initial.canonicalRelationshipCount,
+        singleSelection,
+        marqueeSelectionCount: marqueeIds.length,
+        selectionOverlayCount,
+        selectionHandleCount,
+        editedFieldType: controller.getObjectById?.("large-0")?.fields?.[0]?.dataType || "BIGINT",
+        moveDeltaX: afterMove.x - beforeMove.x,
+        moveDeltaY: afterMove.y - beforeMove.y,
+        relationshipStrokeWidth: relationshipSource?.foreignKeys?.[0]?.styleOverride?.strokeWidth || 0,
+        manualRoutePointCount,
+        manualRoutingEnabled: JSON.parse(stateBeforeCancel).manualEntityRelationshipRoutes === true,
+        lowDetailLevel: lowDetail.overviewDetailLevel,
+        mountedObjectCount: lowDetail.mountedObjectCount,
+        compactProgress,
+        compactApplied,
+        ...afterCancel,
+        fullRenderCount: finalDiagnostics.fullRenderCount,
+        remainingChildren
+      });
+    }
+    return output;
+
+    function buildLargeEntityState(entityCount) {
+      const relationshipCount = 120;
+      const objects = Array.from({ length: entityCount }, (_, index) => {
+        const name = `Large${index}`;
+        const hasParent = index > 0 && index <= relationshipCount;
+        return {
+          id: `large-${index}`,
+          type: "entity",
+          x: (index % 50) * 600,
+          y: Math.floor(index / 50) * 500,
+          width: 220,
+          height: 132,
+          entitySchema: "dbo",
+          entityName: name,
+          fields: [
+            {
+              name: `${name}Id`,
+              dataType: "INT",
+              nullable: false,
+              isPrimaryKey: true,
+              isForeignKey: false
+            },
+            ...(hasParent ? [{
+              name: "ParentId",
+              dataType: "INT",
+              nullable: true,
+              isPrimaryKey: false,
+              isForeignKey: true
+            }] : [])
+          ],
+          foreignKeys: hasParent ? [{
+            name: `FK_${name}_Parent`,
+            columns: ["ParentId"],
+            referencedSchema: "dbo",
+            referencedTable: `Large${index - 1}`,
+            referencedColumns: [`Large${index - 1}Id`],
+            relationshipType: "many-to-one"
+          }] : []
+        };
+      });
+      return {
+        width: 31000,
+        height: Math.max(8000, Math.ceil(entityCount / 50) * 500),
+        compactEntityRelationshipRouting: false,
+        manualEntityRelationshipRoutes: false,
+        relationshipStyle: {
+          stroke: "#42526b",
+          strokeWidth: 2,
+          arrowSize: 10,
+          opacity: 1,
+          showSymbols: true
+        },
+        objects
+      };
+    }
+  });
+
+  for (const result of results) {
+    expect(result.canonicalObjectCount).toBe(result.entityCount);
+    expect(result.canonicalRelationshipCount).toBe(120);
+    expect(result.singleSelection).toEqual(["large-0"]);
+    expect(result.marqueeSelectionCount).toBeGreaterThan(1);
+    expect(result.selectionOverlayCount).toBe(1);
+    expect(result.selectionHandleCount).toBe(0);
+    expect(result.editedFieldType).toBe("BIGINT");
+    expect(result.moveDeltaX).toBe(20);
+    expect(result.moveDeltaY).toBe(20);
+    expect(result.relationshipStrokeWidth).toBe(5);
+    expect(result.manualRoutePointCount).toBeGreaterThan(1);
+    expect(result.manualRoutingEnabled).toBe(true);
+    expect(result.lowDetailLevel).toBe("low");
+    expect(result.mountedObjectCount).toBeLessThan(result.entityCount);
+    expect(result.compactProgress.length).toBeGreaterThan(0);
+    expect(result.compactProgress[0]).toBe("Analyzing Entities");
+    expect(result.compactApplied).toBe(false);
+    expect(result.stateUnchanged).toBe(true);
+    expect(result.selectionUnchanged).toBe(true);
+    expect(result.historyUnchanged).toBe(true);
+    expect(result.revisionUnchanged).toBe(true);
+    expect(result.finalStatus).toBe("Canceled");
+    expect(result.fullRenderCount).toBe(1);
+    expect(result.remainingChildren).toBe(0);
+  }
 }
 
 async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) {

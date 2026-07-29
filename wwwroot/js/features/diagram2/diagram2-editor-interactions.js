@@ -1,11 +1,11 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-d1-compact-parity-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -205,6 +205,31 @@ export function bindDiagram2EditorInteractions(options = {}) {
   }, { signal });
 
   canvas.addEventListener("dblclick", event => {
+    const relationshipTarget = relationshipTargetFromEvent(event.target);
+    if (relationshipTarget.relationshipId
+      && relationshipTarget.node
+      && canvas.contains(relationshipTarget.node)
+      && controller.activeTool() !== "pan") {
+      event.preventDefault();
+      event.stopPropagation();
+      lastObjectPointerDown = { id: "", time: 0 };
+      controller.setActiveTool("select");
+      controller.setSelection([relationshipTarget.relationshipId], { expandGroups: false });
+      options.onStateChange?.();
+      if (options.canMutate?.() === false) return;
+      const point = renderer.screenToWorld?.(event) || { x: Number(event.clientX || 0), y: Number(event.clientY || 0) };
+      const segmentIndex = nearestRelationshipRouteSegmentIndex(relationshipTarget.points, point);
+      if (segmentIndex < 0) return;
+      void controller.insertRelationshipRoutePoint?.(relationshipTarget.relationshipId, segmentIndex, {
+        point,
+        reason: "double-click relationship route"
+      }).then(applied => {
+        if (applied) return afterMutation(options);
+        return null;
+      });
+      return;
+    }
+
     const objectNode = event.target.closest?.("[data-diagram2-object-id]");
     const object = controller.getObjectById(objectNode?.dataset?.diagram2ObjectId);
     if (!object || !["textbox", "rich-text", "entity"].includes(object.type)) return;
@@ -220,6 +245,29 @@ export function bindDiagram2EditorInteractions(options = {}) {
   }, { signal });
 
   canvas.addEventListener("contextmenu", event => {
+    const relationshipTarget = relationshipTargetFromEvent(event.target);
+    if (relationshipTarget.relationshipId
+      && relationshipTarget.node
+      && canvas.contains(relationshipTarget.node)) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeContextMenu();
+      controller.setActiveTool("select");
+      controller.setSelection([relationshipTarget.relationshipId], { expandGroups: false });
+      options.onStateChange?.();
+      if (options.canMutate?.() === false) return;
+      const point = renderer.screenToWorld?.(event) || { x: Number(event.clientX || 0), y: Number(event.clientY || 0) };
+      const pointIndex = nearestRelationshipRoutePointIndex(relationshipTarget.points, point);
+      if (pointIndex <= 0) return;
+      void controller.removeRelationshipRoutePoint?.(relationshipTarget.relationshipId, pointIndex, {
+        reason: "right-click relationship route point"
+      }).then(applied => {
+        if (applied) return afterMutation(options);
+        return null;
+      });
+      return;
+    }
+
     if (!contextMenu) return;
     const objectId = String(
       event.target.closest?.("[data-diagram2-object-id]")?.dataset?.diagram2ObjectId
@@ -722,7 +770,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
     }).then(applied => {
       if (applied) return afterMutation(options).then(() => {
         canvas.ownerDocument
-          .querySelector(`[data-diagram2-relationship-id="${cssEscapeSelector(relationshipId)}"] [data-diagram2-relationship-segment-index="${segmentIndex}"]`)
+          .querySelector(`[data-diagram2-relationship-route-handle][data-diagram2-relationship-id="${cssEscapeSelector(relationshipId)}"][data-diagram2-relationship-segment-index="${segmentIndex}"]`)
           ?.focus({ preventScroll: true });
       });
       return null;
@@ -732,14 +780,93 @@ export function bindDiagram2EditorInteractions(options = {}) {
 }
 
 function parseRelationshipRoutePoints(handle) {
-  const source = handle?.closest?.("[data-diagram2-relationship-route-handles]")
-    ?.dataset?.diagram2RelationshipRoutePoints || "[]";
+  return parseRelationshipRoutePointsFromElement(handle);
+}
+
+function relationshipTargetFromEvent(target) {
+  const handle = target?.closest?.("[data-diagram2-relationship-route-handle]");
+  const overlay = target?.closest?.("[data-diagram2-relationship-route-overlay-id]");
+  const node = target?.closest?.("[data-diagram2-relationship-id]");
+  const relationshipId = String(
+    handle?.dataset?.diagram2RelationshipId
+    || overlay?.dataset?.diagram2RelationshipRouteOverlayId
+    || node?.dataset?.diagram2RelationshipId
+    || ""
+  ).trim();
+  return {
+    relationshipId,
+    node: handle || overlay || node || null,
+    points: parseRelationshipRoutePointsFromElement(handle || overlay || node)
+  };
+}
+
+function parseRelationshipRoutePointsFromElement(element) {
+  const source = element?.closest?.("[data-diagram2-relationship-route-handles]")
+    || element?.querySelector?.(":scope > g[data-diagram2-relationship-route-handles]")
+    || element?.closest?.("[data-diagram2-relationship-route-overlay-id]")
+      ?.querySelector?.(":scope > g[data-diagram2-relationship-route-handles]")
+    || element?.closest?.("[data-diagram2-relationship-id]")
+    || null;
+  const raw = source?.dataset?.diagram2RelationshipRoutePoints || "[]";
   try {
-    const parsed = JSON.parse(source);
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw);
+    return normalizeInteractionRoutePoints(parsed);
   } catch {
     return [];
   }
+}
+
+function nearestRelationshipRouteSegmentIndex(pointsInput, pointInput) {
+  const points = normalizeInteractionRoutePoints(pointsInput);
+  const point = normalizeInteractionPoint(pointInput);
+  if (points.length < 2 || !point) return -1;
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const distance = pointToSegmentDistance(point, points[index], points[index + 1]);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+}
+
+function nearestRelationshipRoutePointIndex(pointsInput, pointInput) {
+  const points = normalizeInteractionRoutePoints(pointsInput);
+  const point = normalizeInteractionPoint(pointInput);
+  if (points.length <= 2 || !point) return -1;
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = Math.hypot(points[index].x - point.x, points[index].y - point.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+}
+
+function normalizeInteractionRoutePoints(pointsInput) {
+  return (Array.isArray(pointsInput) ? pointsInput : [])
+    .map(normalizeInteractionPoint)
+    .filter(Boolean);
+}
+
+function normalizeInteractionPoint(pointInput = {}) {
+  const x = finiteNumber(pointInput?.x, Number.NaN);
+  const y = finiteNumber(pointInput?.y, Number.NaN);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+function pointToSegmentDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = (dx * dx) + (dy * dy);
+  if (lengthSquared <= 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const amount = Math.max(0, Math.min(1, (((point.x - start.x) * dx) + ((point.y - start.y) * dy)) / lengthSquared));
+  return Math.hypot(point.x - (start.x + (amount * dx)), point.y - (start.y + (amount * dy)));
 }
 
 function previewRelationshipRoute(active, path) {

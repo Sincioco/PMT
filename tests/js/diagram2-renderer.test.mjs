@@ -400,8 +400,10 @@ test("Diagram 2 relationship lines adopt Diagram 1 route painting rules", async 
   assert.match(source, /function diagram2MergedRelationshipRouteGroups/);
   assert.match(relationshipPatchSource, /diagram2-renderer-relationship-hit-path/);
   assert.match(relationshipPatchSource, /image-annotation-entity-relationship-hit/);
+  assert.match(relationshipPatchSource, /data-diagram2-relationship-route-points/);
   assert.match(relationshipOverlaySource, /data-diagram2-relationship-route-overlay-id/);
   assert.match(relationshipOverlaySource, /image-annotation-entity-relationship-selection/);
+  assert.doesNotMatch(relationshipOverlaySource, /options\.manualRoutes === true/);
   assert.match(relationshipHelperSource, /image-annotation-entity-relationship-marker/);
   assert.match(relationshipHelperSource, /image-annotation-entity-relationship-handle/);
   assert.match(relationshipPatchSource, /"vector-effect": null/);

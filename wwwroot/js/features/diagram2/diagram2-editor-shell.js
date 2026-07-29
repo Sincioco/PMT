@@ -7,14 +7,14 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260729-diagram2-d1-relationships-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-d1-compact-parity-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-d1-compact-parity-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";

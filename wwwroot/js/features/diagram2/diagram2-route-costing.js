@@ -1,20 +1,21 @@
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-d1-compact-parity-v1";
 
 export const diagram2CompactPhases = Object.freeze([
   "Analyzing Entities",
   "Building Relationship Graph",
-  "Generating Compact Layouts",
-  "Evaluating Route Candidates",
+  "Assigning Compact Levels",
+  "Placing Root-side Entities",
+  "Separating Entities from Relationship Routes",
   "Finalizing Automatic Routes",
-  "Applying Optimized Diagram"
+  "Applying D1 Compact Result"
 ]);
 
 export function scoreDiagram2RoutePoints(pointsInput = [], obstaclesInput = [], options = {}) {
@@ -157,12 +158,17 @@ export function diagram2CompactScoreImproved(beforeScore, afterScore) {
 export function createDiagram2CompactDiagnostics(beforeStateInput, afterStateInput, meta = {}) {
   const beforeState = normalizeDiagram2CanonicalState(beforeStateInput);
   const afterState = normalizeDiagram2CanonicalState(afterStateInput || beforeStateInput);
+  const scoreRoutes = meta.scoreRoutes !== false;
   const beforeScore = meta.beforeScore && typeof meta.beforeScore === "object"
     ? meta.beforeScore
-    : scoreDiagram2RelationshipRoutes(beforeState);
+    : scoreRoutes
+      ? scoreDiagram2RelationshipRoutes(beforeState)
+      : diagram2RouteCountSummary(beforeState);
   const afterScore = meta.afterScore && typeof meta.afterScore === "object"
     ? meta.afterScore
-    : scoreDiagram2RelationshipRoutes(afterState, { compactRouting: true });
+    : scoreRoutes
+      ? scoreDiagram2RelationshipRoutes(afterState, { compactRouting: true })
+      : diagram2RouteCountSummary(afterState);
   const beforeEntities = beforeState.objects.filter(object => object?.type === "entity");
   const afterById = new Map(afterState.objects.map(object => [object.id, object]));
   const entitiesMoved = beforeEntities.filter(entity => {
@@ -179,11 +185,25 @@ export function createDiagram2CompactDiagnostics(beforeStateInput, afterStateInp
     automaticRelationshipsRerouted: Math.max(0, beforeScore.relationshipCount - beforeScore.manualRouteCount),
     layoutsGenerated: Number(meta.layoutsGenerated || 0),
     layoutsEvaluated: Number(meta.layoutsEvaluated || 0),
-    routeCandidatesGenerated: Number(meta.routeCandidatesGenerated || beforeScore.relationshipCount + afterScore.relationshipCount),
-    routeCandidatesEvaluated: Number(meta.routeCandidatesEvaluated || beforeScore.relationshipCount + afterScore.relationshipCount),
+    routeCandidatesGenerated: Number(meta.routeCandidatesGenerated ?? (scoreRoutes
+      ? beforeScore.relationshipCount + afterScore.relationshipCount
+      : 0)),
+    routeCandidatesEvaluated: Number(meta.routeCandidatesEvaluated ?? (scoreRoutes
+      ? beforeScore.relationshipCount + afterScore.relationshipCount
+      : 0)),
     before: beforeScore,
     after: afterScore,
-    unresolvedRoutes: afterScore.unresolvedRoutes,
+    levelCount: Number(meta.levelCount || 0),
+    cycleBreakCount: Number(meta.cycleBreakCount || 0),
+    anchorCount: Number(meta.anchorCount || 0),
+    anchoredRelationshipCount: Number(meta.anchoredRelationshipCount || 0),
+    routeAdjustedCount: Number(meta.routeAdjustedCount || 0),
+    unresolvedRouteContactCount: Number(meta.unresolvedRouteContactCount || 0),
+    fixedConstraintShortcutCount: Number(meta.fixedConstraintShortcutCount || 0),
+    entityPositionMismatchCount: Number(meta.entityPositionMismatchCount || 0),
+    automaticRoutePointMismatchCount: Number(meta.automaticRoutePointMismatchCount || 0),
+    manualRouteMutationCount: Number(meta.manualRouteMutationCount || 0),
+    unresolvedRoutes: Number(meta.unresolvedRoutes ?? afterScore.unresolvedRoutes),
     clearanceContacts: afterScore.clearanceContacts,
     obstacleContacts: afterScore.obstacleContacts,
     routeCrossings: Number(meta.routeCrossings || 0),
@@ -202,6 +222,22 @@ export function createDiagram2CompactDiagnostics(beforeStateInput, afterStateInp
     fullRenderCount: Number(meta.fullRenderCount || 0),
     scoringMode: String(meta.scoringMode || "exact"),
     finalStatus: String(meta.finalStatus || "Completed")
+  };
+}
+
+function diagram2RouteCountSummary(stateInput) {
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const relationships = diagram2CanonicalRelationships(state);
+  const entities = state.objects.filter(object => object?.type === "entity");
+  return {
+    ...emptyRouteAggregate(),
+    entityCount: entities.length,
+    relationshipCount: relationships.length,
+    manualRouteCount: relationships.filter(relationship =>
+      Array.isArray(relationship.foreignKeySource?.routeOverride)
+      && relationship.foreignKeySource.routeOverride.length > 1).length,
+    canonicalRouteKey: "",
+    routeScores: []
   };
 }
 

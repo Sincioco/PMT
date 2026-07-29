@@ -7,7 +7,7 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260728-phase3-closeout-v1";
+} from "./components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
@@ -77,8 +77,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260728-diagram-png-raster-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260729-diagram2-d1-relationships-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-d1-relationships-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260730-diagram2-d1-compact-parity-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-d1-compact-parity-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,

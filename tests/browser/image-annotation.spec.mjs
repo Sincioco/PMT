@@ -244,7 +244,7 @@ test("public Diagram viewer hydrates Field Mapping Table highlights and arrows",
   await page.goto("/public-field-mapping-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260728-phase3-closeout-v1");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1");
     const state = annotation.normalizeAnnotationState({
       width: 1000,
       height: 650,

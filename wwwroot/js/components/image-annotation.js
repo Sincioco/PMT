@@ -8080,22 +8080,9 @@ function createAnnotationDialog(context) {
           return;
         }
         pushHistory();
-        const originalEntityPositions = new Map(entities.map(item => [item.id, { x: item.x, y: item.y }]));
-        const result = autoFormatAnnotationEntitiesOrgTree(state.objects, {
-          preferredRootId: entity.id,
-          allowOverlappingLines: state.allowOverlappingEntityLines,
-          relationshipStyle: state.relationshipStyle,
-          gridSize: state.gridSize
+        const result = autoFormatAnnotationStateEntitiesOrgTree(state, {
+          preferredRootId: entity.id
         });
-        state.compactEntityRelationshipRouting = true;
-        entities.forEach(item => {
-          const original = originalEntityPositions.get(item.id);
-          const deltaX = item.x - original.x;
-          const deltaY = item.y - original.y;
-          if (!deltaX && !deltaY) return;
-          translateAllAnnotationObjects(annotationEntityAnnotationChildren(state, item), deltaX, deltaY);
-        });
-        syncAnnotationEntityAnnotationArrows(state);
         pushHistory();
         const cycleMessage = result.cycleBreakCount
           ? ` ${result.cycleBreakCount} dependency cycle${result.cycleBreakCount === 1 ? " was" : "s were"} placed deterministically.`
@@ -10510,6 +10497,32 @@ function annotationEntityRelationshipSelectionObject(relationship, globalStyleIn
     }
   });
   return object;
+}
+
+export function autoFormatAnnotationStateEntitiesOrgTree(stateInput, options = {}) {
+  const state = stateInput && typeof stateInput === "object" ? stateInput : {};
+  const entities = (Array.isArray(state.objects) ? state.objects : [])
+    .filter(object => object?.type === "entity");
+  const originalPositions = new Map(entities.map(entity => [
+    entity.id,
+    { x: entity.x, y: entity.y }
+  ]));
+  const result = autoFormatAnnotationEntitiesOrgTree(state.objects, {
+    preferredRootId: options.preferredRootId,
+    allowOverlappingLines: state.allowOverlappingEntityLines === true,
+    relationshipStyle: state.relationshipStyle,
+    gridSize: state.gridSize
+  });
+  state.compactEntityRelationshipRouting = true;
+  entities.forEach(entity => {
+    const original = originalPositions.get(entity.id);
+    const deltaX = entity.x - original.x;
+    const deltaY = entity.y - original.y;
+    if (!deltaX && !deltaY) return;
+    translateAllAnnotationObjects(annotationEntityAnnotationChildren(state, entity), deltaX, deltaY);
+  });
+  syncAnnotationEntityAnnotationArrows(state);
+  return result;
 }
 
 export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) {

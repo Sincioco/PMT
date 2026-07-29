@@ -1,8 +1,8 @@
-import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260729-diagram2-d1-relationships-v1";
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   createDiagram2CompactDiagnostics,
   diagram2CompactPhases
-} from "./diagram2-route-costing.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-route-costing.js?v=20260730-diagram2-d1-compact-parity-v1";
 
 export async function runDiagram2CompactEngine(input = {}) {
   const startedAt = performanceNow();
@@ -24,6 +24,7 @@ export async function runDiagram2CompactEngine(input = {}) {
     status: finalStatus,
     plan: null,
     diagnostics: createDiagram2CompactDiagnostics(state, state, {
+      scoreRoutes: false,
       totalElapsedMs: performanceNow() - startedAt,
       finalStatus
     })
@@ -45,14 +46,29 @@ export async function runDiagram2CompactEngine(input = {}) {
   await yieldToMain();
 
   if (signal?.aborted) return canceled("Canceled");
+  if (plan?.validation?.allowed === false) {
+    return {
+      status: "Blocked",
+      plan: null,
+      diagnostics: {
+        ...(plan.diagnostics || {}),
+        message: plan.validation.message,
+        totalElapsedMs: performanceNow() - startedAt,
+        finalStatus: "Blocked"
+      }
+    };
+  }
   if (!plan?.nextState) {
     return {
-      status: "No improvement",
+      status: "No change",
       plan: null,
-      diagnostics: plan?.diagnostics || createDiagram2CompactDiagnostics(state, state, {
+      diagnostics: {
+        ...(plan?.diagnostics || createDiagram2CompactDiagnostics(state, state, {
+          scoreRoutes: false
+        })),
         totalElapsedMs: performanceNow() - startedAt,
-        finalStatus: "No improvement"
-      })
+        finalStatus: "No change"
+      }
     };
   }
 

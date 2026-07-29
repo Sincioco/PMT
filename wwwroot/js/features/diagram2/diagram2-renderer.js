@@ -7,12 +7,12 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel
-} from "./diagram2-routing.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-d1-compact-parity-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -1666,7 +1666,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       overlay,
       relationship,
       renderRoute,
-      options.manualRoutes === true,
+      true,
       options.viewportScale
     );
   }
@@ -4071,6 +4071,12 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     ? lowDetailRelationshipRoute(relationship, route)
     : route;
   const style = relationshipStyle(relationship);
+  setSvgAttributes(node, {
+    "data-diagram2-relationship-route-points": JSON.stringify((Array.isArray(renderRoute?.points) ? renderRoute.points : []).map(point => ({
+      x: point.x,
+      y: point.y
+    })))
+  });
   let title = node.querySelector(":scope > title");
   if (!title) {
     title = createSvgElement(node, "title");

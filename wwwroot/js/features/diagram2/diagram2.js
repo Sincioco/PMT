@@ -18,7 +18,7 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260729-diagram2-d1-relationships-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
 import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260724-day36-v3";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
@@ -55,13 +55,13 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-d1-compact-parity-v1";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260729-diagram2-d1-relationships-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -82,7 +82,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -91,11 +91,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-d1-compact-parity-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260729-diagram2-d1-relationships-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -3107,6 +3107,12 @@ export function createDiagram2Feature({
 
   async function autoFormatDiagram2Compact() {
     if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const availability = diagram2Controller.compactAvailability();
+    if (!availability.allowed) {
+      notify?.(availability.message);
+      updateDiagram2EditorControls();
+      return false;
+    }
     const progress = openDiagram2CompactProgress(app);
     try {
       const applied = await diagram2Controller.autoFormatCompact({
@@ -3114,7 +3120,10 @@ export function createDiagram2Feature({
         onProgress: update => progress?.update(update)
       });
       if (!applied) {
-        notify?.(progress?.signal?.aborted ? "Diagram 2 Compact canceled." : "Diagram 2 Compact found no better layout.");
+        const diagnostics = diagram2Controller.diagnostics().lastCompact;
+        notify?.(progress?.signal?.aborted
+          ? "Diagram 2 Compact canceled."
+          : diagnostics?.message || "Diagram 2 Compact made no changes.");
         updateDiagram2EditorControls();
         return false;
       }
