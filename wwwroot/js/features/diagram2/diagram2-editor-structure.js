@@ -3,12 +3,12 @@ import {
   compactAnnotationGroupLayers,
   filterAnnotationObjectTree,
   reorderAnnotationObjectTree
-} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
-import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
+import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260730-diagram2-phase6-v1";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {
   const state = normalizeDiagram2CanonicalState(stateInput);

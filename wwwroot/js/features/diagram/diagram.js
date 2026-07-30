@@ -25,7 +25,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -50,8 +50,8 @@ import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260724-day36-v3";
-import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260725-diagram2-day2-v1";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260730-diagram2-phase6-v1";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260730-diagram2-phase6-v1";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);

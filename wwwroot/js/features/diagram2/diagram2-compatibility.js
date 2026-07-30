@@ -1,6 +1,6 @@
 import {
   buildAnnotationSvg
-} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
 import {
   canDiagramFeatureReadPmtDiagramFile,
   createDiagramSelectionClipboardPackage,
@@ -17,7 +17,7 @@ import {
   pmtDiagramFileVersion,
   remapDiagramSelectionClipboardPackageIds,
   serializeDiagramSelectionClipboardPackage
-} from "../../shared/diagram-contracts.js?v=20260725-diagram2-day3-v1";
+} from "../../shared/diagram-contracts.js?v=20260730-diagram2-phase6-v1";
 
 export const diagram2CompatibilityFeatureName = "Diagram 2";
 

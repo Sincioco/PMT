@@ -70,7 +70,7 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
 test("Diagram 2 renderer destroys pending 232-entity stress work without stale live maps", async ({ page }) => {
   await page.goto("/css/base.css");
   const result = await page.evaluate(async state => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -132,7 +132,7 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
 test("Diagram 2 Phase 3 stays incremental within 232-entity performance budgets", async ({ page }) => {
   await page.goto("/css/base.css");
   const result = await page.evaluate(async state => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "0";
@@ -273,7 +273,7 @@ test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle 
   await waitForDiagram2Ready(page);
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator("[data-action='cancel-diagram2-editor']").click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
   await openNavigationScreen(page, "Diagram");
   await expect(page.locator("[data-diagram2-screen]")).toHaveCount(0);
@@ -293,7 +293,7 @@ test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle 
     await page.getByRole("button", { name: "Edit Diagram" }).click();
     await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
     await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.locator("[data-action='cancel-diagram2-editor']").click();
     await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
     await openNavigationScreen(page, "Diagram");
     await expect(page.locator("[data-diagram2-screen]")).toHaveCount(0);

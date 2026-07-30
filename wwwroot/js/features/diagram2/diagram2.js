@@ -18,8 +18,8 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
-import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260724-day36-v3";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260730-diagram2-phase6-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -46,7 +46,7 @@ import {
   diagramUpdatedTime,
   loadDiagramCanonicalState,
   loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
+} from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js";
@@ -55,13 +55,14 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-v1";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -82,7 +83,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -91,11 +92,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -168,6 +169,7 @@ export function createDiagram2Feature({
   let diagram2ReadonlyScrollPosition = null;
   let diagram2Controller = null;
   let diagram2HostAdapter = null;
+  let diagram2Phase6Host = null;
   let diagram2TreeContextMenuController = null;
   let diagram2DocumentMode = "readonly";
   let diagram2ModeDocumentId = 0;
@@ -318,6 +320,7 @@ export function createDiagram2Feature({
       if (diagram2DocumentMode === "edit") await closeDiagram2Editor();
       return true;
     }
+    if (diagram2Phase6Host && await diagram2Phase6Host.handleAction(action)) return true;
     if (action === "delete-diagram2") {
       const document = diagram2AllDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
       if (document && diagram2CanDelete(document)) await deleteDiagram2Document(document);
@@ -342,7 +345,16 @@ export function createDiagram2Feature({
         if (diagram2Controller?.activeTool() === "format-painter") diagram2Controller.cancelFormatPainter();
         else diagram2Controller?.beginFormatPainter();
       }
-      else diagram2Controller?.setActiveTool(tool);
+      else {
+        diagram2Controller?.setActiveTool(tool);
+        if (tool === "crop") {
+          const image = diagram2Controller?.getObjectsByIds(diagram2Controller.selectedObjectIds())
+            .find(object => object?.type === "embedded-image");
+          diagram2Renderer?.setCropTarget?.(image?.id || "");
+        } else {
+          diagram2Renderer?.clearCropPreview?.();
+        }
+      }
       updateDiagram2EditorControls();
       return true;
     }
@@ -1297,6 +1309,25 @@ export function createDiagram2Feature({
           ${diagram2DiagnosticItemHtml("routed-relationship-count", "Routed relationship count")}
           ${diagram2DiagnosticItemHtml("dirty-flush-count", "Dirty flush count")}
           ${diagram2DiagnosticItemHtml("last-flush-duration", "Last flush duration")}
+          ${diagram2DiagnosticItemHtml("image-decode-count", "Image decode count")}
+          ${diagram2DiagnosticItemHtml("image-cache-miss-count", "Image cache misses")}
+          ${diagram2DiagnosticItemHtml("image-cache-hit-count", "Image cache hits")}
+          ${diagram2DiagnosticItemHtml("image-resource-release-count", "Image resource releases")}
+          ${diagram2DiagnosticItemHtml("cached-image-count", "Cached image count")}
+          ${diagram2DiagnosticItemHtml("image-error-count", "Image errors")}
+          ${diagram2DiagnosticItemHtml("mapping-count", "Field mapping count")}
+          ${diagram2DiagnosticItemHtml("mapping-target-field-index-count", "Mapping target-field indexes")}
+          ${diagram2DiagnosticItemHtml("mapping-source-image-index-count", "Mapping source-image indexes")}
+          ${diagram2DiagnosticItemHtml("mapping-table-index-count", "Mapping table indexes")}
+          ${diagram2DiagnosticItemHtml("mapping-row-index-count", "Mapping row indexes")}
+          ${diagram2DiagnosticItemHtml("mapping-route-index-count", "Mapping route indexes")}
+          ${diagram2DiagnosticItemHtml("mapping-index-full-build-count", "Mapping index full builds")}
+          ${diagram2DiagnosticItemHtml("mapping-index-incremental-patch-count", "Mapping index local patches")}
+          ${diagram2DiagnosticItemHtml("mapping-index-incremental-object-visit-count", "Mapping index local visits")}
+          ${diagram2DiagnosticItemHtml("mapping-hover-patch-count", "Mapping hover patches")}
+          ${diagram2DiagnosticItemHtml("crop-preview-frame-count", "Crop preview frames")}
+          ${diagram2DiagnosticItemHtml("crop-preview-active", "Crop preview active")}
+          ${diagram2DiagnosticItemHtml("crop-target-id", "Crop target ID")}
           ${diagram2DiagnosticItemHtml("geometry-preview-active", "Geometry preview active")}
           ${diagram2DiagnosticItemHtml("geometry-preview-reason", "Geometry preview reason")}
           ${diagram2DiagnosticItemHtml("geometry-preview-object-ids", "Preview object IDs")}
@@ -1398,6 +1429,25 @@ export function createDiagram2Feature({
       "routed-relationship-count": diagnostics.routedRelationshipCount,
       "dirty-flush-count": diagnostics.dirtyFlushCount,
       "last-flush-duration": `${diagnostics.lastFlushDuration} ms`,
+      "image-decode-count": diagnostics.decodeCount,
+      "image-cache-miss-count": diagnostics.cacheMissCount,
+      "image-cache-hit-count": diagnostics.cacheHitCount,
+      "image-resource-release-count": diagnostics.resourceReleaseCount,
+      "cached-image-count": diagnostics.cachedImageCount,
+      "image-error-count": diagnostics.errorCount,
+      "mapping-count": diagnostics.mappingCount,
+      "mapping-target-field-index-count": diagnostics.mappingTargetFieldIndexCount,
+      "mapping-source-image-index-count": diagnostics.mappingSourceImageIndexCount,
+      "mapping-table-index-count": diagnostics.mappingTableIndexCount,
+      "mapping-row-index-count": diagnostics.mappingRowIndexCount,
+      "mapping-route-index-count": diagnostics.mappingRouteIndexCount,
+      "mapping-index-full-build-count": diagnostics.mappingIndexFullBuildCount,
+      "mapping-index-incremental-patch-count": diagnostics.mappingIndexIncrementalPatchCount,
+      "mapping-index-incremental-object-visit-count": diagnostics.mappingIndexIncrementalObjectVisitCount,
+      "mapping-hover-patch-count": diagnostics.mappingHoverPatchCount,
+      "crop-preview-frame-count": diagnostics.cropPreviewFrameCount,
+      "crop-preview-active": diagnostics.cropPreviewActive,
+      "crop-target-id": diagnostics.cropTargetId,
       "geometry-preview-active": diagnostics.geometryPreviewActive,
       "geometry-preview-reason": diagnostics.geometryPreviewReason,
       "geometry-preview-object-ids": diagnostics.geometryPreviewObjectIds,
@@ -1703,6 +1753,7 @@ export function createDiagram2Feature({
     diagram2Renderer = null;
     diagram2Controller = null;
     diagram2HostAdapter = null;
+    diagram2Phase6Host = null;
     diagram2RendererDocumentId = 0;
     diagram2RendererState = null;
     diagram2SelectedObjectIds = [];
@@ -1766,6 +1817,12 @@ export function createDiagram2Feature({
       applyRelationshipOption: (name, value) => applyDiagram2RelationshipOption(name, value),
       applyRelationshipStyle: (name, value) => applyDiagram2SelectedRelationshipStyle(name, value),
       applyRelationshipType: value => applyDiagram2SelectedRelationshipType(value),
+      applyCropInsets: values => diagram2Phase6Host?.applyCropInsets(values),
+      applyCropCorners: values => diagram2Phase6Host?.applyCropCorners(values),
+      applyCropCornerRadius: value => diagram2Phase6Host?.applyCropCornerRadius(value),
+      setCropVisibility: value => diagram2Phase6Host?.setCropVisibility(value),
+      renameFieldRectangle: value => diagram2Phase6Host?.renameFieldRectangle(value),
+      setFieldRectangleConnectionSide: value => diagram2Phase6Host?.setFieldRectangleConnectionSide(value),
       notify
     });
   }
@@ -2019,6 +2076,18 @@ export function createDiagram2Feature({
     const { signal } = viewportAbortController;
     bindDiagram2CanvasContextMenu(viewer, canvas, signal, { editMode });
     if (editMode) {
+      diagram2Phase6Host = createDiagram2Phase6Host({
+        root: viewer,
+        controller: diagram2Controller,
+        renderer: diagram2Renderer,
+        uploadEmbeddedImage,
+        insertionCenter: diagram2InsertionCenter,
+        canMutate: diagram2CanMutateCurrentDocument,
+        afterMutation: finishDiagram2ObjectCommand,
+        confirm,
+        notify
+      });
+      diagram2Phase6Host.bind(signal);
       bindDiagram2EditorInteractions({
         root: viewer,
         canvas,
@@ -2056,6 +2125,7 @@ export function createDiagram2Feature({
       });
       return;
     }
+    bindDiagram2ReadonlyMappingInteractions(canvas, signal);
     canvas.addEventListener("wheel", event => {
       if (!diagram2Renderer) return;
       event.preventDefault();
@@ -2094,6 +2164,7 @@ export function createDiagram2Feature({
 
     canvas.addEventListener("pointerdown", event => {
       if (!diagram2Renderer || (event.button !== 0 && event.button !== 1)) return;
+      if (event.button === 0 && event.target.closest?.("[data-diagram2-field-mapping-row]")) return;
       event.preventDefault();
 
       abortDiagram2Pan();
@@ -2123,6 +2194,42 @@ export function createDiagram2Feature({
 
     canvas.addEventListener("auxclick", event => {
       if (event.button === 1) event.preventDefault();
+    }, { signal });
+  }
+
+  function bindDiagram2ReadonlyMappingInteractions(canvas, signal) {
+    const show = row => diagram2Renderer?.showFieldMappingHover?.(
+      row?.dataset?.diagram2FieldMappingId,
+      { tableId: row?.dataset?.diagram2FieldMappingTableId }
+    );
+    canvas.addEventListener("pointerover", event => {
+      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+      if (!row || event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]") === row) return;
+      show(row);
+    }, { signal });
+    canvas.addEventListener("pointerout", event => {
+      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+      if (!row || event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]") === row) return;
+      diagram2Renderer?.clearFieldMappingHover?.();
+    }, { signal });
+    canvas.addEventListener("click", event => {
+      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+      if (!row) return;
+      event.preventDefault();
+      show(row);
+    }, { signal });
+    canvas.addEventListener("dblclick", event => {
+      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+      if (!row) return;
+      event.preventDefault();
+      diagram2Renderer?.focusFieldMappingTarget?.(row.dataset.diagram2FieldMappingId);
+    }, { signal });
+    canvas.addEventListener("keydown", event => {
+      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+      if (!row || !["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      show(row);
+      if (event.key === "Enter") diagram2Renderer?.focusFieldMappingTarget?.(row.dataset.diagram2FieldMappingId);
     }, { signal });
   }
 
@@ -2551,83 +2658,8 @@ export function createDiagram2Feature({
   }
 
   async function addDiagram2ClipboardImage(file) {
-    if (typeof uploadEmbeddedImage !== "function") {
-      throw new Error("Image uploads are not available in Diagram 2.");
-    }
-
-    const stored = await uploadEmbeddedImage(file);
-    const source = String(stored?.url || stored || "").trim();
-    if (!source) throw new Error("The uploaded image URL is invalid.");
-
-    const dimensions = await diagram2ImageDimensions(source);
-    const center = diagram2Controller.snapPoint(diagram2InsertionCenter());
-    const x = center.x - (dimensions.width / 2);
-    const y = center.y - (dimensions.height / 2);
-    const object = {
-      id: diagram2ClipboardImageId(),
-      type: "embedded-image",
-      name: diagram2UniqueImageName(file.name || "Image"),
-      x,
-      y,
-      width: dimensions.width,
-      height: dimensions.height,
-      source,
-      imageClip: {
-        x,
-        y,
-        width: dimensions.width,
-        height: dimensions.height
-      },
-      isOriginalImage: false,
-      locked: false,
-      groupId: ""
-    };
-
-    const added = await diagram2Controller.addObject(object, {
-      label: "Paste image",
-      reason: "clipboard paste image"
-    });
-    if (!added) throw new Error("The pasted image could not be added to the canvas.");
-
-    diagram2Controller.setActiveTool("select");
-    await finishDiagram2ObjectCommand();
-    return true;
-  }
-
-  function diagram2ClipboardImageId() {
-    let id = "";
-    do {
-      id = `embedded-image-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    } while (diagram2Controller?.getObjectById?.(id));
-    return id;
-  }
-
-  function diagram2UniqueImageName(nameInput) {
-    const name = String(nameInput || "Image").trim() || "Image";
-    const names = new Set((diagram2Controller?.currentState?.().objects || [])
-      .map(object => String(object?.name || "").trim().toLowerCase())
-      .filter(Boolean));
-    if (!names.has(name.toLowerCase())) return name;
-    let suffix = 1;
-    while (names.has(`${name} ${suffix}`.toLowerCase())) suffix += 1;
-    return `${name} ${suffix}`;
-  }
-
-  function diagram2ImageDimensions(source) {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.addEventListener("load", () => {
-        const width = image.naturalWidth || image.width;
-        const height = image.naturalHeight || image.height;
-        if (!width || !height) {
-          reject(new Error("The image dimensions could not be read."));
-          return;
-        }
-        resolve({ width, height });
-      }, { once: true });
-      image.addEventListener("error", () => reject(new Error("The pasted image could not be decoded.")), { once: true });
-      image.src = source;
-    });
+    if (!diagram2Phase6Host) throw new Error("Image uploads are not available in Diagram 2.");
+    return diagram2Phase6Host.addImageFiles([file]);
   }
 
   async function duplicateDiagram2Selection() {

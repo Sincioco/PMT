@@ -3,7 +3,7 @@ import {
   normalizeAnnotationState,
   normalizeAnnotationTemplateLibrary,
   parseAnnotationSvg
-} from "../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
 
 export const pmtDiagramFileFormat = "pmt-diagram";
 export const pmtDiagramFileVersion = 1;

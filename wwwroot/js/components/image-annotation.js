@@ -8,7 +8,7 @@ import {
   parseDiagramSelectionClipboardPackage,
   remapDiagramSelectionClipboardPackageIds,
   serializeDiagramSelectionClipboardPackage
-} from "../shared/diagram-contracts.js?v=20260725-diagram2-day3-v1";
+} from "../shared/diagram-contracts.js?v=20260730-diagram2-phase6-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const annotationVersion = 1;
@@ -796,7 +796,7 @@ function safeAnnotationFieldRectangleConnectionSide(value) {
   return ["left", "top", "right", "bottom"].includes(normalized) ? normalized : "right";
 }
 
-function annotationFieldRectangleName(object) {
+export function annotationFieldRectangleName(object) {
   return safeAnnotationName(
     object?.fieldRectangleName
     || object?.fields?.[0]?.name
@@ -868,7 +868,7 @@ function annotationFieldRectangleObjectTreeLabel(entity, objectsInput) {
   return targetName ? `Field: ${fieldName} (${targetName})` : `Field: ${fieldName}`;
 }
 
-function annotationFieldRectangleTableRows(objectsInput, image = null) {
+export function annotationFieldRectangleTableRows(objectsInput, image = null) {
   const objects = Array.isArray(objectsInput) ? objectsInput : [];
   return objects
     .filter(isAnnotationFieldRectangle)
@@ -899,7 +899,7 @@ function annotationRelationshipUsesFieldRectangle(relationship) {
     || isAnnotationFieldRectangle(relationship?.target);
 }
 
-function annotationFieldMappingImages(objectsInput) {
+export function annotationFieldMappingImages(objectsInput) {
   const objects = Array.isArray(objectsInput) ? objectsInput : [];
   return objects
     .filter(object => object?.type === "embedded-image")
@@ -961,7 +961,7 @@ function normalizeAnnotationFieldMappingTableRow(input) {
   };
 }
 
-function normalizeAnnotationFieldMappingTableStyle(input) {
+export function normalizeAnnotationFieldMappingTableStyle(input) {
   const source = input && typeof input === "object" ? input : {};
   return {
     headerTextColor: safeColor(source.headerTextColor, defaultFieldMappingTableStyle.headerTextColor),
@@ -1004,7 +1004,7 @@ function annotationFieldMappingTableTextWidth(value, fontSize, fontFamily = "Ari
   return bold ? width * 1.08 : width;
 }
 
-function annotationFieldMappingTableLayout(object) {
+export function annotationFieldMappingTableLayout(object) {
   const rows = Array.isArray(object?.rows) ? object.rows : [];
   const fontSize = clampNumber(positiveNumber(object?.fontSize, 14), 1, 240);
   const fontFamily = safeFont(object?.fontFamily);
@@ -2977,7 +2977,7 @@ function annotationStateWithCanvasBounds(inputState, bounds) {
   });
 }
 
-function annotationEmbeddedImageEffectiveClip(object) {
+export function annotationEmbeddedImageEffectiveClip(object) {
   const fullBounds = annotationObjectBounds(object);
   if (!fullBounds) return null;
   if (object?.cropVisible === false) return fullBounds;
@@ -3004,7 +3004,7 @@ function safeAnnotationCropCornerRadii(input, fallback = 0) {
   return hasCorner ? radii : null;
 }
 
-function annotationImageCropCornerRadii(object, clip = null) {
+export function annotationImageCropCornerRadii(object, clip = null) {
   const uniform = safeAnnotationCropCornerRadius(object?.cropCornerRadius);
   const custom = safeAnnotationCropCornerRadii(object?.cropCornerRadii, uniform);
   const source = custom || {
@@ -3029,7 +3029,7 @@ function annotationImageHasCropCornerRadius(object) {
   return Object.values(annotationImageCropCornerRadii(object)).some(radius => radius > 0);
 }
 
-function annotationImageCropInsets(object) {
+export function annotationImageCropInsets(object) {
   const fullBounds = annotationObjectBounds(object);
   const clip = annotationEmbeddedImageEffectiveClip(object);
   if (!fullBounds || !clip) return { left: 0, top: 0, right: 0, bottom: 0 };

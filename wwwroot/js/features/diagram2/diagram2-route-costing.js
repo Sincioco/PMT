@@ -1,12 +1,12 @@
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-v1";
 
 export const diagram2CompactPhases = Object.freeze([
   "Analyzing Entities",

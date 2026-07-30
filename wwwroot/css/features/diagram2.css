@@ -247,6 +247,15 @@ body.diagram2-edit-mode-active #app {
   cursor: grab;
 }
 
+.diagram2-editor-shell .diagram2-viewer-canvas[data-diagram2-active-tool="crop"] {
+  cursor: crosshair;
+}
+
+.diagram2-viewer-canvas.is-image-drop-target {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: -3px;
+}
+
 .diagram2-viewer-canvas.is-resizing-object {
   cursor: default;
 }
@@ -276,6 +285,32 @@ body.diagram2-edit-mode-active #app {
   cursor: ew-resize;
 }
 
+[data-diagram2-crop-handle="nw"],
+[data-diagram2-crop-handle="se"] {
+  cursor: nwse-resize;
+}
+
+[data-diagram2-crop-handle="ne"],
+[data-diagram2-crop-handle="sw"] {
+  cursor: nesw-resize;
+}
+
+[data-diagram2-crop-handle="n"],
+[data-diagram2-crop-handle="s"] {
+  cursor: ns-resize;
+}
+
+[data-diagram2-crop-handle="e"],
+[data-diagram2-crop-handle="w"] {
+  cursor: ew-resize;
+}
+
+[data-diagram2-crop-handle]:focus-visible {
+  outline: none;
+  fill: var(--color-focus-ring);
+  stroke: #ffffff;
+}
+
 .diagram2-renderer-resize-handle[data-diagram2-resize-handle="arrow-base"],
 .diagram2-renderer-resize-handle[data-diagram2-resize-handle="arrow-tip"] {
   cursor: crosshair;
@@ -296,6 +331,26 @@ body.diagram2-edit-mode-active #app {
 
 .diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row]:hover [data-diagram2-field-mapping-cell-fill] {
   fill: var(--diagram2-field-mapping-row-hover-fill);
+}
+
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row] {
+  cursor: pointer;
+  outline: none;
+}
+
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row]:focus-visible [data-diagram2-field-mapping-cell-fill] {
+  stroke: var(--color-focus-ring);
+  stroke-width: 2;
+}
+
+.diagram2-renderer-image-fallback {
+  fill: #f1f2f4;
+  stroke: #b3b9c4;
+}
+
+.diagram2-renderer-image-fallback-label {
+  pointer-events: none;
+  user-select: none;
 }
 
 .diagram2-renderer-surface {
@@ -336,6 +391,10 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-renderer-svg.is-geometry-previewing .diagram2-renderer-selection {
+  visibility: hidden;
+}
+
+.diagram2-renderer-svg.is-crop-previewing .diagram2-renderer-selection {
   visibility: hidden;
 }
 
@@ -747,7 +806,9 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-editor-inspector .image-annotation-inspector-tabs button[hidden],
-.diagram2-editor-inspector [data-diagram2-inspector-panel][hidden] {
+.diagram2-editor-inspector [data-diagram2-inspector-panel][hidden],
+.diagram2-editor-inspector [data-diagram2-entity-only][hidden],
+.diagram2-editor-inspector [data-diagram2-entity-relationship-only][hidden] {
   display: none;
 }
 

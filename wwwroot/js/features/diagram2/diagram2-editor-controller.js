@@ -2,12 +2,39 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
+import {
+  createDiagram2EmbeddedImage
+} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-v1";
+import {
+  permanentlyCropDiagram2Image
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+import {
+  createDiagram2EntityAnnotationIndexes,
+  createDiagram2EntityAnnotationPlan
+} from "./diagram2-editor-entity-annotations.js?v=20260730-diagram2-phase6-v1";
+import {
+  createDiagram2FieldRectangle,
+  diagram2FieldRectangleMapping,
+  isDiagram2FieldRectangle,
+  renameDiagram2FieldRectangle,
+  setDiagram2FieldRectangleConnectionSide,
+  setDiagram2FieldRectangleMapping
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-v1";
+import {
+  createDiagram2FieldMappingIndexes,
+  patchDiagram2FieldMappingIndexes
+} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-v1";
+import {
+  createDiagram2FieldMappingTable,
+  syncDiagram2FieldMappingTableForFieldRectangle,
+  syncDiagram2FieldMappingTableForImage
+} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-v1";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
@@ -18,10 +45,9 @@ import {
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-v1";
 import {
   createDiagram2StructureStateCommand,
-  diagram2ExpandGroupSelectionIds,
   diagram2GroupSelectionPlan,
   diagram2LayerActionLabel as diagram2StructureLayerActionLabel,
   diagram2LayerOrderPlan,
@@ -31,15 +57,15 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-d1-compact-parity-v1";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-phase6-v1";
 import {
   diagram2AddRelationshipPlan,
   diagram2AdjustRelationshipRoutePlan,
@@ -55,14 +81,14 @@ import {
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260730-diagram2-d1-compact-parity-v1";
-const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"]);
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260730-diagram2-phase6-v1";
+const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
   stroke: "#3f7f0d",
@@ -94,7 +120,7 @@ const diagram2StyleTargets = new Map([
   ["outlineVisible", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
   ["strokeWidth", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line", "entity-relationship", "entity-relationships"])],
   ["arrowSize", new Set(["arrow", "entity-relationship", "entity-relationships"])],
-  ["opacity", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line", "entity-relationship", "entity-relationships"])],
+  ["opacity", new Set(["embedded-image", "rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line", "entity-relationship", "entity-relationships"])],
   ["textColor", new Set(["textbox", "entity", "field-mapping-table"])],
   ["fontFamily", new Set(["textbox", "entity", "field-mapping-table"])],
   ["fontSize", new Set(["textbox", "entity", "field-mapping-table"])],
@@ -245,6 +271,17 @@ export function createDiagram2DefaultObject(typeInput, centerInput = {}, options
     groupId: ""
   };
 
+  if (type === "field-rectangle") {
+    return createDiagram2FieldRectangle({
+      id,
+      name: options.fieldRectangleName || "Field",
+      x: center.x - 110,
+      y: center.y - 38,
+      width: 220,
+      height: 76
+    });
+  }
+
   if (type === "arrow" || type === "line") {
     const object = {
       ...base,
@@ -299,6 +336,9 @@ export function createDiagram2EditorController(options = {}) {
   let canonicalState = normalizeDiagram2CanonicalState(options.state || null);
   let objectById = new Map();
   let objectIndexById = new Map();
+  let objectIdsByGroupId = new Map();
+  let entityAnnotationIndexes = createDiagram2EntityAnnotationIndexes();
+  let fieldMappingIndexesState = createDiagram2FieldMappingIndexes();
   let canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
   let selectedObjectIds = [];
   let activeTool = "select";
@@ -391,7 +431,7 @@ export function createDiagram2EditorController(options = {}) {
     const nextTool = String(tool || "select").trim().toLowerCase();
     activeTool = nextTool === "format-painter" && formatPainterStyles
       ? "format-painter"
-      : ["select", "pan"].includes(nextTool) ? nextTool : "select";
+      : ["select", "pan", "crop"].includes(nextTool) ? nextTool : "select";
     if (activeTool !== "format-painter") formatPainterStyles = null;
     emit("tool");
     return activeTool;
@@ -605,6 +645,234 @@ export function createDiagram2EditorController(options = {}) {
       groupVisibility: commandOptions.groupVisibility,
       label: commandOptions.label || "Add objects",
       reason: commandOptions.reason || "add objects"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function addEmbeddedImage(options = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const object = options?.type === "embedded-image"
+      ? options
+      : createDiagram2EmbeddedImage(options);
+    return addObject(object, {
+      label: commandOptions.label || "Add image",
+      reason: commandOptions.reason || "add image"
+    });
+  }
+
+  async function updateEmbeddedImageCrop(objectId, patchInput = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const image = getObjectById(objectId);
+    if (image?.type !== "embedded-image" || image.locked === true) return false;
+    const nextImage = { ...cloneDiagram2Value(image), ...(patchInput || {}) };
+    if (nextImage.cropCornerRadii == null) delete nextImage.cropCornerRadii;
+    if (sameDiagram2Value(image, nextImage)) return false;
+    const tableUpdates = (fieldMappingIndexesState.tableIdsBySourceImageId.get(image.id) || [])
+      .map(id => getObjectById(id))
+      .filter(Boolean)
+      .map(table => ({
+        table,
+        next: syncDiagram2FieldMappingTableForImage(table, nextImage, fieldMappingIndexesState)
+      }))
+      .filter(item => item.next !== item.table)
+      .map(item => item.next);
+    return executeDiagram2ObjectDelta({
+      beforeObjects: [image, ...tableUpdates.map(table => getObjectById(table.id)).filter(Boolean)],
+      afterObjects: [nextImage, ...tableUpdates],
+      selectionAfter: [image.id]
+    }, {
+      label: commandOptions.label || "Crop image",
+      reason: commandOptions.reason || "crop image"
+    });
+  }
+
+  async function setEmbeddedImageCropVisibility(objectId, visible, commandOptions = {}) {
+    return updateEmbeddedImageCrop(objectId, { cropVisible: visible !== false }, {
+      label: commandOptions.label || (visible === false ? "Hide image crop" : "Show image crop"),
+      reason: commandOptions.reason || "change image crop visibility"
+    });
+  }
+
+  async function permanentlyCropEmbeddedImage(objectId, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const image = getObjectById(objectId);
+    if (image?.type !== "embedded-image" || image.locked === true) return false;
+    const { object } = await permanentlyCropDiagram2Image(cloneDiagram2Value(image));
+    const applied = await updateEmbeddedImageCrop(objectId, object, {
+      label: commandOptions.label || "Permanently crop image",
+      reason: commandOptions.reason || "permanently crop image"
+    });
+    if (applied) {
+      history.reset({ saved: false });
+      emit("history");
+    }
+    return applied;
+  }
+
+  async function setEntityAnnotation(objectId, value, annotationOptions = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = createDiagram2EntityAnnotationPlan(canonicalState, objectId, value, annotationOptions);
+    if (!plan) return false;
+    return executeDiagram2ObjectDelta({
+      ...plan,
+      selectionAfter: [objectId]
+    }, {
+      label: commandOptions.label || "Edit Entity annotation",
+      reason: commandOptions.reason || "edit Entity annotation"
+    });
+  }
+
+  async function addFieldRectangle(centerInput = {}, fieldOptions = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const center = snapPoint(centerInput || defaultDiagram2CanvasCenter);
+    const object = createDiagram2FieldRectangle({
+      ...fieldOptions,
+      x: center.x - (positiveNumber(fieldOptions.width, 220) / 2),
+      y: center.y - (positiveNumber(fieldOptions.height, 76) / 2)
+    });
+    return addObject(object, {
+      label: commandOptions.label || "Add Field Rectangle",
+      reason: commandOptions.reason || "add Field Rectangle"
+    });
+  }
+
+  async function renameFieldRectangle(objectId, name, commandOptions = {}) {
+    const object = getObjectById(objectId);
+    const next = renameDiagram2FieldRectangle(object, name);
+    return updateFieldRectangleAndTables(object, next, {
+      label: commandOptions.label || "Rename Field Rectangle",
+      reason: commandOptions.reason || "rename Field Rectangle"
+    });
+  }
+
+  async function setFieldRectangleConnectionSide(objectId, side, commandOptions = {}) {
+    const object = getObjectById(objectId);
+    const next = setDiagram2FieldRectangleConnectionSide(object, side);
+    return updateFieldRectangleAndTables(object, next, {
+      label: commandOptions.label || "Change Field Rectangle connection side",
+      reason: commandOptions.reason || "change Field Rectangle connection side"
+    });
+  }
+
+  async function setFieldRectangleMapping(objectId, mapping, commandOptions = {}) {
+    const object = getObjectById(objectId);
+    const mappedName = diagram2MappedFieldRectangleName(mapping?.referencedField);
+    const renamed = mappedName ? renameDiagram2FieldRectangle(object, mappedName) : object;
+    const next = setDiagram2FieldRectangleMapping(renamed, mapping);
+    return updateFieldRectangleAndTables(object, next, {
+      label: commandOptions.label || (mapping ? "Map Field Rectangle" : "Remove Field Rectangle mapping"),
+      reason: commandOptions.reason || (mapping ? "map Field Rectangle" : "remove Field Rectangle mapping")
+    });
+  }
+
+  async function updateFieldRectangleAndTables(object, next, commandOptions = {}) {
+    if (busy || destroyed || !canMutate() || !isDiagram2FieldRectangle(object)
+      || object.locked === true || !next || sameDiagram2Value(object, next)) return false;
+    const tableIds = new Set(fieldMappingIndexesState.tableIdsByFieldRectangleId.get(object.id) || []);
+    (fieldMappingIndexesState.imageIdsByFieldRectangleId.get(object.id) || []).forEach(imageId => {
+      (fieldMappingIndexesState.tableIdsBySourceImageId.get(imageId) || [])
+        .forEach(tableId => tableIds.add(tableId));
+    });
+    const tableUpdates = [...tableIds]
+      .map(id => getObjectById(id))
+      .filter(Boolean)
+      .map(table => ({
+        table,
+        next: syncDiagram2FieldMappingTableForFieldRectangle(
+          table,
+          next,
+          fieldMappingIndexesState
+        )
+      }))
+      .filter(item => item.next !== item.table)
+      .map(item => item.next);
+    return executeDiagram2ObjectDelta({
+      beforeObjects: [object, ...tableUpdates.map(table => getObjectById(table.id)).filter(Boolean)],
+      afterObjects: [next, ...tableUpdates],
+      selectionAfter: [object.id]
+    }, commandOptions);
+  }
+
+  async function addFieldMappingTable(imageId, tableOptions = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const existing = canonicalState.objects.find(object =>
+      object?.type === "field-mapping-table" && object.sourceImageId === imageId);
+    if (existing) {
+      const image = getObjectById(imageId);
+      const next = syncDiagram2FieldMappingTableForImage(
+        existing,
+        image,
+        fieldMappingIndexesState
+      );
+      if (next !== existing) {
+        return executeDiagram2ObjectDelta({
+          beforeObjects: [existing],
+          afterObjects: [next],
+          selectionAfter: [existing.id]
+        }, {
+          label: commandOptions.label || "Update Field Mapping Table",
+          reason: commandOptions.reason || "update Field Mapping Table"
+        });
+      }
+      setSelection([existing.id], { expandGroups: false });
+      return true;
+    }
+    const table = createDiagram2FieldMappingTable(canonicalState, imageId, {
+      ...tableOptions,
+      indexes: fieldMappingIndexesState
+    });
+    if (!table) return false;
+    return addObject(table, {
+      label: commandOptions.label || "Add Field Mapping Table",
+      reason: commandOptions.reason || "add Field Mapping Table"
+    });
+  }
+
+  function fieldMappingIndexes() {
+    return fieldMappingIndexesState;
+  }
+
+  function fieldRectangleMapping(objectId) {
+    return diagram2FieldRectangleMapping(getObjectById(objectId));
+  }
+
+  function selectFieldMapping(mappingIdInput, selectionOptions = {}) {
+    const mappingId = String(mappingIdInput || "").trim();
+    const indexes = fieldMappingIndexes();
+    const mapping = indexes.mappingsById.get(mappingId);
+    if (!mapping) return null;
+    const relationshipId = mapping.relationshipId || "";
+    const ids = [
+      mapping.sourceId,
+      relationshipId,
+      mapping.targetId
+    ].filter(Boolean);
+    setSelection(ids, { expandGroups: false });
+    if (selectionOptions.focusTarget === true && mapping.targetId) {
+      renderer?.focusObjectIds?.([mapping.targetId], {
+        reason: "focus Field mapping target"
+      });
+    }
+    return {
+      ...mapping,
+      relationshipId,
+      selectedIds: ids
+    };
+  }
+
+  async function executeDiagram2ObjectDelta(planInput = {}, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = buildDiagram2ObjectDeltaPlan(canonicalState, {
+      ...planInput,
+      selectionBefore: planInput.selectionBefore || selectedObjectIds
+    }, objectIndexById, objectById);
+    if (!plan || !plan.touchedObjectIds.length) return false;
+    const command = createDiagram2ObjectDeltaCommand({
+      ...plan,
+      label: commandOptions.label || "Update objects",
+      reason: commandOptions.reason || "update objects"
     });
     await history.execute(command, commandContext());
     emit("history");
@@ -1451,6 +1719,13 @@ export function createDiagram2EditorController(options = {}) {
       ...canonicalState,
       objects: nextObjects
     };
+    patchDiagram2FieldMappingIndexes(
+      fieldMappingIndexesState,
+      [...nextObjectsById.keys()].map(id => ({
+        previousObject: previousObjectsById.get(id) || null,
+        nextObject: nextObjectsById.get(id) || null
+      }))
+    );
     canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     return recordCanonicalOperation({
       kind: "update-objects",
@@ -1504,6 +1779,10 @@ export function createDiagram2EditorController(options = {}) {
     };
     objectIndexById.set(objectId, nextObjects.length - 1);
     objectById.set(objectId, nextObject);
+    patchDiagram2FieldMappingIndexes(fieldMappingIndexesState, {
+      previousObject: null,
+      nextObject
+    });
     canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     return recordCanonicalOperation({
       kind: "add-object",
@@ -1807,8 +2086,15 @@ export function createDiagram2EditorController(options = {}) {
     const exactIds = uniqueStrings(ids);
     const objectIds = exactIds.filter(id => objectIndexById.has(id));
     const relationshipIds = exactIds.filter(id => !objectIndexById.has(id));
+    const expandedObjectIds = new Set(objectIds);
+    objectIds.forEach(id => {
+      const object = objectById.get(id);
+      const groupId = String(object?.groupId || object?.entityAnnotationGroupId || "").trim();
+      (objectIdsByGroupId.get(groupId) || []).forEach(groupObjectId => expandedObjectIds.add(groupObjectId));
+      (entityAnnotationIndexes.childrenByOwnerId.get(id) || []).forEach(childId => expandedObjectIds.add(childId));
+    });
     return [
-      ...diagram2ExpandGroupSelectionIds(canonicalState, objectIds),
+      ...expandedObjectIds,
       ...relationshipIds
     ];
   }
@@ -1816,12 +2102,21 @@ export function createDiagram2EditorController(options = {}) {
   function rebuildCanonicalObjectIndex() {
     objectById = new Map();
     objectIndexById = new Map();
+    objectIdsByGroupId = new Map();
     canonicalState.objects.forEach((object, index) => {
       const id = String(object?.id || "").trim();
       if (!id || objectIndexById.has(id)) return;
       objectById.set(id, object);
       objectIndexById.set(id, index);
+      const groupId = String(object?.groupId || "").trim();
+      if (groupId) {
+        const objectIds = objectIdsByGroupId.get(groupId) || [];
+        objectIds.push(id);
+        objectIdsByGroupId.set(groupId, objectIds);
+      }
     });
+    entityAnnotationIndexes = createDiagram2EntityAnnotationIndexes(canonicalState.objects);
+    fieldMappingIndexesState = createDiagram2FieldMappingIndexes(canonicalState.objects);
   }
 
   function resolveCanonicalObjectUpdate(previousObject, id, updater, ordinal, updateOptions = {}) {
@@ -1849,6 +2144,8 @@ export function createDiagram2EditorController(options = {}) {
     return {
       canonicalObjectCount: canonicalState.objects.length,
       canonicalIndexSize: objectIndexById.size,
+      entityAnnotationOwnerIndexSize: entityAnnotationIndexes.childrenByOwnerId.size,
+      entityAnnotationChildIndexSize: entityAnnotationIndexes.ownerIdByChildId.size,
       canonicalRevision,
       fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount,
       fullStateSerializationCount: canonicalDiagnostics.fullStateSerializationCount,
@@ -1888,6 +2185,19 @@ export function createDiagram2EditorController(options = {}) {
     setStructureStateCanonical,
     addObject,
     addObjects,
+    addEmbeddedImage,
+    updateEmbeddedImageCrop,
+    setEmbeddedImageCropVisibility,
+    permanentlyCropEmbeddedImage,
+    setEntityAnnotation,
+    addFieldRectangle,
+    renameFieldRectangle,
+    setFieldRectangleConnectionSide,
+    setFieldRectangleMapping,
+    addFieldMappingTable,
+    fieldMappingIndexes,
+    fieldRectangleMapping,
+    selectFieldMapping,
     addEntity,
     updateEntityDefinition,
     setEntityOption,
@@ -2187,6 +2497,93 @@ export function createDiagram2PatchObjectsCommand(options = {}) {
     },
     redo(context) {
       return applyObjects(context, nextObjectsById, `${reason} redo`);
+    }
+  };
+}
+
+export function createDiagram2ObjectDeltaCommand(options = {}) {
+  const touchedObjectIds = uniqueStrings(options.touchedObjectIds);
+  const before = normalizeDiagram2DeltaSnapshot(options.before, touchedObjectIds);
+  const after = normalizeDiagram2DeltaSnapshot(options.after, touchedObjectIds);
+  const reason = String(options.reason || "update objects").trim() || "update objects";
+  const label = String(options.label || "Update objects").trim() || "Update objects";
+
+  const applySnapshot = (context, snapshot, operationReason) => {
+    const desiredById = new Map(snapshot.objects.map(object => [object.id, cloneDiagram2Value(object)]));
+    const currentIds = new Set(touchedObjectIds.filter(id => context.getObjectById(id)));
+    const removeIds = [...currentIds].filter(id => !desiredById.has(id));
+    const updateObjects = [...desiredById.values()]
+      .filter(object => context.getObjectById(object.id))
+      .filter(object => !sameDiagram2Value(context.getObjectById(object.id), object));
+    const addObjects = [...desiredById.values()]
+      .filter(object => !context.getObjectById(object.id));
+
+    if (removeIds.length) context.removeObjectsCanonical(removeIds, { reason: operationReason });
+    if (updateObjects.length) {
+      const updatesById = new Map(updateObjects.map(object => [object.id, object]));
+      context.updateObjectsCanonical(updateObjects.map(object => object.id), (_object, id) =>
+        cloneDiagram2Value(updatesById.get(id)), {
+        replace: true,
+        reason: operationReason
+      });
+    }
+    if (addObjects.length) {
+      context.addObjectsCanonical(addObjects.map(cloneDiagram2Value), {
+        indexesById: snapshot.indexesById,
+        reason: operationReason
+      });
+    }
+    const structureStateRequired = Boolean(
+      removeIds.length
+      || addObjects.length
+      || !sameDiagram2Value(context.state.groupNames || {}, snapshot.groupNames || {})
+      || !sameDiagram2Value(context.state.groupVisibility || {}, snapshot.groupVisibility || {})
+    );
+    if (structureStateRequired) {
+      context.setStructureStateCanonical({
+        groupNames: snapshot.groupNames,
+        groupVisibility: snapshot.groupVisibility
+      }, {
+        affectedObjectIds: touchedObjectIds,
+        reason: operationReason
+      });
+    }
+
+    const renderer = context.renderer;
+    renderer?.beginDiagramUpdate?.(operationReason);
+    if (removeIds.length) renderer?.removeObjects?.(removeIds, { reason: operationReason });
+    updateObjects.forEach(object => renderer?.updateObject?.(object.id, cloneDiagram2Value(object)));
+    if (addObjects.length) {
+      renderer?.addObjects?.(addObjects.map(cloneDiagram2Value), {
+        reason: operationReason,
+        indexesById: snapshot.indexesById
+      });
+    }
+    if (structureStateRequired) {
+      renderer?.setStructureState?.(context.state, {
+        affectedObjectIds: touchedObjectIds,
+        reason: operationReason
+      });
+    }
+    renderer?.endDiagramUpdate?.(operationReason);
+    context.setSelection(snapshot.selection, { expandGroups: false });
+    return Boolean(removeIds.length || updateObjects.length || addObjects.length);
+  };
+
+  return {
+    kind: "object-delta",
+    label,
+    reason,
+    objectIds: touchedObjectIds,
+    createdAt: Date.now(),
+    apply(context) {
+      return applySnapshot(context, after, reason);
+    },
+    undo(context) {
+      return applySnapshot(context, before, `${reason} undo`);
+    },
+    redo(context) {
+      return applySnapshot(context, after, `${reason} redo`);
     }
   };
 }
@@ -2831,6 +3228,112 @@ function diagram2RelationshipCount(state) {
   return diagram2CanonicalRelationships(state).length;
 }
 
+function buildDiagram2ObjectDeltaPlan(
+  stateInput,
+  planInput = {},
+  objectIndexes = new Map(),
+  indexedObjectsById = null
+) {
+  const state = stateInput && typeof stateInput === "object" ? stateInput : {};
+  const currentObjects = Array.isArray(state.objects) ? state.objects : [];
+  const currentById = indexedObjectsById instanceof Map
+    ? indexedObjectsById
+    : new Map(currentObjects.map(object => [object.id, object]));
+  const requestedBefore = new Map(uniqueDiagram2Objects(planInput.beforeObjects)
+    .map(object => [object.id, object]));
+  const requestedAfter = new Map(uniqueDiagram2Objects(planInput.afterObjects)
+    .map(object => [object.id, object]));
+  uniqueStrings(planInput.removedObjectIds).forEach(id => requestedAfter.delete(id));
+  const touchedObjectIds = uniqueStrings([
+    ...requestedBefore.keys(),
+    ...requestedAfter.keys(),
+    ...uniqueStrings(planInput.removedObjectIds)
+  ]);
+  touchedObjectIds.forEach(id => {
+    if (!requestedBefore.has(id) && currentById.has(id)) {
+      requestedBefore.set(id, cloneDiagram2Value(currentById.get(id)));
+    }
+  });
+
+  const changedObjects = touchedObjectIds.some(id =>
+    !sameDiagram2Value(requestedBefore.get(id) || null, requestedAfter.get(id) || null));
+  const beforeGroupNames = cloneDiagram2Value(state.groupNames || {});
+  const beforeGroupVisibility = cloneDiagram2Value(state.groupVisibility || {});
+  const afterGroupNames = applyDiagram2ScopedRecord(
+    beforeGroupNames,
+    planInput.beforeGroupNames,
+    planInput.afterGroupNames,
+    false
+  );
+  const afterGroupVisibility = applyDiagram2ScopedRecord(
+    beforeGroupVisibility,
+    planInput.beforeGroupVisibility,
+    planInput.afterGroupVisibility,
+    true
+  );
+  const changedGroups = !sameDiagram2Value(beforeGroupNames, afterGroupNames)
+    || !sameDiagram2Value(beforeGroupVisibility, afterGroupVisibility);
+  if (!changedObjects && !changedGroups) return null;
+
+  const beforeIndexesById = new Map();
+  requestedBefore.forEach((_object, id) => {
+    if (objectIndexes.has(id)) beforeIndexesById.set(id, objectIndexes.get(id));
+  });
+  const afterIndexesById = new Map();
+  let nextAppendIndex = currentObjects.length;
+  requestedAfter.forEach((_object, id) => {
+    afterIndexesById.set(id, objectIndexes.has(id) ? objectIndexes.get(id) : nextAppendIndex++);
+  });
+
+  return {
+    touchedObjectIds,
+    before: {
+      objects: [...requestedBefore.values()],
+      indexesById: beforeIndexesById,
+      groupNames: beforeGroupNames,
+      groupVisibility: beforeGroupVisibility,
+      selection: uniqueStrings(planInput.selectionBefore)
+    },
+    after: {
+      objects: [...requestedAfter.values()],
+      indexesById: afterIndexesById,
+      groupNames: afterGroupNames,
+      groupVisibility: afterGroupVisibility,
+      selection: uniqueStrings(planInput.selectionAfter)
+    }
+  };
+}
+
+function normalizeDiagram2DeltaSnapshot(input = {}, touchedObjectIds = []) {
+  const indexesById = input.indexesById instanceof Map
+    ? new Map(input.indexesById)
+    : new Map(Object.entries(input.indexesById || {}).map(([id, index]) => [id, finiteNumber(index, 0)]));
+  return {
+    objects: uniqueDiagram2Objects(input.objects)
+      .filter(object => touchedObjectIds.includes(object.id)),
+    indexesById,
+    groupNames: cloneDiagram2Value(input.groupNames || {}),
+    groupVisibility: cloneDiagram2Value(input.groupVisibility || {}),
+    selection: uniqueStrings(input.selection)
+  };
+}
+
+function applyDiagram2ScopedRecord(currentInput, beforeScopeInput, afterScopeInput, booleanValues) {
+  const current = { ...(currentInput || {}) };
+  const beforeScope = beforeScopeInput && typeof beforeScopeInput === "object" ? beforeScopeInput : {};
+  const afterScope = afterScopeInput && typeof afterScopeInput === "object" ? afterScopeInput : {};
+  const touchedKeys = uniqueStrings([...Object.keys(beforeScope), ...Object.keys(afterScope)]);
+  touchedKeys.forEach(key => delete current[key]);
+  Object.entries(afterScope).forEach(([key, value]) => {
+    current[key] = booleanValues ? value !== false : String(value || "");
+  });
+  return current;
+}
+
+function sameDiagram2Value(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
 function uniqueStrings(values) {
   const result = [];
   const seen = new Set();
@@ -2863,6 +3366,14 @@ function diagram2RelationshipSupportsStyle(styleName) {
 function diagram2ObjectStyleType(object) {
   if (object?.type === "entity" && object.entityKind === "field-rectangle") return "field-rectangle";
   return String(object?.type || "").trim().toLowerCase();
+}
+
+function diagram2MappedFieldRectangleName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^\[|\]$/g, "")
+    .replace(/^"|"$/g, "")
+    .slice(0, 240);
 }
 
 function normalizeDiagram2StyleValue(styleName, value) {

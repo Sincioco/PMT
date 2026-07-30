@@ -5,7 +5,7 @@ import {
   annotationFieldMappingAttentionHighlightSvg,
   buildAnnotationSvg,
   parseAnnotationSvg
-} from "./image-annotation.js?v=20260728-phase3-closeout-v1";
+} from "./image-annotation.js?v=20260730-diagram2-phase6-v1";
 
 export function buildInteractiveDiagramViewerSvg(svgMarkup) {
   const diagramState = parseAnnotationSvg(svgMarkup);

@@ -7,14 +7,23 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-d1-compact-parity-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-v1";
+import {
+  diagram2ImageCropCornerRadii,
+  diagram2ImageCropInsets,
+  diagram2ImageHasReversibleCrop
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+import {
+  diagram2FieldRectangleMapping,
+  isDiagram2FieldRectangle
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -428,6 +437,184 @@ export function openDiagram2RelationshipEditor(options = {}) {
   });
 }
 
+export function openDiagram2EntityAnnotationEditor(options = {}) {
+  const object = options.object && typeof options.object === "object" ? options.object : {};
+  const dialog = document.createElement("dialog");
+  dialog.className = "dialog mini-dialog diagram2-entity-annotation-dialog";
+  dialog.innerHTML = `
+    <form method="dialog" data-diagram2-entity-annotation-form>
+      <div class="dialog-head">
+        <div>
+          <h2>Entity Annotation</h2>
+          <p>${escapeHtml(entityLabel(object))}</p>
+        </div>
+        <button type="button" class="icon-btn" data-diagram2-entity-annotation-cancel title="Close" aria-label="Close">Close</button>
+      </div>
+      <div class="dialog-body">
+        <label class="field">
+          <span>Annotation text</span>
+          <textarea rows="5" maxlength="10000" data-diagram2-entity-annotation-text>${escapeHtml(object.entityAnnotation || "")}</textarea>
+        </label>
+        <label class="inline-check"><input type="checkbox" data-diagram2-entity-annotation-arrow ${object.entityAnnotationShowArrow === false ? "" : "checked"}><span>Show annotation arrow</span></label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" data-diagram2-entity-annotation-cancel>Cancel</button>
+        <button type="submit" class="primary">Apply</button>
+      </div>
+    </form>
+  `;
+  document.body.appendChild(dialog);
+  return resolveDiagram2Dialog(dialog, {
+    cancelSelector: "[data-diagram2-entity-annotation-cancel]",
+    focusSelector: "[data-diagram2-entity-annotation-text]",
+    submitSelector: "[data-diagram2-entity-annotation-form]",
+    value: () => ({
+      text: String(dialog.querySelector("[data-diagram2-entity-annotation-text]")?.value || ""),
+      showArrow: dialog.querySelector("[data-diagram2-entity-annotation-arrow]")?.checked !== false
+    })
+  });
+}
+
+export function openDiagram2FieldRectangleMappingEditor(options = {}) {
+  const object = options.object;
+  const state = options.state && typeof options.state === "object" ? options.state : {};
+  const entities = (Array.isArray(state.objects) ? state.objects : [])
+    .filter(candidate => candidate?.type === "entity" && !isDiagram2FieldRectangle(candidate));
+  if (!isDiagram2FieldRectangle(object) || !entities.length) return Promise.resolve(null);
+
+  const current = diagram2FieldRectangleMapping(object);
+  const currentReference = String(current?.referencedEntity || "").toLowerCase();
+  const entityOptions = entities.map(entity => {
+    const reference = diagram2EntityReferenceValue(entity);
+    return `<option value="${escapeAttr(entity.id)}" ${reference.toLowerCase() === currentReference ? "selected" : ""}>${escapeHtml(entityLabel(entity))}</option>`;
+  }).join("");
+  const dialog = document.createElement("dialog");
+  dialog.className = "dialog image-annotation-foreign-key-dialog diagram2-field-mapping-dialog";
+  dialog.innerHTML = `
+    <form method="dialog" data-diagram2-field-mapping-form>
+      <div class="dialog-head">
+        <div>
+          <h2>Map Field Rectangle</h2>
+          <p>${escapeHtml(object.fieldRectangleName || object.fields?.[0]?.name || "Field")}</p>
+        </div>
+        <button type="button" class="icon-btn" data-diagram2-field-mapping-cancel title="Close" aria-label="Close">Close</button>
+      </div>
+      <div class="dialog-body image-annotation-foreign-key-dialog-body">
+        <label class="field">
+          <span>Referenced Entity</span>
+          <select data-diagram2-field-mapping-entity>${entityOptions}</select>
+        </label>
+        <label class="field">
+          <span>Referenced Field</span>
+          <select data-diagram2-field-mapping-field></select>
+        </label>
+        <label class="field">
+          <span>Relationship</span>
+          <select data-diagram2-field-mapping-relationship>
+            <option value="">Simple arrow</option>
+            <option value="one-to-one" ${current?.relationshipType === "one-to-one" ? "selected" : ""}>One-to-one</option>
+            <option value="one-to-many" ${current?.relationshipType === "one-to-many" ? "selected" : ""}>One-to-many</option>
+            <option value="many-to-one" ${current?.relationshipType === "many-to-one" ? "selected" : ""}>Many-to-one</option>
+          </select>
+        </label>
+        <p class="image-annotation-format-status" data-diagram2-field-mapping-status role="status" aria-live="polite"></p>
+      </div>
+      <div class="dialog-actions">
+        ${current ? `<button type="button" class="secondary" data-diagram2-field-mapping-remove>Remove Mapping</button>` : ""}
+        <button type="button" class="secondary" data-diagram2-field-mapping-cancel>Cancel</button>
+        <button type="submit" class="primary">Save Mapping</button>
+      </div>
+    </form>
+  `;
+  document.body.appendChild(dialog);
+  const entityInput = dialog.querySelector("[data-diagram2-field-mapping-entity]");
+  const fieldInput = dialog.querySelector("[data-diagram2-field-mapping-field]");
+  const entityById = new Map(entities.map(entity => [String(entity.id), entity]));
+  const refreshFields = () => {
+    const entity = entityById.get(String(entityInput.value || "")) || entities[0];
+    const selected = entity && diagram2EntityReferenceValue(entity).toLowerCase() === currentReference
+      ? String(current?.referencedField || "")
+      : "";
+    fieldInput.innerHTML = (Array.isArray(entity?.fields) ? entity.fields : [])
+      .map(field => `<option value="${escapeAttr(field?.name || "")}" ${sameDiagram2Identifier(field?.name, selected) ? "selected" : ""}>${escapeHtml(field?.name || "Field")}</option>`)
+      .join("");
+  };
+  entityInput.addEventListener("change", refreshFields);
+  refreshFields();
+
+  return new Promise(resolve => {
+    let result = null;
+    const finish = value => {
+      result = value;
+      dialog.close();
+    };
+    dialog.querySelectorAll("[data-diagram2-field-mapping-cancel]").forEach(button => {
+      button.addEventListener("click", () => finish(null));
+    });
+    dialog.querySelector("[data-diagram2-field-mapping-remove]")?.addEventListener("click", () => {
+      finish({ remove: true, mapping: null });
+    });
+    dialog.querySelector("[data-diagram2-field-mapping-form]")?.addEventListener("submit", event => {
+      event.preventDefault();
+      const entity = entityById.get(String(entityInput.value || ""));
+      if (!entity || !fieldInput.value) {
+        dialog.querySelector("[data-diagram2-field-mapping-status]").textContent = "Choose a referenced Entity and field.";
+        return;
+      }
+      finish({
+        remove: false,
+        mapping: {
+          referencedEntity: diagram2EntityReferenceValue(entity),
+          referencedField: fieldInput.value,
+          relationshipType: dialog.querySelector("[data-diagram2-field-mapping-relationship]")?.value || ""
+        }
+      });
+    });
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(result);
+    }, { once: true });
+    dialog.showModal();
+    entityInput.focus();
+  });
+}
+
+export function openDiagram2FieldMappingImageChooser(imagesInput = []) {
+  const images = Array.isArray(imagesInput) ? imagesInput : [];
+  if (!images.length) return Promise.resolve(null);
+  if (images.length === 1) return Promise.resolve(images[0]);
+  const dialog = document.createElement("dialog");
+  dialog.className = "dialog mini-dialog diagram2-field-mapping-image-dialog";
+  dialog.innerHTML = `
+    <form method="dialog" data-diagram2-field-mapping-image-form>
+      <div class="dialog-head"><h2>Field Mapping Table</h2></div>
+      <div class="dialog-body">
+        <label class="field">
+          <span>Screenshot image</span>
+          <select data-diagram2-field-mapping-image>
+            ${images.map(image => `<option value="${escapeAttr(image.id)}">${escapeHtml(diagram2ObjectLabel(image))}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" data-diagram2-field-mapping-image-cancel>Cancel</button>
+        <button type="submit" class="primary">Generate</button>
+      </div>
+    </form>
+  `;
+  document.body.appendChild(dialog);
+  return resolveDiagram2Dialog(dialog, {
+    cancelSelector: "[data-diagram2-field-mapping-image-cancel]",
+    focusSelector: "[data-diagram2-field-mapping-image]",
+    submitSelector: "[data-diagram2-field-mapping-image-form]",
+    value: () => images.find(image => image.id === dialog.querySelector("[data-diagram2-field-mapping-image]")?.value) || null
+  });
+}
+
 export function diagram2TemplatePaneHtml(templateStateInput = {}, state = null, selectedObjectIds = []) {
   const templateState = templateStateInput && typeof templateStateInput === "object" ? templateStateInput : {};
   const library = templateState.library && typeof templateState.library === "object"
@@ -546,18 +733,34 @@ export function updateDiagram2ShellStatus(root, status = {}) {
     control.checked = status.snapToGrid === true;
   });
   const hasSelection = Number(status.selectedCount || 0) > 0;
+  const selectedObjects = Array.isArray(status.selectedObjects) ? status.selectedObjects : [];
+  const singleObject = selectedObjects.length === 1 ? selectedObjects[0] : null;
+  const singleImage = singleObject?.type === "embedded-image" ? singleObject : null;
+  const singleFieldRectangle = isDiagram2FieldRectangle(singleObject) ? singleObject : null;
+  const mappingImages = diagram2FieldMappingImages(status.state);
   root.querySelectorAll("[data-diagram2-empty-selection]").forEach(node => {
     node.hidden = hasSelection;
   });
   root.querySelectorAll("[data-diagram2-selection-format]").forEach(node => {
     node.hidden = !hasSelection;
   });
-  syncDiagram2FormatControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
-  syncDiagram2GeometryControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
+  root.querySelectorAll("[data-diagram2-requires-image]").forEach(control => {
+    control.disabled = !canEdit || status.busy === true || !singleImage || singleImage.locked === true;
+  });
+  root.querySelectorAll("[data-diagram2-requires-field-rectangle]").forEach(control => {
+    control.disabled = !canEdit || status.busy === true || !singleFieldRectangle || singleFieldRectangle.locked === true;
+  });
+  root.querySelectorAll("[data-diagram2-requires-mapping-image]").forEach(control => {
+    control.disabled = !canEdit || status.busy === true || !mappingImages.length;
+  });
+  syncDiagram2FormatControls(root, selectedObjects, { busy: status.busy === true, canEdit });
+  syncDiagram2GeometryControls(root, selectedObjects, { busy: status.busy === true, canEdit });
+  syncDiagram2CropControls(root, singleImage, { busy: status.busy === true, canEdit });
   syncDiagram2EntityControls(root, status, { busy: status.busy === true, canEdit });
-  syncDiagram2ColorPickerControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
-  syncDiagram2InspectorTabVisibility(root, status.selectedObjects || []);
-  syncDiagram2ContextMenu(root, status.selectedObjects || [], { busy: status.busy === true, canEdit, canExport });
+  syncDiagram2FieldRectangleControls(root, singleFieldRectangle, { busy: status.busy === true, canEdit });
+  syncDiagram2ColorPickerControls(root, selectedObjects, { busy: status.busy === true, canEdit });
+  syncDiagram2InspectorTabVisibility(root, selectedObjects);
+  syncDiagram2ContextMenu(root, selectedObjects, { busy: status.busy === true, canEdit, canExport });
 }
 
 export function setDiagram2ToolsPaneOpen(root, open) {
@@ -966,6 +1169,38 @@ export function bindDiagram2EditorFormatControls(root, options = {}) {
       return;
     }
 
+    const cropInsetControl = target.closest("[data-diagram2-crop-inset]");
+    if (cropInsetControl && root.contains(cropInsetControl)) {
+      void options.applyCropInsets?.(diagram2CropInsetControlValues(root));
+      return;
+    }
+
+    const cropCornerControl = target.closest("[data-diagram2-crop-corner]");
+    if (cropCornerControl && root.contains(cropCornerControl)) {
+      void options.applyCropCorners?.(diagram2CropCornerControlValues(root));
+      return;
+    }
+
+    if (target.matches("[data-diagram2-crop-corner-radius]")) {
+      void options.applyCropCornerRadius?.(target.value);
+      return;
+    }
+
+    if (target.matches("[data-diagram2-crop-visible]")) {
+      void options.setCropVisibility?.(target.checked === true);
+      return;
+    }
+
+    if (target.matches("[data-diagram2-field-rectangle-name]")) {
+      void options.renameFieldRectangle?.(target.value);
+      return;
+    }
+
+    if (target.matches("[data-diagram2-field-rectangle-connection-side]")) {
+      void options.setFieldRectangleConnectionSide?.(target.value);
+      return;
+    }
+
     const entityOptionControl = target.closest("[data-diagram2-entity-option]");
     if (entityOptionControl && root.contains(entityOptionControl)) {
       void options.applyEntityOption?.(
@@ -1084,8 +1319,10 @@ function diagram2ToolsPaneHtml({ canUse }) {
           ${diagram2ToolPaneButton("select", "Select", "Select (V)", true, disabled)}
           ${diagram2ToolPaneButton("pan", "Pan", "Pan (H)", false, disabled)}
           ${diagram2ToolPaneButton("format-painter", "Format Painter", "Format Painter", false, `${disabled} data-diagram2-requires-selection data-diagram2-requires-update`)}
-          ${diagram2ToolPaneButton("crop", "Crop", "Crop (C)", false, "disabled")}
+          ${diagram2ToolPaneButton("crop", "Crop", "Crop (C)", false, `${disabled} data-diagram2-requires-image data-diagram2-requires-update`)}
           <div class="diagram2-tools-divider" role="separator" aria-hidden="true"></div>
+          ${diagram2ToolPaneActionButton("image", "Add Image", "add-diagram2-image", `${disabled} data-diagram2-requires-update`)}
+          <input type="file" accept="image/*" multiple hidden data-diagram2-image-input>
           ${diagram2ToolPaneButton("rectangle", "Rectangle", "Rectangle (R)", false, `${disabled} data-diagram2-requires-update`)}
           ${diagram2ToolPaneButton("circle", "Circle", "Circle (O)", false, `${disabled} data-diagram2-requires-update`)}
           ${diagram2ToolPaneButton("arrow", "Arrow", "Arrow (A)", false, `${disabled} data-diagram2-requires-update`)}
@@ -1096,8 +1333,8 @@ function diagram2ToolsPaneHtml({ canUse }) {
           ${diagram2ToolPaneButton("entity", "Entity", "Entity (E)", false, `${disabled} data-diagram2-requires-update`)}
           ${diagram2ToolPaneActionButton("arrow", "Add Relationship", "add-diagram2-relationship", `${disabled} data-diagram2-requires-update`)}
           ${diagram2ToolPaneActionButton("entity", "Compact", "auto-format-diagram2-compact", `${disabled} data-diagram2-requires-update`, "Optimize Entity placement and relationship routes for a compact, readable Diagram. Large Diagrams may take several minutes.")}
-          ${diagram2ToolPaneButton("field-rectangle", "Field Rectangle", "Field Rectangle", false, "disabled")}
-          ${diagram2ToolPaneActionButton("field-mapping-table", "Generate Field Mapping Table", "generate-diagram2-field-mapping-table", "disabled")}
+          ${diagram2ToolPaneButton("field-rectangle", "Field Rectangle", "Field Rectangle", false, `${disabled} data-diagram2-requires-update`)}
+          ${diagram2ToolPaneActionButton("field-mapping-table", "Generate Field Mapping Table", "generate-diagram2-field-mapping-table", `${disabled} data-diagram2-requires-mapping-image data-diagram2-requires-update`)}
         </div>
       </div>
       ${diagram2LeftPaneResizerHtml("Tools")}
@@ -1152,7 +1389,26 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
     <div id="diagram2CropPanel" role="tabpanel" aria-labelledby="diagram2CropTab" data-diagram2-inspector-panel="crop" hidden>
       <section class="image-annotation-format-section" aria-labelledby="diagram2CropFormat">
         <h4 id="diagram2CropFormat">Crop</h4>
-        <p class="image-annotation-format-status">Crop controls appear for selected embedded images.</p>
+        <div class="image-annotation-inspector-grid">
+          <label class="field"><span>Left</span><input type="number" min="0" step="1" value="0" data-diagram2-crop-inset="left"></label>
+          <label class="field"><span>Right</span><input type="number" min="0" step="1" value="0" data-diagram2-crop-inset="right"></label>
+          <label class="field"><span>Top</span><input type="number" min="0" step="1" value="0" data-diagram2-crop-inset="top"></label>
+          <label class="field"><span>Bottom</span><input type="number" min="0" step="1" value="0" data-diagram2-crop-inset="bottom"></label>
+        </div>
+        <div class="image-annotation-crop-divider" role="separator"></div>
+        <h4 id="diagram2CropRadiusFormat">Radius</h4>
+        <div class="image-annotation-inspector-grid">
+          <label class="field image-annotation-wide"><span>Radius</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner-radius></label>
+          <label class="field"><span>Top left</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="topLeft"></label>
+          <label class="field"><span>Top right</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="topRight"></label>
+          <label class="field"><span>Bottom left</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="bottomLeft"></label>
+          <label class="field"><span>Bottom right</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="bottomRight"></label>
+        </div>
+        <label class="inline-check image-annotation-wide"><input type="checkbox" data-diagram2-crop-visible checked><span>Show saved crop</span></label>
+        <div class="image-annotation-field-mapping-actions">
+          <button type="button" data-action="reset-diagram2-crop" data-diagram2-requires-image data-diagram2-requires-update>Reset Crop</button>
+          <button type="button" class="danger" data-action="permanently-crop-diagram2-image" data-diagram2-requires-image data-diagram2-requires-update>Permanently Crop</button>
+        </div>
       </section>
     </div>
     <div id="diagram2MappingPanel" role="tabpanel" aria-labelledby="diagram2MappingTab" data-diagram2-inspector-panel="field-mapping-table" hidden>
@@ -1174,11 +1430,36 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
     <div id="diagram2EntityPanel" role="tabpanel" aria-labelledby="diagram2EntityTab" data-diagram2-inspector-panel="entity" hidden>
       <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2EntityFormat">
         <h4 id="diagram2EntityFormat">Entity</h4>
-        <div class="image-annotation-inspector-grid">
+        <div class="field image-annotation-entity-annotation-field" data-diagram2-entity-only>
+          <span>Entity Annotation</span>
+          <button type="button" data-action="edit-diagram2-entity-annotation" data-diagram2-requires-entity data-diagram2-requires-update>Add Entity Annotation</button>
+          <small data-diagram2-entity-annotation-summary>No annotation</small>
+        </div>
+        <div class="image-annotation-field-rectangle-options" data-diagram2-field-rectangle-options hidden>
+          <label class="field">
+            <span>Field Rectangle Name</span>
+            <input type="text" maxlength="120" autocomplete="off" data-diagram2-field-rectangle-name data-diagram2-requires-field-rectangle>
+          </label>
+          <label class="field">
+            <span>Relationship connection</span>
+            <select data-diagram2-field-rectangle-connection-side data-diagram2-requires-field-rectangle>
+              <option value="left">Left</option>
+              <option value="top">Top</option>
+              <option value="right">Right</option>
+              <option value="bottom">Bottom</option>
+            </select>
+          </label>
+          <p class="image-annotation-format-status" data-diagram2-field-rectangle-mapping-summary>No database mapping</p>
+          <div class="image-annotation-field-mapping-actions">
+            <button type="button" data-action="map-diagram2-field-rectangle" data-diagram2-requires-field-rectangle data-diagram2-requires-update>Map Field Rectangle</button>
+            <button type="button" data-action="generate-diagram2-field-mapping-table" data-diagram2-requires-mapping-image data-diagram2-requires-update>Generate Field Mapping Table</button>
+          </div>
+        </div>
+        <div class="image-annotation-inspector-grid" data-diagram2-entity-only>
           ${diagram2ColorFieldHtml("entityNameTextColor", "Entity name text color", "Entity Name Text Color", "#172b4d", "font")}
           ${diagram2ColorFieldHtml("entityHeaderFill", "Header background color", "Entity Header Background Color", "#ffffff", "background")}
         </div>
-        <div class="image-annotation-entity-display-options diagram2-entity-options">
+        <div class="image-annotation-entity-display-options diagram2-entity-options" data-diagram2-entity-only>
           <button type="button" data-action="edit-diagram2-entity" data-diagram2-requires-entity data-diagram2-requires-update>Edit Definition</button>
           <button type="button" data-action="reset-diagram2-entity-scale" data-diagram2-requires-entity data-diagram2-requires-update>Reset Scale</button>
           <button type="button" data-action="add-diagram2-relationship" data-diagram2-requires-update>Add Relationship</button>
@@ -1192,7 +1473,7 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
           <label class="inline-check"><input type="checkbox" data-diagram2-entity-option="showSelfRelationships" data-diagram2-requires-entity data-diagram2-requires-update><span>Show self relationships</span></label>
         </div>
       </section>
-      <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2EntityFieldsFormat">
+      <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2EntityFieldsFormat" data-diagram2-entity-only>
         <div class="diagram2-section-title-row">
           <h4 id="diagram2EntityFieldsFormat">Fields</h4>
           <button type="button" data-action="add-diagram2-entity-field" data-diagram2-requires-entity data-diagram2-requires-update title="Add Field" aria-label="Add Field">+</button>
@@ -1201,7 +1482,7 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
         <p class="image-annotation-format-status" data-diagram2-entity-field-status role="status" aria-live="polite"></p>
         <div class="diagram2-entity-fields" data-diagram2-entity-fields></div>
       </section>
-      <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2RelationshipFormat">
+      <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2RelationshipFormat" data-diagram2-entity-relationship-only>
         <h4 id="diagram2RelationshipFormat">Relationships</h4>
         <div class="image-annotation-entity-display-options diagram2-entity-options">
           <label class="inline-check"><input type="checkbox" data-diagram2-relationship-option="manualEntityRelationshipRoutes" data-diagram2-requires-update><span>Manual routes</span></label>
@@ -1475,12 +1756,13 @@ function diagram2InspectorTab(name, label, selected = false, disabled = false, h
 function syncDiagram2InspectorTabVisibility(root, selectedObjects = []) {
   const single = Array.isArray(selectedObjects) && selectedObjects.length === 1 ? selectedObjects[0] : null;
   const type = String(single?.type || "");
+  const fieldRectangle = isDiagram2FieldRectangle(single);
   const visibleTabs = {
     format: true,
     rectangle: type === "rectangle",
     crop: type === "embedded-image",
     "field-mapping-table": type === "field-mapping-table",
-    entity: type === "entity" || type === "field-rectangle" || type === "entity-relationship" || type === "entity-relationships"
+    entity: type === "entity" || fieldRectangle || type === "entity-relationship" || type === "entity-relationships"
   };
 
   root.querySelectorAll("[data-diagram2-inspector-tab]").forEach(tab => {
@@ -1535,7 +1817,8 @@ function syncDiagram2GeometryControls(root, selectedObjects = [], options = {}) 
 
 function syncDiagram2EntityControls(root, status = {}, options = {}) {
   const objects = Array.isArray(status.selectedObjects) ? status.selectedObjects : [];
-  const entity = objects.length === 1 && objects[0]?.type === "entity" ? objects[0] : null;
+  const selectedEntity = objects.length === 1 && objects[0]?.type === "entity" ? objects[0] : null;
+  const entity = selectedEntity && !isDiagram2FieldRectangle(selectedEntity) ? selectedEntity : null;
   const relationship = objects.length === 1 && objects[0]?.type === "entity-relationship" ? objects[0] : null;
   const canUse = options.canEdit !== false && options.busy !== true;
   const state = status.state && typeof status.state === "object" ? status.state : {};
@@ -1563,7 +1846,122 @@ function syncDiagram2EntityControls(root, status = {}, options = {}) {
     control.disabled = !canUse || !relationship || relationship.locked === true;
     control.value = relationship?.relationshipType || "";
   });
+  root.querySelectorAll("[data-diagram2-entity-only]").forEach(node => {
+    node.hidden = !entity;
+  });
+  root.querySelectorAll("[data-diagram2-entity-relationship-only]").forEach(node => {
+    node.hidden = !entity && !relationship;
+  });
+  const annotationButton = root.querySelector("[data-action='edit-diagram2-entity-annotation']");
+  const annotationSummary = root.querySelector("[data-diagram2-entity-annotation-summary]");
+  if (annotationButton) {
+    annotationButton.textContent = entity?.entityAnnotation ? "Edit Entity Annotation" : "Add Entity Annotation";
+  }
+  if (annotationSummary) {
+    const text = String(entity?.entityAnnotation || "").trim();
+    annotationSummary.textContent = !entity
+      ? ""
+      : text
+        ? `${text.split(/\r?\n/, 1)[0]} ${entity.entityAnnotationShowArrow === false ? "(no arrow)" : "(with arrow)"}`
+        : "No annotation";
+  }
   syncDiagram2EntityFieldEditor(root, entity, state, canUse);
+}
+
+function syncDiagram2CropControls(root, image, options = {}) {
+  const canUse = options.canEdit !== false && options.busy !== true && image && image.locked !== true;
+  const insets = image ? diagram2ImageCropInsets(image) : { left: 0, right: 0, top: 0, bottom: 0 };
+  const corners = image
+    ? diagram2ImageCropCornerRadii(image)
+    : { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 };
+  const reversible = image ? diagram2ImageHasReversibleCrop(image) : false;
+  root.querySelectorAll("[data-diagram2-crop-inset]").forEach(control => {
+    control.value = diagram2DimensionText(insets[control.dataset.diagram2CropInset] || 0);
+    control.disabled = !canUse;
+  });
+  root.querySelectorAll("[data-diagram2-crop-corner]").forEach(control => {
+    control.value = diagram2DimensionText(corners[control.dataset.diagram2CropCorner] || 0);
+    control.disabled = !canUse;
+  });
+  const uniformRadius = root.querySelector("[data-diagram2-crop-corner-radius]");
+  if (uniformRadius) {
+    uniformRadius.value = image ? diagram2DimensionText(image.cropCornerRadius || 0) : "0";
+    uniformRadius.disabled = !canUse;
+  }
+  const visible = root.querySelector("[data-diagram2-crop-visible]");
+  if (visible) {
+    visible.checked = image?.cropVisible !== false;
+    visible.disabled = !canUse || !reversible;
+  }
+  const reset = root.querySelector("[data-action='reset-diagram2-crop']");
+  if (reset) reset.disabled = !canUse || (!reversible && !Object.values(corners).some(Number));
+  const permanent = root.querySelector("[data-action='permanently-crop-diagram2-image']");
+  if (permanent) permanent.disabled = !canUse || !reversible;
+}
+
+function syncDiagram2FieldRectangleControls(root, fieldRectangle, options = {}) {
+  const canUse = options.canEdit !== false && options.busy !== true && fieldRectangle && fieldRectangle.locked !== true;
+  root.querySelectorAll("[data-diagram2-field-rectangle-options]").forEach(node => {
+    node.hidden = !fieldRectangle;
+  });
+  const name = root.querySelector("[data-diagram2-field-rectangle-name]");
+  if (name) {
+    name.value = fieldRectangle?.fieldRectangleName || fieldRectangle?.fields?.[0]?.name || "";
+    name.disabled = !canUse;
+  }
+  const side = root.querySelector("[data-diagram2-field-rectangle-connection-side]");
+  if (side) {
+    side.value = fieldRectangle?.fieldRectangleConnectionSide || "right";
+    side.disabled = !canUse;
+  }
+  const summary = root.querySelector("[data-diagram2-field-rectangle-mapping-summary]");
+  if (summary) {
+    const mapping = diagram2FieldRectangleMapping(fieldRectangle);
+    summary.textContent = mapping
+      ? `${mapping.referencedEntity}.${mapping.referencedField}`
+      : "No database mapping";
+  }
+}
+
+function diagram2CropInsetControlValues(root) {
+  return Object.fromEntries(
+    [...root.querySelectorAll("[data-diagram2-crop-inset]")]
+      .map(control => [control.dataset.diagram2CropInset, Number(control.value) || 0])
+  );
+}
+
+function diagram2CropCornerControlValues(root) {
+  return Object.fromEntries(
+    [...root.querySelectorAll("[data-diagram2-crop-corner]")]
+      .map(control => [control.dataset.diagram2CropCorner, Number(control.value) || 0])
+  );
+}
+
+function diagram2FieldMappingImages(stateInput) {
+  const objects = Array.isArray(stateInput?.objects) ? stateInput.objects : [];
+  const mappedRectangles = objects.filter(object =>
+    isDiagram2FieldRectangle(object) && diagram2FieldRectangleMapping(object));
+  if (!mappedRectangles.length) return [];
+  return objects.filter(image => image?.type === "embedded-image" && mappedRectangles.some(rectangle =>
+    diagram2BoundsIntersect(diagram2ObjectBounds(rectangle), diagram2ObjectBounds(image))));
+}
+
+function diagram2ObjectBounds(object) {
+  if (!object) return null;
+  return {
+    x: Number(object.x) || 0,
+    y: Number(object.y) || 0,
+    width: Math.max(1, Number(object.width) || 1),
+    height: Math.max(1, Number(object.height) || 1)
+  };
+}
+
+function diagram2BoundsIntersect(left, right) {
+  return Boolean(left && right
+    && left.x < right.x + right.width
+    && left.x + left.width > right.x
+    && left.y < right.y + right.height
+    && left.y + left.height > right.y);
 }
 
 function syncDiagram2EntityFieldEditor(root, entity, state = {}, canUse = true) {
@@ -2122,6 +2520,40 @@ function entityLabel(entity) {
     .join(".") || diagram2ObjectLabel(entity);
 }
 
+function diagram2EntityReferenceValue(entity) {
+  return [entity?.entitySchema, entity?.entityName]
+    .map(value => String(value || "").trim())
+    .filter(Boolean)
+    .join(".");
+}
+
+function resolveDiagram2Dialog(dialog, options = {}) {
+  return new Promise(resolve => {
+    let result = null;
+    const finish = value => {
+      result = value;
+      dialog.close();
+    };
+    dialog.querySelectorAll(options.cancelSelector || "[data-dialog-cancel]").forEach(button => {
+      button.addEventListener("click", () => finish(null));
+    });
+    dialog.querySelector(options.submitSelector || "form")?.addEventListener("submit", event => {
+      event.preventDefault();
+      finish(options.value?.() ?? null);
+    });
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(result);
+    }, { once: true });
+    dialog.showModal();
+    dialog.querySelector(options.focusSelector || "input, textarea, select, button")?.focus();
+  });
+}
+
 function diagram2ObjectTreeIcon(type) {
   return {
     "embedded-image": "&#128444;",
@@ -2142,6 +2574,7 @@ function diagram2ToolIconSvg(tool) {
     pan: `<path d="M8 12V7.5a1.5 1.5 0 0 1 3 0V12M11 11V6.5a1.5 1.5 0 0 1 3 0V12M14 11V8a1.5 1.5 0 0 1 3 0v5M17 12.5V10a1.5 1.5 0 0 1 3 0v3.5c0 4-2.5 6.5-6.5 6.5H11a5 5 0 0 1-4.1-2.2L4 13.5a1.7 1.7 0 0 1 2.8-1.9L8 13"></path>`,
     "format-painter": `<path d="M4 20c2.9 0 5-1.3 5-4.1 0-1.1-.8-1.9-1.9-1.9C4.6 14 4 16.4 4 20z" fill="currentColor" stroke="currentColor"></path><path d="M8.3 14.7 18.4 4.6a2.1 2.1 0 0 1 3 3L11.3 17.7"></path><path d="M15.6 7.4l3 3"></path>`,
     crop: `<path d="M6 3v13a2 2 0 0 0 2 2h13M3 6h13a2 2 0 0 1 2 2v13"></path>`,
+    image: `<rect x="3" y="4" width="18" height="16" rx="1"></rect><circle cx="8" cy="9" r="1.5"></circle><path d="m5 17 4-4 3 3 2-2 5 5"></path>`,
     rectangle: `<rect x="4" y="5" width="16" height="14"></rect>`,
     circle: `<circle cx="12" cy="12" r="8"></circle>`,
     arrow: `<path d="M5 19 19 5M11 5h8v8"></path>`,

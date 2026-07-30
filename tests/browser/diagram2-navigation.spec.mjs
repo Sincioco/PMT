@@ -14,7 +14,7 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/css/base.css");
   const result = await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260728-diagram-png-raster-v1");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
     const state = {
       version: 1,
       width: 480,
@@ -479,11 +479,11 @@ test("Diagram 2 Compact visual evidence uses the same post-Compact state as Diag
       buildAnnotationSvg,
       normalizeAnnotationState,
       parseAnnotationSvg
-    } = await import("/js/components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1");
+    } = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
     const {
       createDiagram2Renderer,
       diagram2ContentBounds
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const fixtures = {};
     if (fixtureNamesInput.includes("pmt-schema")) {
       const pmtSvg = await fetch("/assets/docs/pmt-database-schema.svg", { cache: "no-store" }).then(response => response.text());
@@ -661,10 +661,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1")
     ]);
     const state = {
       version: 1,
@@ -783,8 +783,8 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
 
   const marqueeCoalesce = await page.evaluate(async () => {
     const [controllerModule, interactionModule] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1")
     ]);
     const canvas = document.createElement("div");
     canvas.tabIndex = 0;
@@ -1111,7 +1111,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-closure-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-v1">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -1122,11 +1122,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260730-diagram2-d1-compact-parity-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260730-diagram2-phase6-v1")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -1492,7 +1492,7 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-closure-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-v1">
     <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
 
@@ -1503,10 +1503,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-d1-compact-parity-v1"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260730-diagram2-d1-compact-parity-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260730-diagram2-phase6-v1")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -2946,7 +2946,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -3896,11 +3896,10 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
   const result = await page.evaluate(async () => {
     const renderer = window.__pmtDiagram2Renderer;
     const svg = document.querySelector("[data-diagram2-svg]");
-    const objectPlane = document.querySelector("[data-diagram2-object-plane]");
-    const entities = [...(objectPlane?.querySelectorAll("[data-diagram2-object-type='entity']") || [])];
+    const entities = [...(svg?.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-type='entity']") || [])];
     const relationship = document.querySelector("[data-diagram2-relationship-id]");
     const relatedEntity = relationship?.dataset.diagram2RelationshipSource
-      ? objectPlane?.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
+      ? svg?.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
       : null;
     const entityA = relatedEntity || entities[0] || null;
     const entityB = entities.find(entity => entity !== entityA) || null;
@@ -3950,8 +3949,8 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
     return {
       ready: true,
-      entityAStable: entityA === objectPlane.querySelector(`[data-diagram2-object-id="${entityAId}"]`),
-      entityBStable: entityB === objectPlane.querySelector(`[data-diagram2-object-id="${entityBId}"]`),
+      entityAStable: entityA === svg.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${entityAId}"]`),
+      entityBStable: entityB === svg.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${entityBId}"]`),
       entityATextStable: entityAText === entityA.querySelector("[data-diagram2-entity-title], text"),
       relationshipStable: !relationship || relationship === document.querySelector(`[data-diagram2-relationship-id="${relationship.dataset.diagram2RelationshipId}"]`),
       entityASelected,
@@ -4016,7 +4015,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4126,7 +4125,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4332,7 +4331,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4533,10 +4532,10 @@ async function assertDiagram2LargeEntityEditingGates(page) {
     const {
       createDiagram2Renderer,
       diagram2CanonicalRelationships
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-d1-compact-parity-v1");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
     const {
       createDiagram2EditorController
-    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1");
+    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1");
     const output = [];
 
     for (const entityCount of [500, 1000]) {
@@ -4752,13 +4751,12 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
   const result = await page.evaluate(async () => {
     const renderer = window.__pmtDiagram2Renderer;
     const svg = document.querySelector("[data-diagram2-svg]");
-    const objectPlane = document.querySelector("[data-diagram2-object-plane]");
-    const entities = [...(objectPlane?.querySelectorAll("[data-diagram2-object-type='entity']") || [])];
+    const entities = [...(svg?.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-type='entity']") || [])];
     const relationship = [...document.querySelectorAll("[data-diagram2-relationship-id]")]
       .find(candidate => candidate.dataset.diagram2RelationshipSource
-        && objectPlane?.querySelector(`[data-diagram2-object-id="${CSS.escape(candidate.dataset.diagram2RelationshipSource)}"]`));
+        && svg?.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${CSS.escape(candidate.dataset.diagram2RelationshipSource)}"]`));
     const entityA = relationship?.dataset.diagram2RelationshipSource
-      ? objectPlane?.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
+      ? svg?.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
       : entities[0] || null;
     const entityB = entities.find(entity => entity !== entityA) || null;
     const entityC = entities.find(entity => entity !== entityA && entity !== entityB) || entityB;
@@ -4862,7 +4860,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
       moveRoutedRelationshipCount: moveCommitDiagnostics.routedRelationshipCount,
       previewActiveAfterCommit: moveCommitDiagnostics.geometryPreviewActive,
       previewPathCountAfterCommit: document.querySelectorAll("[data-diagram2-relationship-preview-path]").length,
-      entityAStableAfterCommit: entityA === objectPlane.querySelector(`[data-diagram2-object-id="${CSS.escape(entityAId)}"]`),
+      entityAStableAfterCommit: entityA === svg.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${CSS.escape(entityAId)}"]`),
       entityATextStableAfterCommit: entityAText === entityA.querySelector("[data-diagram2-entity-title], text"),
       relationshipStableAfterCommit: relationship === document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"]`),
       multiPreviewObjectIds: multiPreviewDiagnostics.geometryPreviewObjectIds,
@@ -4871,7 +4869,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
         && transformBBeforeMulti === (entityB.getAttribute("transform") || ""),
       multiCancelNoDirtyFlush: dirtyFlushAfterMultiCancel === dirtyFlushBeforeMulti,
       multiCancelNoUndo: multiCancelDiagnostics.geometryPreviewUndoEntryCount === undoBeforeMulti,
-      resizeNodeStable: resizeNodeBefore === objectPlane.querySelector(`[data-diagram2-object-id="${CSS.escape(entityCId)}"]`),
+      resizeNodeStable: resizeNodeBefore === svg.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${CSS.escape(entityCId)}"]`),
       selectionVisibleBeforeResize,
       selectionHiddenDuringResize,
       selectionRestoredAfterResizeCancel,

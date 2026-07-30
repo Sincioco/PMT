@@ -1,7 +1,7 @@
 import {
   buildAnnotationSvg,
   parseAnnotationSvg
-} from "../components/image-annotation.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
 import { appUrl } from "./app-urls.js";
 import { escapeAttr } from "./text-and-links.js";
 

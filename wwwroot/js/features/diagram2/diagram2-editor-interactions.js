@@ -1,11 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260730-diagram2-d1-compact-parity-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-v1";
+import {
+  resizeDiagram2CropClip
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -16,7 +19,8 @@ const diagram2ShortcutTools = {
   l: "line",
   t: "textbox",
   y: "rich-text",
-  e: "entity"
+  e: "entity",
+  c: "crop"
 };
 
 export function bindDiagram2EditorInteractions(options = {}) {
@@ -45,7 +49,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
     if (active.kind === "marquee") flushMarqueePreview(active);
     gesture = null;
     active.abortController.abort();
-    canvas.classList.remove("is-panning", "is-moving-object", "is-resizing-object", "is-selecting");
+    canvas.classList.remove("is-panning", "is-moving-object", "is-resizing-object", "is-selecting", "is-cropping");
     renderer.clearMarquee?.();
 
     if (active.kind === "move") {
@@ -92,6 +96,25 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
+    if (active.kind === "crop") {
+      if (!commit || !active.changed) {
+        renderer.clearCropPreview?.({ keepTarget: true });
+        options.onDiagnostics?.(renderer.diagnostics?.());
+        return;
+      }
+      renderer.clearCropPreview?.({ keepTarget: true });
+      const applied = await controller.updateEmbeddedImageCrop?.(active.objectId, {
+        imageClip: active.clip,
+        cropVisible: true
+      }, {
+        label: "Crop image",
+        reason: "pointer crop"
+      });
+      renderer.setCropTarget?.(active.objectId);
+      if (applied) await afterMutation(options);
+      return;
+    }
+
     if (active.kind === "marquee" && commit) {
       controller.setSelection(active.selection);
     }
@@ -117,6 +140,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
   canvas.addEventListener("pointerdown", event => {
     if (event.button !== 0 && event.button !== 1) return;
     const handle = event.target.closest?.("[data-diagram2-resize-handle]");
+    const cropHandle = event.target.closest?.("[data-diagram2-crop-handle]");
+    const mappingRow = event.target.closest?.("[data-diagram2-field-mapping-row]");
     const relationshipRouteHandle = event.target.closest?.("[data-diagram2-relationship-route-handle]");
     const relationshipNode = event.target.closest?.("[data-diagram2-relationship-id]");
     const relationshipId = String(relationshipNode?.dataset?.diagram2RelationshipId || "").trim();
@@ -127,6 +152,34 @@ export function bindDiagram2EditorInteractions(options = {}) {
     const repeatedObjectClick = objectId
       && lastObjectPointerDown.id === objectId
       && pointerTime - lastObjectPointerDown.time <= 500;
+
+    if (event.button === 0 && mappingRow && activeTool !== "pan") {
+      event.preventDefault();
+      event.stopPropagation();
+      const mappingId = String(mappingRow.dataset.diagram2FieldMappingId || "").trim();
+      controller.selectFieldMapping?.(mappingId);
+      renderer.showFieldMappingHover?.(mappingId, {
+        tableId: mappingRow.dataset.diagram2FieldMappingTableId
+      });
+      options.onStateChange?.();
+      return;
+    }
+
+    if (event.button === 0 && cropHandle && activeTool === "crop") {
+      startCrop(event, cropHandle);
+      return;
+    }
+
+    if (event.button === 0 && objectId && activeTool === "crop") {
+      const object = controller.getObjectById(objectId);
+      event.preventDefault();
+      if (object?.type === "embedded-image") {
+        controller.setSelection([object.id], { expandGroups: false });
+        renderer.setCropTarget?.(object.id);
+        options.onStateChange?.();
+      }
+      return;
+    }
 
     if (event.button === 0 && objectId && (Number(event.detail) >= 2 || repeatedObjectClick) && activeTool !== "pan") {
       const object = controller.getObjectById(objectId);
@@ -205,6 +258,18 @@ export function bindDiagram2EditorInteractions(options = {}) {
   }, { signal });
 
   canvas.addEventListener("dblclick", event => {
+    const mappingRow = event.target.closest?.("[data-diagram2-field-mapping-row]");
+    if (mappingRow && controller.activeTool() !== "pan") {
+      event.preventDefault();
+      event.stopPropagation();
+      const mappingId = String(mappingRow.dataset.diagram2FieldMappingId || "").trim();
+      controller.selectFieldMapping?.(mappingId, { focusTarget: true });
+      renderer.showFieldMappingHover?.(mappingId, {
+        tableId: mappingRow.dataset.diagram2FieldMappingTableId
+      });
+      options.onStateChange?.();
+      return;
+    }
     const relationshipTarget = relationshipTargetFromEvent(event.target);
     if (relationshipTarget.relationshipId
       && relationshipTarget.node
@@ -238,6 +303,24 @@ export function bindDiagram2EditorInteractions(options = {}) {
     options.onStateChange?.();
     if (object.type === "entity") void options.onEditEntity?.(object);
     else void options.onEditText?.(object);
+  }, { signal });
+
+  canvas.addEventListener("pointerover", event => {
+    const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+    if (!row || !canvas.contains(row)) return;
+    const previousRow = event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]");
+    if (previousRow === row) return;
+    renderer.showFieldMappingHover?.(row.dataset.diagram2FieldMappingId, {
+      tableId: row.dataset.diagram2FieldMappingTableId
+    });
+  }, { signal });
+
+  canvas.addEventListener("pointerout", event => {
+    const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
+    if (!row || !canvas.contains(row)) return;
+    const nextRow = event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]");
+    if (nextRow === row) return;
+    renderer.clearFieldMappingHover?.();
   }, { signal });
 
   canvas.addEventListener("auxclick", event => {
@@ -355,6 +438,13 @@ export function bindDiagram2EditorInteractions(options = {}) {
       options.onStateChange?.();
       return;
     }
+    if (event.key === "Escape" && controller.activeTool() === "crop") {
+      event.preventDefault();
+      controller.setActiveTool("select");
+      renderer.clearCropPreview?.();
+      options.onStateChange?.();
+      return;
+    }
     if (editableEventTarget(event.target)) return;
     if (command && key === "s") {
       event.preventDefault();
@@ -404,7 +494,28 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
+    const focusedMappingRow = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-field-mapping-row]");
+    if (focusedMappingRow && canvas.contains(focusedMappingRow)
+      && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      const mappingId = String(focusedMappingRow.dataset.diagram2FieldMappingId || "").trim();
+      controller.selectFieldMapping?.(mappingId, { focusTarget: event.key === "Enter" });
+      renderer.showFieldMappingHover?.(mappingId, {
+        tableId: focusedMappingRow.dataset.diagram2FieldMappingTableId
+      });
+      options.onStateChange?.();
+      return;
+    }
+
     const step = controller.keyboardNudgeStep(event.shiftKey);
+    const focusedCropHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-crop-handle]");
+    if (focusedCropHandle && canvas.contains(focusedCropHandle)) {
+      const nudged = nudgeCropHandle(focusedCropHandle, event, step);
+      if (nudged) {
+        event.preventDefault();
+        return;
+      }
+    }
     const focusedRouteHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-relationship-route-handle]");
     if (focusedRouteHandle && canvas.contains(focusedRouteHandle)) {
       const nudged = nudgeRelationshipRouteHandle(focusedRouteHandle, event, step);
@@ -563,6 +674,52 @@ export function bindDiagram2EditorInteractions(options = {}) {
   function relationshipRouteCoordinate(event, axis) {
     const point = renderer.screenToWorld?.(event) || { x: Number(event.clientX || 0), y: Number(event.clientY || 0) };
     return Number(axis === "x" ? point.x : point.y);
+  }
+
+  function startCrop(event, handle) {
+    event.preventDefault();
+    event.stopPropagation();
+    cancelGesture();
+    if (options.canMutate?.() === false) return;
+    const objectId = String(handle?.dataset?.diagram2CropObjectId || "").trim();
+    const direction = String(handle?.dataset?.diagram2CropHandle || "").trim().toLowerCase();
+    const image = controller.getObjectById(objectId);
+    if (image?.type !== "embedded-image" || image.locked === true || !direction) return;
+    const originalClip = cloneValue(image.imageClip || {
+      x: image.x,
+      y: image.y,
+      width: image.width,
+      height: image.height
+    });
+    const abortController = new AbortController();
+    gesture = {
+      kind: "crop",
+      abortController,
+      objectId,
+      direction,
+      image: cloneValue(image),
+      originalClip,
+      clip: originalClip,
+      changed: false
+    };
+    controller.setSelection([objectId], { expandGroups: false });
+    renderer.setCropTarget?.(objectId);
+    canvas.classList.add("is-cropping");
+    capturePointer(event);
+    eventWindow.addEventListener("pointermove", moveEvent => {
+      if (gesture?.kind !== "crop") return;
+      const point = renderer.screenToWorld(moveEvent);
+      const status = controller.statusSnapshot?.() || {};
+      const clip = resizeDiagram2CropClip(gesture.image, direction, point, {
+        snap: status.snapToGrid === true,
+        gridSize: status.gridSize
+      });
+      if (!clip) return;
+      gesture.clip = clip;
+      gesture.changed = !sameBounds(gesture.originalClip, clip);
+      options.onDiagnostics?.(renderer.previewCrop?.(objectId, clip));
+    }, { signal: abortController.signal });
+    bindGestureEnd(event.pointerId, abortController.signal);
   }
 
   function startResize(event, objectId, handleName) {
@@ -777,6 +934,39 @@ export function bindDiagram2EditorInteractions(options = {}) {
     });
     return true;
   }
+
+  function nudgeCropHandle(handle, event, step) {
+    if (controller.activeTool() !== "crop" || options.canMutate?.() === false) return false;
+    const direction = String(handle?.dataset?.diagram2CropHandle || "").toLowerCase();
+    const horizontal = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+    const vertical = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+    if ((!horizontal || !/[ew]/.test(direction)) && (!vertical || !/[ns]/.test(direction))) return false;
+    const objectId = String(handle?.dataset?.diagram2CropObjectId || "").trim();
+    const image = controller.getObjectById(objectId);
+    if (image?.type !== "embedded-image" || image.locked === true) return false;
+    const point = {
+      x: finiteNumber(handle.getAttribute("cx"), image.x) + horizontal,
+      y: finiteNumber(handle.getAttribute("cy"), image.y) + vertical
+    };
+    const status = controller.statusSnapshot?.() || {};
+    const clip = resizeDiagram2CropClip(image, direction, point, {
+      snap: status.snapToGrid === true,
+      gridSize: status.gridSize
+    });
+    if (!clip) return false;
+    void controller.updateEmbeddedImageCrop(objectId, {
+      imageClip: clip,
+      cropVisible: true
+    }, {
+      label: "Adjust image crop",
+      reason: "keyboard crop"
+    }).then(applied => {
+      if (!applied) return null;
+      renderer.setCropTarget?.(objectId);
+      return afterMutation(options);
+    });
+    return true;
+  }
 }
 
 function parseRelationshipRoutePoints(handle) {
@@ -950,6 +1140,11 @@ function cssEscapeSelector(value) {
 function objectsChanged(originals, nextObjects) {
   const nextById = new Map(nextObjects.map(object => [String(object?.id || ""), object]));
   return originals.some(object => JSON.stringify(object) !== JSON.stringify(nextById.get(String(object?.id || ""))));
+}
+
+function sameBounds(left, right) {
+  return Boolean(left && right && ["x", "y", "width", "height"]
+    .every(key => Math.abs(finiteNumber(left[key], 0) - finiteNumber(right[key], 0)) < 0.001));
 }
 
 function cloneValue(value) {

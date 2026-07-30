@@ -74,7 +74,7 @@ These should not be copied wholesale into Diagram 2. They need controller comman
 
 ## Diagram 2 Modules
 
-Phase 2 created the foundation modules needed by both hosts. Remaining module names are still planned ownership boundaries for later phases.
+Phase 2 created the foundation modules needed by both hosts. Phases 3-6 filled the focused ownership modules below; remaining planned names are still later-phase boundaries.
 
 | Module | Owns | Does not own |
 | --- | --- | --- |
@@ -87,6 +87,14 @@ Phase 2 created the foundation modules needed by both hosts. Remaining module na
 | `diagram2-editor-structure.js` | Diagram 1-familiar object tree projection, group/ungroup plans, group-aware selection, visibility, rename, drag/drop reorder, layer/z-order plans, and structure-state commands. | DOM event handling, SVG node patching, or document persistence. |
 | `diagram2-editor-templates.js` | Shared Diagram template-library state helpers, capture/apply/format/upload/download/restore helpers, and arrow/rectangle drawing defaults. | Template endpoint implementation, Field Rectangle defaults, Crop, Entity editing, or Field Mapping authoring. |
 | `diagram2-editor-entities.js` | Renderer-neutral Entity creation, Diagram 1-compatible parser adapter, Entity definition plans, field add/update/remove plans, display-option plans, duplicate field-name handling, and sizing rules. | Dialog DOM, renderer patches, relationship route drawing, Field Rectangle authoring, or Field Mapping authoring. |
+| `diagram2-editor-images.js` | Image IDs, file-type checks, stable source identity, dimension loading, and compatible `embedded-image` creation. | Upload endpoints, decoded resource ownership, crop commands, or DOM rendering. |
+| `diagram2-image-resources.js` | Keyed decode promises, reference counts, cache hit/miss/release diagnostics, image listener cleanup, and Blob URL revocation. | Canonical image state, upload persistence, or renderer selection. |
+| `diagram2-editor-crop.js` | Pure crop inset/corner/radius/reset/resize math and D1-compatible permanent-crop delegation. | Pointer event ownership, canonical mutation per preview frame, or image-resource lifetime. |
+| `diagram2-editor-entity-annotations.js` | Renderer-neutral Entity annotation create/edit/remove plans plus owner/child/group references. | Dialog markup, SVG painting, or route DOM. |
+| `diagram2-editor-field-rectangles.js` | D1-compatible virtual Entity creation, names, connection sides, mapping metadata, and mapping plans. | Database access, image decoding, or table DOM. |
+| `diagram2-editor-field-mappings.js` | Full and incremental mapping indexes, mapping IDs by Field Rectangle/Entity field/source image/table, highlight targets, row keys, relationship IDs, and route bounds. | Canonical persistence format, broad DOM queries, or host dialogs. |
+| `diagram2-editor-field-mapping-tables.js` | Compatible table creation, stable rows, and local synchronization for one Field Rectangle or source image. | Excel/CSV workflow promotion, renderer node ownership, or upload storage. |
+| `diagram2-editor-phase6-host.js` | Shared image upload/drop/paste, crop actions, Entity Annotation dialog flow, Field Rectangle mapping flow, and mapping-table generation used by both hosts. | Document save, RTE save-back, canonical command implementation, or renderer internals. |
 | `diagram2-editor-relationships.js` | Renderer-neutral relationship selection objects, relationship add/delete/style/type/routing plans, manual route override plans, route point add/remove plans, D1 Compact precondition checks, and exact D1 Compact state planning. | SVG node patching, host prompts, worker lifecycle, or document persistence. |
 | `diagram2-route-costing.js` | Compact progress/diagnostic records and optional observational route metrics. Diagnostics may not choose, reject, or alter the D1 Compact result. | Entity layout mutation, layout candidate selection, DOM/SVG painting, host prompts, or command history. |
 | `diagram2-compact-engine.js` | Exact D1 Compact execution, ordered progress callbacks, cancel checks, final status, and diagnostics shared by worker and inline fallback. | Browser overlay rendering, document save, renderer DOM patching, or alternate layout candidates. |
@@ -178,6 +186,33 @@ Phase 6 must preserve the Phase 5 implementation commit `237b229aa208dde69b4d29e
 - Preserve existing Field Rectangle-shaped `type: "entity"` objects during Compact, but do not move their authoring ownership backward into Phase 5.
 - Add Crop, image upload/drop, Entity annotation authoring, Field Rectangle authoring, Field Mapping authoring, and Field Mapping Table behavior through the existing shared controller and dual-host boundaries.
 - Do not start Phase 7 workflow promotion or Phase 8 performance promotion without separate authorization.
+
+## Phase 6 Implementation Update
+
+Phase 6 keeps canonical Diagram state authoritative and adds focused pure helpers instead of creating an asset subsystem or mapping service. The controller remains the command/history coordinator. `diagram2-editor-phase6-host.js` is the one shared UI action adapter used by top-navigation Diagram 2 and both RTE Diagram 2 entry paths; it delegates mutations to controller commands and calls only host-provided upload, confirmation, notification, and post-command refresh callbacks.
+
+Image insertion reuses the existing Rich Text upload endpoint and compatible `embedded-image` contract. `diagram2-image-resources.js` keys decoded resources by stable source identity, shares in-flight decode promises, reference-counts mounted consumers, and releases listeners, references, and Blob URLs on removal/destroy. Selection and unrelated style changes do not decode again. Missing resources render a keyed fallback. PMT's existing vector-opacity contract remains unchanged: source and embedded images stay fully opaque.
+
+Crop pointer and keyboard work use transient renderer preview state. Preview frames patch only the selected image and crop overlay, create no history entry, and do not mutate or serialize canonical state. Commit writes one command; reset is reversible; confirmed permanent crop delegates to the D1 raster operation and clears local undo because the source replacement is irreversible.
+
+Entity annotations keep indexed owner/child/group references. Field Rectangles remain D1-compatible virtual `type: "entity"` objects. Field mapping indexes have full-build and local-patch paths for Field Rectangle, target Entity/field, source image, table, row key, highlight target, mapping relationship, and route bounds. Mapping hover is renderer-only view state. Field Mapping Table rows have stable mapping-derived keys and synchronize only the affected row or source-image table.
+
+The renderer's explicit paint order is:
+
+1. background;
+2. screenshot images;
+3. ordinary objects below Entity relationships;
+4. Entity relationships;
+5. ordinary objects between relationship layers;
+6. Field Rectangle relationships;
+7. ordinary objects above relationship layers;
+8. Field Rectangles;
+9. Field Mapping Tables;
+10. mapping highlights;
+11. selection;
+12. gesture/crop overlays.
+
+The three ordinary-object planes retain the legacy `data-diagram2-object-plane` marker for descendant selectors, while tests and new code query across all explicit planes. Mapping hover/click/double-click/keyboard behavior works in edit and read-only modes without canonical mutation. No database schema, endpoint, file format, clipboard format, template store, image store, or document type changed.
 
 ## Existing RTE Annotation Launch Path
 
@@ -338,6 +373,7 @@ The older instructions mention a 28-entity small fixture. The current recorded b
 | 500 entities, measured canonical 867 relationships | Benchmark artifact, document 97 | Diagram 2 route | 924.82 ms ready | 1 on open | 9142 DOM nodes, 7914 SVG descendants | Last frame 92.2 ms, overview detail 75.4 ms, zoom average 165.5 ms | Artifact matrix describes the generated 500 fixture as 1024 relationships; renderer diagnostics counted 867 canonical relationships. Preserve both facts during later investigation. |
 | 500 entities, 160 relationships | Phase 5 production-shaped functional gate | Diagram 2 editor and exact Compact oracle | 32.55 s D1, 32.94 s D2 inline, 27.19 s D2 worker | 1 initial, 0 measured routine increase | Low detail and viewport virtualization verified | Selection, marquee, field edit, move, style, manual route, worker start/cancel/cleanup all pass | Functional gate only; Phase 8 owns sustained promotion timing. |
 | 1000 entities, 120 relationships | Phase 5 focused functional gate | Diagram 2 editor and Compact worker | Worker starts and cancels on first progress event | 1 initial, 0 measured routine increase | Low detail, virtualization, and one outer multi-selection overlay verified | State, selection, history, revision, and manual routes unchanged after cancel | Focused cancellation/editing smoke; Phase 8 must complete promotion timing. |
+| 500 and 1,000 objects with one local mapping edit | Phase 6 focused mapping gate | Mapping index patch and live renderer | 0.04 ms at 500; 0.03 ms at 1,000 in the focused pure-index run | 0 mapping-caused full renders | One changed mapping/table row and bounded highlight routes | Incremental object visits 0; unrelated Entity reroutes 0 | Functional locality evidence; Phase 8 retains sustained promotion timing. |
 
 ## Performance Gates for Later Phases
 
@@ -374,6 +410,7 @@ Later phases should append exact medians/p95s where browser tests support repeat
 - Phase 2 moved existing local movement and nudge behavior through command history and incremental renderer updates. Initial open/import/reset may still use full render; ordinary local move undo/redo must not.
 - Diagram 1 and Diagram 2 now share the same user-facing Diagram document library and Documentation security model. Diagram 2 has no Diagram2-only resource, role, document field, library, or storage path.
 - RTE `Annotate 2.0` and `Edit Annotation 2.0` use the shared Diagram 2 editor core and the existing rich-text upload pipeline. Cancel performs no upload and leaves the selected image unchanged.
-- Phases 3 through 5 now build on the same controller/shell architecture without replacing its command, dirty-category, keyed-renderer, dual-host, or canonical compatibility boundaries.
+- Phases 3 through 6 now build on the same controller/shell architecture without replacing its command, dirty-category, keyed-renderer, dual-host, or canonical compatibility boundaries.
 - Phase 5 is closed at implementation commit `237b229aa208dde69b4d29ecf07eb1335deac083` with exact D1 Compact output, D1-style relationship editing, functional 500/1,000-Entity gates, and zero required Compact mismatches.
-- The next authorized implementation boundary is Phase 6 only, after Sin's explicit approval and with the prerequisites in the Phase 5 update above kept green.
+- Phase 6 closes image upload/drop/paste, Crop, Entity annotations, Field Rectangles, field mappings, Field Mapping Tables, explicit paint planes, keyed image resources, and local mapping indexes through both hosts while keeping the Phase 5 Compact oracle green.
+- The next implementation boundary is Phase 7 only after separate authorization. Phase 7 work was not started here.
