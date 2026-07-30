@@ -7,24 +7,24 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
 import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-entities.js?v=20260731-diagram2-route-release-v15";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
   diagram2ImageHasCropInspector,
   diagram2ImageHasReversibleCrop
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-route-release-v15";
 import {
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-field-rectangles.js?v=20260731-diagram2-route-release-v15";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260731-diagram2-route-release-v15";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -762,6 +762,40 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   syncDiagram2ColorPickerControls(root, selectedObjects, { busy: status.busy === true, canEdit });
   syncDiagram2InspectorTabVisibility(root, selectedObjects);
   syncDiagram2ContextMenu(root, selectedObjects, { busy: status.busy === true, canEdit, canExport });
+}
+
+export function updateDiagram2RouteCommitShellStatus(root, status = {}) {
+  if (!root) return;
+  const dirty = status.dirty === true;
+  const busy = status.busy === true;
+  const canEdit = status.canEdit !== false;
+  const selectedText = status.selectedCount
+    ? `${status.selectedCount} selected`
+    : "No selection";
+  root.querySelectorAll("[data-diagram2-edit-state]").forEach(node => {
+    node.textContent = selectedText;
+  });
+  root.querySelectorAll("[data-diagram2-shell-save-state]").forEach(node => {
+    node.textContent = busy ? "Saving..." : (dirty ? "Unsaved changes" : "Saved");
+  });
+  root.querySelectorAll("[data-diagram2-selected-count]").forEach(node => {
+    node.textContent = String(status.selectedCount || 0);
+  });
+  root.classList.toggle("has-unsaved-diagram2", dirty);
+  root.querySelectorAll("[data-diagram2-requires-dirty]").forEach(control => {
+    control.disabled = !dirty || busy || status.canSave === false || !canEdit;
+  });
+  root.querySelectorAll("[data-diagram2-requires-undo]").forEach(control => {
+    control.disabled = status.history?.canUndo !== true || busy || !canEdit;
+  });
+  root.querySelectorAll("[data-diagram2-requires-redo]").forEach(control => {
+    control.disabled = status.history?.canRedo !== true || busy || !canEdit;
+  });
+  syncDiagram2EntityControls(root, {
+    ...status,
+    selectedObjects: status.selectedRelationships || [],
+    state: status.state || {}
+  }, { busy, canEdit });
 }
 
 export function setDiagram2ToolsPaneOpen(root, open) {

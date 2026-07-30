@@ -53,7 +53,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -108,6 +108,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   const toolbarRectangleId = await assertDiagram2RteToolbarObjectInsertion(page);
   await assertDiagram2RtePhase3CoreEditing(page, toolbarRectangleId);
   await assertDiagram2RtePhase5EntityEditing(page, testInfo);
+  await assertDiagram2RteRouteRelease(page, "Annotate 2.0");
   const movedImage = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
     const imageObject = controller.currentState().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
@@ -194,7 +195,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -233,6 +234,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(reopened.radius).toBe(25);
   expect(reopened.hasOutsideArrow).toBe(true);
   expect(reopened.hasToolbarRectangle).toBe(true);
+  await assertDiagram2RteRouteRelease(page, "Edit Annotation 2.0");
   await page.evaluate(id => {
     window.__pmtDiagram2EditorCore.setSelection([id], { expandGroups: false });
   }, reopened.imageId);
@@ -590,6 +592,104 @@ async function assertDiagram2RtePhase5EntityEditing(page, testInfo) {
   await captureDiagram2RtePhase5Screenshot(page, testInfo, "chromium-1366", "diagram2-phase5-rte-entity-editing-1366x768.png");
 }
 
+async function assertDiagram2RteRouteRelease(page, hostLabel) {
+  const dialog = page.locator("[data-diagram2-rte-host]");
+  const activeLeftPaneToggle = dialog.locator(
+    "[data-diagram2-left-pane-toggle][aria-pressed='true']"
+  );
+  if (await activeLeftPaneToggle.count()) {
+    await activeLeftPaneToggle.first().click();
+  }
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const relationshipId = window.__diagram2RtePhase5RelationshipId;
+    controller.setSelection([relationshipId], { expandGroups: false });
+    renderer.focusObjectIds(["rte-phase5-entity", "rte-phase5-parent"], {
+      scale: 0.9,
+      reason: "RTE relationship route release"
+    });
+    await renderer.whenIdle();
+  });
+  const handles = dialog.locator("[data-diagram2-relationship-route-handle]");
+  const hitTestableHandleIndex = await handles.evaluateAll(nodes =>
+    nodes.findIndex(node => {
+      const rect = node.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        rect.x + (rect.width / 2),
+        rect.y + (rect.height / 2)
+      );
+      return hit === node || node.contains(hit);
+    }));
+  expect(hitTestableHandleIndex).toBeGreaterThanOrEqual(0);
+  const handle = handles.nth(hitTestableHandleIndex);
+  await expect(handle).toBeVisible();
+  const box = await handle.boundingBox();
+  expect(box).toBeTruthy();
+  const axis = await handle.getAttribute("data-diagram2-relationship-segment-axis");
+  const center = { x: box.x + (box.width / 2), y: box.y + (box.height / 2) };
+  const before = await page.evaluate(() => ({
+    historyCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    fullRenderCount: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    route: JSON.stringify(
+      window.__pmtDiagram2EditorCore.getObjectById("rte-phase5-entity")?.foreignKeys?.[0]?.routeOverride || []
+    )
+  }));
+  await page.mouse.move(center.x, center.y);
+  await page.mouse.down();
+  await page.mouse.move(
+    center.x + (axis === "x" ? 24 : 0),
+    center.y + (axis === "y" ? 24 : 0)
+  );
+  await expect(dialog.locator("[data-diagram2-relationship-route-preview]")).toHaveCount(1);
+  const previewPath = await dialog
+    .locator("[data-diagram2-relationship-route-preview]")
+    .getAttribute("d");
+  await page.mouse.up();
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.historyStatus().entryCount)
+  ).toBe(before.historyCount + 1);
+  const result = await page.evaluate(async ({ snapshot, expectedPath }) => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenInteractive();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const diagnostics = controller.diagnostics().lastRouteCommit;
+    const relationshipId = window.__diagram2RtePhase5RelationshipId;
+    const path = document.querySelector(
+      `[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"] [data-diagram2-relationship-path]`
+    )?.getAttribute("d") || "";
+    return {
+      diagnostics,
+      historyDelta: controller.historyStatus().entryCount - snapshot.historyCount,
+      fullRenderDelta: renderer.diagnostics().fullRenderCount - snapshot.fullRenderCount,
+      previewMatchesCommitted: path === expectedPath,
+      routeChanged: JSON.stringify(
+        controller.getObjectById("rte-phase5-entity")?.foreignKeys?.[0]?.routeOverride || []
+      ) !== snapshot.route,
+      previewCount: document.querySelectorAll("[data-diagram2-relationship-route-preview]").length
+    };
+  }, { snapshot: before, expectedPath: previewPath });
+  console.info("DIAGRAM2_RTE_ROUTE_RELEASE", JSON.stringify({
+    host: hostLabel,
+    totalMs: result.diagnostics?.routeCommitTotalMs,
+    rendererMs: result.diagnostics?.routeCommitRendererFlushMs
+  }));
+  expect(result.routeChanged).toBe(true);
+  expect(result.previewMatchesCommitted).toBe(true);
+  expect(result.previewCount).toBe(0);
+  expect(result.historyDelta).toBe(1);
+  expect(result.fullRenderDelta).toBe(0);
+  expect(result.diagnostics.routeCommitTotalMs).toBeLessThanOrEqual(150);
+  expect(result.diagnostics.routeCommitObjectsPatched).toBe(1);
+  expect(result.diagnostics.routeCommitRelationshipsConsidered).toBe(1);
+  expect(result.diagnostics.routeCommitRelationshipsRerouted).toBe(0);
+  expect(result.diagnostics.routeCommitObjectIndexRebuildCount).toBe(0);
+  expect(result.diagnostics.routeCommitRelationshipIndexRebuildCount).toBe(0);
+  expect(result.diagnostics.routeCommitMappingIndexRebuildCount).toBe(0);
+  expect(result.diagnostics.routeCommitAnnotationIndexRebuildCount).toBe(0);
+}
+
 async function assertDiagram2RtePhase3CoreEditing(page, rectangleId) {
   const dialog = page.locator("[data-diagram2-rte-host]");
   const baselineCount = await page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length);
@@ -702,7 +802,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -747,7 +847,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -802,7 +902,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;
@@ -907,7 +1007,7 @@ async function waitForDiagram2RteCleanup(page) {
 async function openD1RoundtripHost(page, svg, key) {
   await page.evaluate(({ markup, storageKey }) => {
     void (async () => {
-      const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14");
+      const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
       const image = document.querySelector("#targetImage");
       const annotationUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
       window[`__${storageKey}Promise`] = annotation.openImageAnnotationDialog({
@@ -941,7 +1041,7 @@ async function openD2RoundtripHost(page, svg, key, options = {}) {
   await page.evaluate(({ markup, storageKey, annotated, initialState }) => {
     void (async () => {
       const { openDiagram2RteAnnotationHost } = await import(
-        "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14"
+        "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15"
       );
       const image = document.querySelector("#targetImage");
       const editor = document.querySelector(".rich-editor");

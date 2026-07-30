@@ -906,8 +906,8 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
   }
 
   const d1Evidence = await page.evaluate(async state => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14");
-    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260731-diagram2-route-release-v15");
     document.body.innerHTML = `<main class="phase6-closure-canvas" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
     const host = document.querySelector(".phase6-closure-canvas");
     const svgMarkup = annotation.buildAnnotationSvg(state, {
@@ -1140,8 +1140,8 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
 
   const d2Evidence = await page.evaluate(async ({ state, mappingId: activeMappingId }) => {
     document.body.innerHTML = `<main id="phase6D2Host" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
-    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260731-diagram2-route-release-v15");
     const host = document.querySelector("#phase6D2Host");
     const renderer = createDiagram2Renderer({ host });
     renderer.render(state, { reason: "Phase 6 D1/D2 closure oracle" });

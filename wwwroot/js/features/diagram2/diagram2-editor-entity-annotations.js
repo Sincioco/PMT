@@ -1,7 +1,7 @@
 import {
   setAnnotationEntityAnnotation,
   syncAnnotationEntityAnnotationArrows
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
 
 export function diagram2EntityAnnotationChildren(objectsInput, entityOrId) {
   const entityId = String(typeof entityOrId === "object" ? entityOrId?.id : entityOrId || "").trim();

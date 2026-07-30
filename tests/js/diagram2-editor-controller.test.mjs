@@ -713,7 +713,24 @@ CREATE TABLE [pmt].[Sprints](
   const axis = routeBeforeMove[segmentIndex].x === routeBeforeMove[segmentIndex + 1].x ? "x" : "y";
   const coordinate = routeBeforeMove[segmentIndex][axis] + 24;
   assert.equal(await controller.adjustRelationshipRoute(relationshipId, segmentIndex, axis, coordinate), true);
-  assert.notDeepEqual(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride, routeBeforeMove);
+  const routeAfterMove = controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride;
+  assert.notDeepEqual(routeAfterMove, routeBeforeMove);
+  assert.equal(renderer.routeCommits.length, 1);
+  assert.equal(controller.diagnostics().lastCanonicalOperation.kind, "relationship-route");
+  assert.equal(controller.diagnostics().lastCanonicalOperation.objectPatchCount, 1);
+  assert.equal(controller.diagnostics().lastCanonicalOperation.foreignKeyPatchCount, 1);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitRelationshipsConsidered, 1);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitRelationshipsRerouted, 0);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitObjectIndexRebuildCount, 0);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitRelationshipIndexRebuildCount, 0);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitMappingIndexRebuildCount, 0);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitAnnotationIndexRebuildCount, 0);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitFullStateNormalizationCount, 0);
+  assert.equal(controller.diagnostics().lastRouteCommit.routeCommitFullStateSerializationCount, 0);
+  assert.equal(await controller.undo(), true);
+  assert.deepEqual(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride, routeBeforeMove);
+  assert.equal(await controller.redo(), true);
+  assert.deepEqual(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride, routeAfterMove);
   const routeBeforeInsert = controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride;
   assert.equal(await controller.insertRelationshipRoutePoint(relationshipId), true);
   assert.ok(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride.length > routeBeforeInsert.length);
@@ -1940,6 +1957,8 @@ function fakeRenderer() {
     removedObjectBatches: [],
     objectOrders: [],
     structureStates: [],
+    routeCommits: [],
+    routePointsById: new Map(),
     canvasOptions: [],
     selectedCallCount: 0,
     beginDiagramUpdate() {},
@@ -1973,6 +1992,28 @@ function fakeRenderer() {
     },
     updateObject(id) {
       this.updatedObjectIds.push(id);
+    },
+    commitRelationshipRoutePreview(options = {}) {
+      const points = (options.points || []).map(point => ({ ...point }));
+      this.routeCommits.push({
+        relationshipId: options.relationshipId,
+        points
+      });
+      this.routePointsById.set(options.relationshipId, points);
+      return {
+        routeCommitRendererScheduleMs: 0,
+        routeCommitRendererFlushMs: 0,
+        routeCommitRelationshipsConsidered: 1,
+        routeCommitRelationshipsRerouted: 0,
+        routeCommitFullRenderDelta: 0,
+        routeCommitDirtyFlushDelta: 0
+      };
+    },
+    completeRelationshipRouteCommit(diagnostics) {
+      this.lastRouteCommit = { ...diagnostics };
+    },
+    relationshipRoutePoints(id) {
+      return (this.routePointsById.get(id) || []).map(point => ({ ...point }));
     },
     setSelectedIds(ids) {
       this.selectedCallCount += 1;

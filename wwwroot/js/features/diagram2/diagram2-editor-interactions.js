@@ -1,14 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-routing.js?v=20260731-diagram2-route-release-v15";
 import {
   resizeDiagram2CropClip
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-route-release-v15";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -44,11 +44,15 @@ export function bindDiagram2EditorInteractions(options = {}) {
   };
 
   const finishGesture = async commit => {
+    const pointerupReceivedAt = interactionNow();
     const active = gesture;
     if (!active) return;
     if (active.kind === "marquee") flushMarqueePreview(active);
     gesture = null;
     active.abortController.abort();
+    if (Number.isInteger(active.pointerId) && canvas.hasPointerCapture?.(active.pointerId)) {
+      canvas.releasePointerCapture?.(active.pointerId);
+    }
     canvas.classList.remove("is-panning", "is-moving-object", "is-resizing-object", "is-selecting", "is-cropping");
     renderer.clearMarquee?.();
 
@@ -83,16 +87,41 @@ export function bindDiagram2EditorInteractions(options = {}) {
     }
 
     if (active.kind === "relationship-route") {
-      clearRelationshipRoutePreview(active);
-      if (!commit || !active.changed) return;
-      const applied = await controller.adjustRelationshipRoute?.(
+      if (!commit || !active.changed) {
+        clearRelationshipRoutePreview(active);
+        return;
+      }
+      const finalPoints = active.points?.length
+        ? active.points
+        : adjustDiagram2RelationshipRoutePoints(
+            active.originalPoints,
+            active.segmentIndex,
+            active.axis,
+            active.coordinate
+          );
+      const finalPath = active.path || diagram2RelationshipPath(finalPoints);
+      const applied = await controller.commitRelationshipRouteOverride?.(
         active.relationshipId,
-        active.segmentIndex,
-        active.axis,
-        active.coordinate,
-        { reason: "pointer relationship route" }
+        finalPoints,
+        {
+          reason: "pointer relationship route",
+          rendererAlreadyPreviewed: true,
+          path: finalPath,
+          previousRenderedPoints: active.originalPoints,
+          pointerupReceivedAt,
+          previewFinalCoordinateAvailableAt: active.previewFinalCoordinateAvailableAt
+            || pointerupReceivedAt
+        }
       );
-      if (applied) await afterMutation(options);
+      if (!applied) {
+        clearRelationshipRoutePreview(active);
+        return;
+      }
+      await nextInteractionFrame(eventWindow);
+      controller.completeRelationshipRouteCommit?.({
+        mainThreadResponsiveAt: interactionNow()
+      });
+      options.onDiagnostics?.(renderer.diagnostics?.());
       return;
     }
 
@@ -672,6 +701,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
     gesture = {
       kind: "relationship-route",
       abortController,
+      pointerId: event.pointerId,
       relationshipId,
       segmentIndex,
       axis,
@@ -679,6 +709,9 @@ export function bindDiagram2EditorInteractions(options = {}) {
       startCoordinate: coordinate,
       originalPoints,
       originalPath,
+      points: originalPoints,
+      path: originalPath,
+      previewFinalCoordinateAvailableAt: interactionNow(),
       relationshipNode,
       changed: false
     };
@@ -694,6 +727,9 @@ export function bindDiagram2EditorInteractions(options = {}) {
         nextCoordinate
       );
       const nextPath = diagram2RelationshipPath(nextPoints);
+      gesture.points = nextPoints;
+      gesture.path = nextPath;
+      gesture.previewFinalCoordinateAvailableAt = interactionNow();
       gesture.changed = gesture.changed || (nextPath && nextPath !== gesture.originalPath);
       previewRelationshipRoute(gesture, nextPath);
     }, { signal: abortController.signal });
@@ -950,11 +986,17 @@ export function bindDiagram2EditorInteractions(options = {}) {
     void controller.adjustRelationshipRoute?.(relationshipId, segmentIndex, axis, coordinate, {
       reason: "keyboard relationship route"
     }).then(applied => {
-      if (applied) return afterMutation(options).then(() => {
+      if (applied) {
+        return nextInteractionFrame(eventWindow).then(() => {
+          controller.completeRelationshipRouteCommit?.({
+            mainThreadResponsiveAt: interactionNow()
+          });
+          options.onDiagnostics?.(renderer.diagnostics?.());
         canvas.ownerDocument
           .querySelector(`[data-diagram2-relationship-route-handle][data-diagram2-relationship-id="${cssEscapeSelector(relationshipId)}"][data-diagram2-relationship-segment-index="${segmentIndex}"]`)
           ?.focus({ preventScroll: true });
-      });
+        });
+      }
       return null;
     });
     return true;
@@ -1106,6 +1148,19 @@ function clearRelationshipRoutePreview(active) {
   active?.relationshipNode
     ?.querySelector?.(":scope > path[data-diagram2-relationship-route-preview]")
     ?.remove();
+}
+
+function interactionNow() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
+function nextInteractionFrame(eventWindow) {
+  const requestFrame = eventWindow?.requestAnimationFrame
+    || globalThis.requestAnimationFrame
+    || (callback => globalThis.setTimeout(callback, 16));
+  return new Promise(resolve => requestFrame(resolve));
 }
 
 async function afterMutation(options) {

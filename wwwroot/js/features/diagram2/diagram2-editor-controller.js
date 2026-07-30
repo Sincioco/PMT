@@ -2,17 +2,17 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-renderer.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2EmbeddedImage
-} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-images.js?v=20260731-diagram2-route-release-v15";
 import {
   permanentlyCropDiagram2Image
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2EntityAnnotationIndexes,
   createDiagram2EntityAnnotationPlan
-} from "./diagram2-editor-entity-annotations.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-entity-annotations.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2FieldRectangle,
   diagram2FieldRectangleMapping,
@@ -20,21 +20,21 @@ import {
   renameDiagram2FieldRectangle,
   setDiagram2FieldRectangleConnectionSide,
   setDiagram2FieldRectangleMapping
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-field-rectangles.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2FieldMappingIndexes,
   patchDiagram2FieldMappingIndexes
-} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2FieldMappingTable,
   syncDiagram2FieldMappingTableForFieldRectangle,
   syncDiagram2FieldMappingTableForImage
-} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-compatibility.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
@@ -45,7 +45,7 @@ import {
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-entities.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2StructureStateCommand,
   diagram2GroupSelectionPlan,
@@ -57,37 +57,39 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-structure.js?v=20260731-diagram2-route-release-v15";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260731-diagram2-route-release-v15";
 import {
   diagram2AddRelationshipPlan,
-  diagram2AdjustRelationshipRoutePlan,
   diagram2ClearRelationshipRoutePlan,
   diagram2CompactAvailability,
   diagram2DeleteRelationshipsPlan,
   diagram2InsertRelationshipRoutePointPlan,
-  diagram2RelationshipById,
-  diagram2RelationshipSelectionObjects,
+  diagram2RelationshipSelectionObject,
   diagram2RemoveRelationshipRoutePointPlan,
-  diagram2SelectableRelationshipIds,
   diagram2SetRelationshipRoutingOptionsPlan,
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-relationships.js?v=20260731-diagram2-route-release-v15";
+import {
+  adjustDiagram2RelationshipRoutePoints,
+  compactDiagram2RelationshipPoints,
+  diagram2RelationshipPath
+} from "./diagram2-routing.js?v=20260731-diagram2-route-release-v15";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260730-diagram2-phase6-crop-closure-v14";
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260731-diagram2-route-release-v15";
 const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
@@ -339,7 +341,11 @@ export function createDiagram2EditorController(options = {}) {
   let objectIdsByGroupId = new Map();
   let entityAnnotationIndexes = createDiagram2EntityAnnotationIndexes();
   let fieldMappingIndexesState = createDiagram2FieldMappingIndexes();
-  let canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+  let relationshipLocatorById = new Map();
+  let relationshipIdsByEntityId = new Map();
+  let relationshipIdsWithRouteOverride = new Set();
+  let relationshipIndexRebuildCount = 0;
+  let canonicalRelationshipCount = 0;
   let selectedObjectIds = [];
   let activeTool = "select";
   let formatPainterStyles = null;
@@ -353,7 +359,8 @@ export function createDiagram2EditorController(options = {}) {
     fullStateSerializationCount: 0,
     stateReplacementCount: 1,
     lastOperation: null,
-    lastCompact: null
+    lastCompact: null,
+    lastRouteCommit: null
   };
   const listeners = new Set();
   const history = createDiagram2CommandHistory({
@@ -361,6 +368,7 @@ export function createDiagram2EditorController(options = {}) {
   });
   history.reset({ saved: options.saved !== false });
   rebuildCanonicalObjectIndex();
+  rebuildCanonicalRelationshipIndex();
 
   function attachRenderer(nextRenderer) {
     renderer = nextRenderer || null;
@@ -381,8 +389,8 @@ export function createDiagram2EditorController(options = {}) {
   function setState(nextState, setOptions = {}) {
     canonicalState = normalizeDiagram2CanonicalState(nextState);
     canonicalRevision += 1;
-    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     rebuildCanonicalObjectIndex();
+    rebuildCanonicalRelationshipIndex();
     canonicalDiagnostics = {
       ...canonicalDiagnostics,
       fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount + 1,
@@ -1188,11 +1196,14 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function selectedRelationshipIds(idsInput = selectedObjectIds) {
-    return uniqueStrings(idsInput).filter(id => diagram2RelationshipById(canonicalState, id));
+    return uniqueStrings(idsInput).filter(id => relationshipLocatorById.has(id));
   }
 
   function selectedRelationshipObjects(idsInput = selectedObjectIds) {
-    return diagram2RelationshipSelectionObjects(canonicalState, selectedRelationshipIds(idsInput));
+    return selectedRelationshipIds(idsInput)
+      .map(id => relationshipLocatorById.get(id)?.selectionObject)
+      .filter(Boolean)
+      .map(object => ({ ...object }));
   }
 
   function createDefaultObject(type, centerInput = {}, options = {}) {
@@ -1414,11 +1425,110 @@ export function createDiagram2EditorController(options = {}) {
 
   async function adjustRelationshipRoute(relationshipId, segmentIndex, axis, coordinate, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
-    const plan = diagram2AdjustRelationshipRoutePlan(canonicalState, relationshipId, segmentIndex, axis, coordinate);
-    return executeDiagram2StatePlan(plan, {
+    const locator = relationshipLocatorById.get(String(relationshipId || "").trim());
+    if (!locator) return false;
+    const source = objectById.get(locator.sourceEntityId);
+    if (source?.locked === true) return false;
+    const foreignKey = source?.foreignKeys?.[locator.foreignKeyIndex];
+    const renderedPoints = renderer?.relationshipRoutePoints?.(locator.relationshipId) || [];
+    const basePoints = Array.isArray(foreignKey?.routeOverride) && foreignKey.routeOverride.length > 1
+      ? foreignKey.routeOverride
+      : renderedPoints;
+    const points = adjustDiagram2RelationshipRoutePoints(
+      basePoints,
+      segmentIndex,
+      axis,
+      coordinate
+    );
+    return commitRelationshipRouteOverride(locator.relationshipId, points, {
+      ...commandOptions,
       label: commandOptions.label || "Adjust manual relationship route",
-      reason: commandOptions.reason || "adjust relationship route"
+      reason: commandOptions.reason || "adjust relationship route",
+      previousRenderedPoints: renderedPoints
     });
+  }
+
+  async function commitRelationshipRouteOverride(relationshipIdInput, pointsInput, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const startedAt = diagram2Now();
+    const pointerupReceivedAt = finiteNumber(commandOptions.pointerupReceivedAt, startedAt);
+    const planStartedAt = diagram2Now();
+    const relationshipId = String(relationshipIdInput || "").trim();
+    const locator = relationshipLocatorById.get(relationshipId);
+    const source = locator ? objectById.get(locator.sourceEntityId) : null;
+    const foreignKey = source?.foreignKeys?.[locator?.foreignKeyIndex];
+    const nextRouteOverride = compactDiagram2RelationshipPoints(pointsInput);
+    if (!locator || source?.locked === true || !foreignKey || nextRouteOverride.length < 2) return false;
+
+    const previousRouteOverride = compactDiagram2RelationshipPoints(foreignKey.routeOverride);
+    const previousRenderedPoints = compactDiagram2RelationshipPoints(
+      commandOptions.previousRenderedPoints?.length
+        ? commandOptions.previousRenderedPoints
+        : renderer?.relationshipRoutePoints?.(relationshipId)
+    );
+    const previousManualRoutes = canonicalState.manualEntityRelationshipRoutes === true;
+    if (previousManualRoutes
+      && sameDiagram2RelationshipRoute(previousRouteOverride, nextRouteOverride)) {
+      return false;
+    }
+    const additionalRouteTransitions = previousManualRoutes
+      ? []
+      : [...relationshipIdsWithRouteOverride]
+          .filter(id => id !== relationshipId)
+          .map(id => {
+            const relatedLocator = relationshipLocatorById.get(id);
+            const relatedSource = objectById.get(relatedLocator?.sourceEntityId);
+            const relatedRouteOverride = compactDiagram2RelationshipPoints(
+              relatedSource?.foreignKeys?.[relatedLocator?.foreignKeyIndex]?.routeOverride
+            );
+            const previousRenderedPoints = compactDiagram2RelationshipPoints(
+              renderer?.relationshipRoutePoints?.(id)
+            );
+            return relatedLocator && relatedRouteOverride.length > 1 && previousRenderedPoints.length > 1
+              ? {
+                  relationshipId: id,
+                  sourceEntityId: relatedLocator.sourceEntityId,
+                  foreignKeyIndex: relatedLocator.foreignKeyIndex,
+                  routeOverride: relatedRouteOverride,
+                  previousRenderedPoints
+                }
+              : null;
+          })
+          .filter(Boolean);
+
+    const command = createDiagram2RelationshipRouteCommand({
+      relationshipId,
+      sourceEntityId: locator.sourceEntityId,
+      foreignKeyIndex: locator.foreignKeyIndex,
+      previousRouteOverride,
+      previousRenderedPoints,
+      nextRouteOverride,
+      nextRenderedPoints: nextRouteOverride,
+      previousManualRoutes,
+      nextManualRoutes: true,
+      selectionBefore: selectedObjectIds,
+      selectionAfter: [relationshipId],
+      label: commandOptions.label || "Adjust manual relationship route",
+      reason: commandOptions.reason || "adjust relationship route",
+      rendererAlreadyPreviewed: commandOptions.rendererAlreadyPreviewed === true,
+      nextPath: String(commandOptions.path || diagram2RelationshipPath(nextRouteOverride)),
+      additionalRouteTransitions
+    });
+    const planCompletedAt = diagram2Now();
+    await history.execute(command, commandContext());
+    const historyCommandRecordedAt = diagram2Now();
+    finalizeRelationshipRouteCommit(command.lastResult(), {
+      action: "apply",
+      startedAt,
+      pointerupReceivedAt,
+      previewFinalCoordinateAvailableAt: finiteNumber(
+        commandOptions.previewFinalCoordinateAvailableAt,
+        planCompletedAt
+      ),
+      planMs: planCompletedAt - planStartedAt,
+      historyCommandRecordedAt
+    });
+    return true;
   }
 
   async function insertRelationshipRoutePoint(relationshipId, segmentIndex = null, commandOptions = {}) {
@@ -1526,10 +1636,23 @@ export function createDiagram2EditorController(options = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const before = history.status();
     if (!before.canUndo) return false;
+    const startedAt = diagram2Now();
+    const command = history.entries()[before.index] || null;
     await history.undo(commandContext());
     selectedObjectIds = existingSelectableIds(selectedObjectIds);
-    renderer?.setSelectedIds?.(selectedObjectIds);
-    emit("history");
+    if (command?.kind !== "relationship-route") renderer?.setSelectedIds?.(selectedObjectIds);
+    if (command?.kind === "relationship-route") {
+      finalizeRelationshipRouteCommit(command.lastResult?.(), {
+        action: "undo",
+        startedAt,
+        pointerupReceivedAt: startedAt,
+        previewFinalCoordinateAvailableAt: startedAt,
+        planMs: 0,
+        historyCommandRecordedAt: diagram2Now()
+      });
+    } else {
+      emit("history");
+    }
     return true;
   }
 
@@ -1537,10 +1660,23 @@ export function createDiagram2EditorController(options = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const before = history.status();
     if (!before.canRedo) return false;
+    const startedAt = diagram2Now();
+    const command = history.entries()[before.index + 1] || null;
     await history.redo(commandContext());
     selectedObjectIds = existingSelectableIds(selectedObjectIds);
-    renderer?.setSelectedIds?.(selectedObjectIds);
-    emit("history");
+    if (command?.kind !== "relationship-route") renderer?.setSelectedIds?.(selectedObjectIds);
+    if (command?.kind === "relationship-route") {
+      finalizeRelationshipRouteCommit(command.lastResult?.(), {
+        action: "redo",
+        startedAt,
+        pointerupReceivedAt: startedAt,
+        previewFinalCoordinateAvailableAt: startedAt,
+        planMs: 0,
+        historyCommandRecordedAt: diagram2Now()
+      });
+    } else {
+      emit("history");
+    }
     return true;
   }
 
@@ -1617,12 +1753,13 @@ export function createDiagram2EditorController(options = {}) {
       removeObjectsCanonical,
       setObjectOrderCanonical,
       setStructureStateCanonical,
+      patchRelationshipRouteCanonical,
       setCanvasOptionCanonical,
       setState(nextState) {
         canonicalState = normalizeDiagram2CanonicalState(nextState);
         canonicalRevision += 1;
-        canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
         rebuildCanonicalObjectIndex();
+        rebuildCanonicalRelationshipIndex();
         canonicalDiagnostics = {
           ...canonicalDiagnostics,
           fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount + 1,
@@ -1732,7 +1869,16 @@ export function createDiagram2EditorController(options = {}) {
         nextObject: nextObjectsById.get(id) || null
       }))
     );
-    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    if ([...nextObjectsById.keys()].some(id =>
+      diagram2RelationshipStructureChanged(
+        previousObjectsById.get(id),
+        nextObjectsById.get(id)
+      ))) {
+      rebuildCanonicalRelationshipIndex();
+    } else {
+      nextObjectsById.forEach(nextObject =>
+        patchCanonicalRelationshipIndexObject(nextObject));
+    }
     return recordCanonicalOperation({
       kind: "update-objects",
       changed: true,
@@ -1789,7 +1935,7 @@ export function createDiagram2EditorController(options = {}) {
       previousObject: null,
       nextObject
     });
-    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    rebuildCanonicalRelationshipIndex();
     return recordCanonicalOperation({
       kind: "add-object",
       changed: true,
@@ -1857,7 +2003,7 @@ export function createDiagram2EditorController(options = {}) {
     };
     canonicalState = pruneDiagram2GroupMetadata(canonicalState);
     rebuildCanonicalObjectIndex();
-    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    rebuildCanonicalRelationshipIndex();
     return recordCanonicalOperation({
       kind: "add-objects",
       changed: true,
@@ -1908,7 +2054,7 @@ export function createDiagram2EditorController(options = {}) {
     };
     canonicalState = pruneDiagram2GroupMetadata(canonicalState);
     rebuildCanonicalObjectIndex();
-    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    rebuildCanonicalRelationshipIndex();
     selectedObjectIds = existingSelectableIds(selectedObjectIds);
     return recordCanonicalOperation({
       kind: "remove-objects",
@@ -2037,8 +2183,8 @@ export function createDiagram2EditorController(options = {}) {
     }
 
     canonicalState = nextState;
-    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     rebuildCanonicalObjectIndex();
+    rebuildCanonicalRelationshipIndex();
     selectedObjectIds = existingSelectableIds(selectedObjectIds);
     return recordCanonicalOperation({
       kind: "structure-state",
@@ -2056,6 +2202,242 @@ export function createDiagram2EditorController(options = {}) {
       canonicalRelationshipCount,
       reason: String(structureOptions.reason || "structure state")
     });
+  }
+
+  function patchRelationshipRouteCanonical(routeInput = {}) {
+    const startedAt = diagram2Now();
+    const relationshipId = String(routeInput.relationshipId || "").trim();
+    const locator = relationshipLocatorById.get(relationshipId);
+    const sourceEntityId = String(routeInput.sourceEntityId || locator?.sourceEntityId || "").trim();
+    const foreignKeyIndex = Number.isInteger(routeInput.foreignKeyIndex)
+      ? routeInput.foreignKeyIndex
+      : locator?.foreignKeyIndex;
+    const sourceIndex = objectIndexById.get(sourceEntityId);
+    const previousSource = Number.isInteger(sourceIndex) ? canonicalState.objects[sourceIndex] : null;
+    const previousForeignKey = previousSource?.foreignKeys?.[foreignKeyIndex];
+    const routeOverride = compactDiagram2RelationshipPoints(routeInput.routeOverride);
+    const hasRouteOverride = routeOverride.length > 1;
+    const nextManualRoutes = routeInput.manualEntityRelationshipRoutes === true;
+    const previousRouteOverride = compactDiagram2RelationshipPoints(previousForeignKey?.routeOverride);
+    if (!locator || !previousSource || !previousForeignKey
+      || (sameDiagram2RelationshipRoute(previousRouteOverride, routeOverride)
+        && canonicalState.manualEntityRelationshipRoutes === nextManualRoutes)) {
+      return recordCanonicalOperation({
+        kind: "relationship-route",
+        changed: false,
+        affectedObjectIds: [],
+        affectedRelationshipIds: [],
+        relationshipLookupCount: 1,
+        requestedObjectCount: 1,
+        objectLookupCount: 1,
+        objectPatchCount: 0,
+        foreignKeyPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        relationshipIndexRebuildCount: 0,
+        mappingIndexRebuildCount: 0,
+        annotationIndexRebuildCount: 0,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        durationMs: diagram2Now() - startedAt,
+        reason: String(routeInput.reason || "relationship route")
+      });
+    }
+
+    const nextForeignKey = { ...previousForeignKey };
+    if (hasRouteOverride) nextForeignKey.routeOverride = routeOverride;
+    else delete nextForeignKey.routeOverride;
+    const nextForeignKeys = previousSource.foreignKeys.slice();
+    nextForeignKeys[foreignKeyIndex] = nextForeignKey;
+    const nextSource = {
+      ...previousSource,
+      foreignKeys: nextForeignKeys
+    };
+    const nextObjects = canonicalState.objects.slice();
+    nextObjects[sourceIndex] = nextSource;
+    canonicalState = {
+      ...canonicalState,
+      manualEntityRelationshipRoutes: nextManualRoutes,
+      objects: nextObjects
+    };
+    objectById.set(sourceEntityId, nextSource);
+
+    const previousRelationship = locator.relationship;
+    const normalizedForeignKey = { ...(previousRelationship.foreignKey || {}) };
+    if (hasRouteOverride) normalizedForeignKey.routeOverride = routeOverride;
+    else delete normalizedForeignKey.routeOverride;
+    const nextRelationship = {
+      ...previousRelationship,
+      source: nextSource,
+      ...(locator.targetEntityId === sourceEntityId ? { target: nextSource } : {}),
+      foreignKey: normalizedForeignKey,
+      foreignKeySource: nextForeignKey
+    };
+    locator.relationship = nextRelationship;
+    locator.selectionObject = diagram2RelationshipSelectionObject(
+      nextRelationship,
+      canonicalState.relationshipStyle
+    );
+    if (hasRouteOverride) relationshipIdsWithRouteOverride.add(relationshipId);
+    else relationshipIdsWithRouteOverride.delete(relationshipId);
+
+    return recordCanonicalOperation({
+      kind: "relationship-route",
+      changed: true,
+      affectedObjectIds: [sourceEntityId],
+      affectedRelationshipIds: [relationshipId],
+      relationshipLookupCount: 1,
+      requestedObjectCount: 1,
+      objectLookupCount: 1,
+      objectPatchCount: 1,
+      foreignKeyPatchCount: 1,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: false,
+      relationshipIndexRebuildCount: 0,
+      mappingIndexRebuildCount: 0,
+      annotationIndexRebuildCount: 0,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      canonicalRelationshipCount,
+      previousObjectsById: new Map([[sourceEntityId, previousSource]]),
+      nextObjectsById: new Map([[sourceEntityId, nextSource]]),
+      canonicalRouteUpdatedAt: diagram2Now(),
+      durationMs: diagram2Now() - startedAt,
+      reason: String(routeInput.reason || "relationship route")
+    });
+  }
+
+  function finalizeRelationshipRouteCommit(resultInput = null, timing = {}) {
+    const result = resultInput && typeof resultInput === "object" ? resultInput : {};
+    const operation = result.canonicalOperation || {};
+    const rendererDiagnostics = result.rendererDiagnostics || {};
+    const startedAt = finiteNumber(timing.startedAt, result.startedAt || diagram2Now());
+    const historyCommandRecordedAt = finiteNumber(timing.historyCommandRecordedAt, diagram2Now());
+    const planMs = Math.max(0, finiteNumber(timing.planMs, 0));
+    const canonicalMs = Math.max(0, finiteNumber(result.canonicalMs, operation.durationMs || 0));
+    const rendererFlushMs = Math.max(0, finiteNumber(
+      rendererDiagnostics.routeCommitRendererFlushMs,
+      result.rendererMs || 0
+    ));
+    const historyMs = Math.max(
+      0,
+      historyCommandRecordedAt - startedAt - planMs - canonicalMs - rendererFlushMs
+    );
+    let routeCommit = {
+      action: String(timing.action || result.action || "apply"),
+      relationshipId: String(result.relationshipId || ""),
+      sourceEntityId: String(result.sourceEntityId || ""),
+      foreignKeyIndex: Number.isInteger(result.foreignKeyIndex) ? result.foreignKeyIndex : -1,
+      pointerupReceivedAt: finiteNumber(timing.pointerupReceivedAt, startedAt),
+      previewFinalCoordinateAvailableAt: finiteNumber(
+        timing.previewFinalCoordinateAvailableAt,
+        startedAt
+      ),
+      canonicalRouteUpdatedAt: finiteNumber(
+        operation.canonicalRouteUpdatedAt,
+        result.canonicalCompletedAt || historyCommandRecordedAt
+      ),
+      realRelationshipPathPatchedAt: finiteNumber(
+        rendererDiagnostics.realRelationshipPathPatchedAt,
+        result.rendererCompletedAt || historyCommandRecordedAt
+      ),
+      routeHandlesPatchedAt: finiteNumber(
+        rendererDiagnostics.routeHandlesPatchedAt,
+        result.rendererCompletedAt || historyCommandRecordedAt
+      ),
+      historyCommandRecordedAt,
+      rendererFlushScheduledAt: finiteNumber(
+        rendererDiagnostics.rendererFlushScheduledAt,
+        result.rendererStartedAt || historyCommandRecordedAt
+      ),
+      rendererFlushCompletedAt: finiteNumber(
+        rendererDiagnostics.rendererFlushCompletedAt,
+        result.rendererCompletedAt || historyCommandRecordedAt
+      ),
+      shellControlsStatusCompletedAt: 0,
+      mainThreadResponsiveAt: 0,
+      routeCommitTotalMs: 0,
+      routeCommitPlanMs: Math.round(planMs * 100) / 100,
+      routeCommitCanonicalMs: Math.round(canonicalMs * 100) / 100,
+      routeCommitHistoryMs: Math.round(historyMs * 100) / 100,
+      routeCommitRendererScheduleMs: Math.round(
+        Math.max(0, finiteNumber(rendererDiagnostics.routeCommitRendererScheduleMs, 0)) * 100
+      ) / 100,
+      routeCommitRendererFlushMs: Math.round(rendererFlushMs * 100) / 100,
+      routeCommitShellMs: 0,
+      routeCommitRelationshipLookupCount: finiteNumber(operation.relationshipLookupCount, 1),
+      routeCommitRelationshipsConsidered: finiteNumber(
+        rendererDiagnostics.routeCommitRelationshipsConsidered,
+        1
+      ),
+      routeCommitRelationshipsRerouted: finiteNumber(
+        rendererDiagnostics.routeCommitRelationshipsRerouted,
+        0
+      ),
+      routeCommitObjectsVisited: finiteNumber(operation.objectLookupCount, 1),
+      routeCommitObjectsPatched: finiteNumber(operation.objectPatchCount, 1),
+      routeCommitForeignKeysPatched: finiteNumber(operation.foreignKeyPatchCount, 1),
+      routeCommitObjectIndexRebuildCount: 0,
+      routeCommitRelationshipIndexRebuildCount: finiteNumber(
+        operation.relationshipIndexRebuildCount,
+        0
+      ),
+      routeCommitMappingIndexRebuildCount: finiteNumber(operation.mappingIndexRebuildCount, 0),
+      routeCommitAnnotationIndexRebuildCount: finiteNumber(operation.annotationIndexRebuildCount, 0),
+      routeCommitFullStateNormalizationCount: finiteNumber(operation.fullStateNormalizationCount, 0),
+      routeCommitFullStateSerializationCount: finiteNumber(operation.fullStateSerializationCount, 0),
+      routeCommitFullRenderDelta: finiteNumber(rendererDiagnostics.routeCommitFullRenderDelta, 0),
+      routeCommitDirtyFlushDelta: finiteNumber(rendererDiagnostics.routeCommitDirtyFlushDelta, 0),
+      routeCommitLongTaskMs: 0
+    };
+    canonicalDiagnostics = {
+      ...canonicalDiagnostics,
+      lastRouteCommit: routeCommit
+    };
+
+    const shellStartedAt = diagram2Now();
+    emit("relationship-route", { diagnostics: routeCommit });
+    const shellCompletedAt = diagram2Now();
+    const totalMs = Math.max(0, shellCompletedAt - routeCommit.pointerupReceivedAt);
+    routeCommit = {
+      ...routeCommit,
+      shellControlsStatusCompletedAt: shellCompletedAt,
+      routeCommitShellMs: Math.round(Math.max(0, shellCompletedAt - shellStartedAt) * 100) / 100,
+      routeCommitTotalMs: Math.round(totalMs * 100) / 100,
+      routeCommitLongTaskMs: Math.round(totalMs * 100) / 100
+    };
+    canonicalDiagnostics = {
+      ...canonicalDiagnostics,
+      lastRouteCommit: routeCommit
+    };
+    renderer?.completeRelationshipRouteCommit?.(routeCommit);
+    return routeCommit;
+  }
+
+  function completeRelationshipRouteCommit(patchInput = {}) {
+    const previous = canonicalDiagnostics.lastRouteCommit;
+    if (!previous) return null;
+    const patch = patchInput && typeof patchInput === "object" ? patchInput : {};
+    const mainThreadResponsiveAt = finiteNumber(patch.mainThreadResponsiveAt, diagram2Now());
+    const totalMs = Math.max(0, mainThreadResponsiveAt - previous.pointerupReceivedAt);
+    const next = {
+      ...previous,
+      ...patch,
+      mainThreadResponsiveAt,
+      routeCommitTotalMs: Math.round(totalMs * 100) / 100,
+      routeCommitLongTaskMs: Math.max(
+        finiteNumber(previous.routeCommitLongTaskMs, 0),
+        finiteNumber(patch.routeCommitLongTaskMs, 0)
+      )
+    };
+    canonicalDiagnostics = {
+      ...canonicalDiagnostics,
+      lastRouteCommit: next
+    };
+    renderer?.completeRelationshipRouteCommit?.(next);
+    return next;
   }
 
   function securityContext() {
@@ -2086,8 +2468,7 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function existingSelectableIds(ids) {
-    const relationshipIds = new Set(diagram2SelectableRelationshipIds(canonicalState));
-    return uniqueStrings(ids).filter(id => objectIndexById.has(id) || relationshipIds.has(id));
+    return uniqueStrings(ids).filter(id => objectIndexById.has(id) || relationshipLocatorById.has(id));
   }
 
   function expandDiagram2SelectableSelectionIds(ids) {
@@ -2127,6 +2508,69 @@ export function createDiagram2EditorController(options = {}) {
     fieldMappingIndexesState = createDiagram2FieldMappingIndexes(canonicalState.objects);
   }
 
+  function rebuildCanonicalRelationshipIndex() {
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    relationshipLocatorById = new Map();
+    relationshipIdsByEntityId = new Map();
+    relationshipIdsWithRouteOverride = new Set();
+    relationships.forEach(relationship => {
+      const relationshipId = String(relationship?.id || "").trim();
+      const sourceEntityId = String(relationship?.source?.id || "").trim();
+      if (!relationshipId || !sourceEntityId || !Number.isInteger(relationship.foreignKeyIndex)) return;
+      relationshipLocatorById.set(relationshipId, {
+        relationshipId,
+        sourceEntityId,
+        targetEntityId: String(relationship?.target?.id || "").trim(),
+        foreignKeyIndex: relationship.foreignKeyIndex,
+        relationship,
+        selectionObject: diagram2RelationshipSelectionObject(
+          relationship,
+          canonicalState.relationshipStyle
+        )
+      });
+      addToDiagram2SetMap(relationshipIdsByEntityId, sourceEntityId, relationshipId);
+      addToDiagram2SetMap(
+        relationshipIdsByEntityId,
+        String(relationship?.target?.id || "").trim(),
+        relationshipId
+      );
+      if (relationship.foreignKeySource?.routeOverride?.length > 1) {
+        relationshipIdsWithRouteOverride.add(relationshipId);
+      }
+    });
+    canonicalRelationshipCount = relationshipLocatorById.size;
+    relationshipIndexRebuildCount += 1;
+  }
+
+  function patchCanonicalRelationshipIndexObject(nextObject) {
+    const objectId = String(nextObject?.id || "").trim();
+    const relationshipIds = relationshipIdsByEntityId.get(objectId);
+    if (!objectId || !relationshipIds?.size) return;
+    relationshipIds.forEach(relationshipId => {
+      const locator = relationshipLocatorById.get(relationshipId);
+      const previousRelationship = locator?.relationship;
+      if (!locator || !previousRelationship) return;
+      const source = locator.sourceEntityId === objectId
+        ? nextObject
+        : previousRelationship.source;
+      const target = locator.targetEntityId === objectId
+        ? nextObject
+        : previousRelationship.target;
+      const nextRelationship = {
+        ...previousRelationship,
+        source,
+        target,
+        sourceField: findDiagram2FieldByName(source, previousRelationship.sourceField?.name),
+        targetField: findDiagram2FieldByName(target, previousRelationship.targetField?.name)
+      };
+      locator.relationship = nextRelationship;
+      locator.selectionObject = diagram2RelationshipSelectionObject(
+        nextRelationship,
+        canonicalState.relationshipStyle
+      );
+    });
+  }
+
   function resolveCanonicalObjectUpdate(previousObject, id, updater, ordinal, updateOptions = {}) {
     if (!previousObject) return null;
     const patch = typeof updater === "function"
@@ -2152,6 +2596,10 @@ export function createDiagram2EditorController(options = {}) {
     return {
       canonicalObjectCount: canonicalState.objects.length,
       canonicalIndexSize: objectIndexById.size,
+      canonicalRelationshipIndexSize: relationshipLocatorById.size,
+      canonicalRelationshipEntityIndexSize: relationshipIdsByEntityId.size,
+      canonicalRelationshipRouteOverrideCount: relationshipIdsWithRouteOverride.size,
+      relationshipIndexRebuildCount,
       entityAnnotationOwnerIndexSize: entityAnnotationIndexes.childrenByOwnerId.size,
       entityAnnotationChildIndexSize: entityAnnotationIndexes.ownerIdByChildId.size,
       canonicalRevision,
@@ -2159,7 +2607,8 @@ export function createDiagram2EditorController(options = {}) {
       fullStateSerializationCount: canonicalDiagnostics.fullStateSerializationCount,
       stateReplacementCount: canonicalDiagnostics.stateReplacementCount,
       lastCanonicalOperation: canonicalDiagnostics.lastOperation,
-      lastCompact: canonicalDiagnostics.lastCompact
+      lastCompact: canonicalDiagnostics.lastCompact,
+      lastRouteCommit: canonicalDiagnostics.lastRouteCommit
     };
   }
 
@@ -2221,6 +2670,8 @@ export function createDiagram2EditorController(options = {}) {
     setRelationshipRoutingOptions,
     useRelationshipRoute,
     adjustRelationshipRoute,
+    commitRelationshipRouteOverride,
+    completeRelationshipRouteCommit,
     insertRelationshipRoutePoint,
     removeRelationshipRoutePoint,
     clearRelationshipRoutes,
@@ -2269,6 +2720,175 @@ export function createDiagram2EditorController(options = {}) {
     historyStatus: () => history.status(),
     diagnostics,
     destroy
+  };
+}
+
+export function createDiagram2RelationshipRouteCommand(options = {}) {
+  const relationshipId = String(options.relationshipId || "").trim();
+  const sourceEntityId = String(options.sourceEntityId || "").trim();
+  const foreignKeyIndex = Number.parseInt(options.foreignKeyIndex, 10);
+  const previousRouteOverride = compactDiagram2RelationshipPoints(options.previousRouteOverride);
+  const previousRenderedPoints = compactDiagram2RelationshipPoints(
+    options.previousRenderedPoints?.length
+      ? options.previousRenderedPoints
+      : previousRouteOverride
+  );
+  const nextRouteOverride = compactDiagram2RelationshipPoints(options.nextRouteOverride);
+  const nextRenderedPoints = compactDiagram2RelationshipPoints(
+    options.nextRenderedPoints?.length
+      ? options.nextRenderedPoints
+      : nextRouteOverride
+  );
+  const previousManualRoutes = options.previousManualRoutes === true;
+  const nextManualRoutes = options.nextManualRoutes === true;
+  const additionalRouteTransitions = (Array.isArray(options.additionalRouteTransitions)
+    ? options.additionalRouteTransitions
+    : [])
+    .map(transition => ({
+      relationshipId: String(transition?.relationshipId || "").trim(),
+      sourceEntityId: String(transition?.sourceEntityId || "").trim(),
+      foreignKeyIndex: Number.parseInt(transition?.foreignKeyIndex, 10),
+      routeOverride: compactDiagram2RelationshipPoints(transition?.routeOverride),
+      previousRenderedPoints: compactDiagram2RelationshipPoints(transition?.previousRenderedPoints)
+    }))
+    .filter(transition =>
+      transition.relationshipId
+      && transition.sourceEntityId
+      && Number.isInteger(transition.foreignKeyIndex)
+      && transition.routeOverride.length > 1
+      && transition.previousRenderedPoints.length > 1);
+  const selectionBefore = uniqueStrings(options.selectionBefore);
+  const selectionAfter = uniqueStrings(options.selectionAfter?.length
+    ? options.selectionAfter
+    : [relationshipId]);
+  const label = String(options.label || "Adjust manual relationship route").trim()
+    || "Adjust manual relationship route";
+  const reason = String(options.reason || "adjust relationship route").trim()
+    || "adjust relationship route";
+  const createdAt = Date.now();
+  let lastApplyResult = null;
+
+  const applyRoute = (
+    context,
+    routeOverride,
+    renderedPoints,
+    manualRoutes,
+    selection,
+    action,
+    operationReason,
+    rendererAlreadyPreviewed = false,
+    path = ""
+  ) => {
+    const startedAt = diagram2Now();
+    const canonicalStartedAt = diagram2Now();
+    const canonicalOperation = context.patchRelationshipRouteCanonical({
+      relationshipId,
+      sourceEntityId,
+      foreignKeyIndex,
+      routeOverride,
+      manualEntityRelationshipRoutes: manualRoutes,
+      reason: operationReason
+    });
+    const canonicalCompletedAt = diagram2Now();
+    if (canonicalOperation.changed !== true) return false;
+
+    const rendererStartedAt = diagram2Now();
+    const rendererResults = [];
+    const rendererDiagnostics = context.renderer?.commitRelationshipRoutePreview?.({
+      relationshipId,
+      sourceEntityId,
+      foreignKeyIndex,
+      routeOverride,
+      points: renderedPoints,
+      path: path || diagram2RelationshipPath(renderedPoints),
+      manualEntityRelationshipRoutes: manualRoutes,
+      rendererAlreadyPreviewed,
+      reason: operationReason
+    }) || null;
+    if (rendererDiagnostics) rendererResults.push(rendererDiagnostics);
+    additionalRouteTransitions.forEach(transition => {
+      const points = manualRoutes
+        ? transition.routeOverride
+        : transition.previousRenderedPoints;
+      const relatedDiagnostics = context.renderer?.commitRelationshipRoutePreview?.({
+        relationshipId: transition.relationshipId,
+        sourceEntityId: transition.sourceEntityId,
+        foreignKeyIndex: transition.foreignKeyIndex,
+        routeOverride: transition.routeOverride,
+        points,
+        path: diagram2RelationshipPath(points),
+        manualEntityRelationshipRoutes: manualRoutes,
+        rendererAlreadyPreviewed: false,
+        reason: operationReason
+      });
+      if (relatedDiagnostics) rendererResults.push(relatedDiagnostics);
+    });
+    const rendererCompletedAt = diagram2Now();
+    context.setSelection(selection, { expandGroups: false });
+    lastApplyResult = {
+      action,
+      relationshipId,
+      sourceEntityId,
+      foreignKeyIndex,
+      startedAt,
+      canonicalOperation,
+      canonicalStartedAt,
+      canonicalCompletedAt,
+      canonicalMs: canonicalCompletedAt - canonicalStartedAt,
+      rendererDiagnostics: mergeDiagram2RelationshipRouteRendererDiagnostics(rendererResults),
+      rendererStartedAt,
+      rendererCompletedAt,
+      rendererMs: rendererCompletedAt - rendererStartedAt
+    };
+    return true;
+  };
+
+  return {
+    kind: "relationship-route",
+    label,
+    reason,
+    relationshipId,
+    sourceEntityId,
+    foreignKeyIndex,
+    createdAt,
+    apply(context) {
+      return applyRoute(
+        context,
+        nextRouteOverride,
+        nextRenderedPoints,
+        nextManualRoutes,
+        selectionAfter,
+        "apply",
+        reason,
+        options.rendererAlreadyPreviewed === true,
+        String(options.nextPath || "")
+      );
+    },
+    undo(context) {
+      return applyRoute(
+        context,
+        previousRouteOverride,
+        previousRenderedPoints,
+        previousManualRoutes,
+        selectionBefore,
+        "undo",
+        `${reason} undo`
+      );
+    },
+    redo(context) {
+      return applyRoute(
+        context,
+        nextRouteOverride,
+        nextRenderedPoints,
+        nextManualRoutes,
+        selectionAfter,
+        "redo",
+        `${reason} redo`
+      );
+    },
+    lastResult() {
+      return lastApplyResult;
+    }
   };
 }
 
@@ -3232,8 +3852,65 @@ function applyDiagram2Style(context, objectIds, styleName, valueProvider, option
   return true;
 }
 
-function diagram2RelationshipCount(state) {
-  return diagram2CanonicalRelationships(state).length;
+function sameDiagram2RelationshipRoute(firstInput, secondInput) {
+  const first = compactDiagram2RelationshipPoints(firstInput);
+  const second = compactDiagram2RelationshipPoints(secondInput);
+  return first.length === second.length
+    && first.every((point, index) =>
+      point.x === second[index]?.x && point.y === second[index]?.y);
+}
+
+function mergeDiagram2RelationshipRouteRendererDiagnostics(resultsInput = []) {
+  const results = (Array.isArray(resultsInput) ? resultsInput : []).filter(Boolean);
+  if (!results.length) return {};
+  const first = results[0];
+  const last = results.at(-1);
+  return {
+    ...last,
+    rendererFlushScheduledAt: finiteNumber(first.rendererFlushScheduledAt, 0),
+    rendererFlushCompletedAt: finiteNumber(last.rendererFlushCompletedAt, 0),
+    realRelationshipPathPatchedAt: finiteNumber(last.realRelationshipPathPatchedAt, 0),
+    routeHandlesPatchedAt: finiteNumber(last.routeHandlesPatchedAt, 0),
+    routeCommitRendererScheduleMs: results.reduce((total, result) =>
+      total + finiteNumber(result.routeCommitRendererScheduleMs, 0), 0),
+    routeCommitRendererFlushMs: results.reduce((total, result) =>
+      total + finiteNumber(result.routeCommitRendererFlushMs, 0), 0),
+    routeCommitRelationshipsConsidered: results.reduce((total, result) =>
+      total + finiteNumber(result.routeCommitRelationshipsConsidered, 0), 0),
+    routeCommitRelationshipsRerouted: results.reduce((total, result) =>
+      total + finiteNumber(result.routeCommitRelationshipsRerouted, 0), 0),
+    routeCommitFullRenderDelta: results.reduce((total, result) =>
+      total + finiteNumber(result.routeCommitFullRenderDelta, 0), 0),
+    routeCommitDirtyFlushDelta: results.reduce((total, result) =>
+      total + finiteNumber(result.routeCommitDirtyFlushDelta, 0), 0)
+  };
+}
+
+function diagram2RelationshipStructureChanged(previousObject, nextObject) {
+  if (previousObject?.type !== nextObject?.type) return true;
+  if (nextObject?.type !== "entity") return false;
+  return previousObject.entitySchema !== nextObject.entitySchema
+    || previousObject.entityName !== nextObject.entityName
+    || previousObject.visible !== nextObject.visible
+    || previousObject.showSelfRelationships !== nextObject.showSelfRelationships
+    || previousObject.fields !== nextObject.fields
+    || previousObject.foreignKeys !== nextObject.foreignKeys;
+}
+
+function addToDiagram2SetMap(map, keyInput, valueInput) {
+  const key = String(keyInput || "").trim();
+  const value = String(valueInput || "").trim();
+  if (!key || !value) return;
+  const values = map.get(key) || new Set();
+  values.add(value);
+  map.set(key, values);
+}
+
+function findDiagram2FieldByName(entity, nameInput) {
+  const name = String(nameInput || "").trim().toLowerCase();
+  return (Array.isArray(entity?.fields) ? entity.fields : [])
+    .find(field => String(field?.name || "").trim().toLowerCase() === name)
+    || null;
 }
 
 function buildDiagram2ObjectDeltaPlan(
@@ -3477,6 +4154,12 @@ function cloneDiagram2Value(value) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function diagram2Now() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
 }
 
 function diagram2ObjectId(prefix) {

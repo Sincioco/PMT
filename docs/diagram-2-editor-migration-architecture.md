@@ -223,6 +223,16 @@ Mapping highlight state and temporary attention-arrow state remain separate rend
 
 Diagram 2 overview rendering now uses saved zoom at initial mount and keeps relationship geometry independent from visual detail level. Low detail may simplify Entity text and field DOM, but it never replaces a relationship with a straight endpoint line. Diagrams with no more than 32 relationships use the existing exact shared route model at every zoom. Larger diagrams use the same fast orthogonal/manual-route geometry at every zoom unless a valid saved Compact snapshot exists. Compact calculates D1's exact routes in its worker, saves only stable relationship identity and route points with a geometry signature, and reuses them in edit/read mode only while that signature matches. Detail promotion therefore changes presentation only; Compact output, manual routes, endpoints, and bends remain identical across the 25% low-detail boundary, Save/close, and reload.
 
+### Local relationship-route commit boundary
+
+Manual route-joint release is a delta operation, not a structure-state replacement. The controller maintains relationship ID to source Entity/FK locators, Entity to relationship IDs, and relationships-with-overrides sets. Relationship structure changes rebuild those indexes; a route-point-only change patches one cached relationship record.
+
+`createDiagram2RelationshipRouteCommand(...)` stores stable relationship/source/FK identity, previous and next override/display points, previous and next manual-route mode, selection, and the exact dormant overrides affected by a first `false` to `true` manual-route transition. Apply, Undo, and Redo call the same local canonical and renderer operations. The canonical operation copies one object array, one source Entity, one FK array, and one FK, while preserving unrelated references and every object/annotation/mapping index.
+
+The renderer accepts the already-previewed points/path, updates its canonical source/FK reference, patches one keyed path and selected-route handle group, updates that route's cache/bounds/sector, and then removes the transient preview. It does not call `setStructureState(...)`, route unrelated relationships, schedule a dirty flush, or render the full SVG. The style-group merged line is reconstructed only from cached mounted routes. Both top-navigation and RTE listeners recognize the route event and update only history/save/dirty and relationship Inspector controls.
+
+Diagnostics expose the complete pointer-up timeline and route-local work counts. A normal release must report one object/FK patch, one relationship considered, zero router calls, zero object/relationship/mapping/annotation index rebuilds, zero normalization/serialization, zero dirty flushes, and zero full renders.
+
 ## Existing RTE Annotation Launch Path
 
 The current Diagram 1 RTE image annotation flow is in `wwwroot/js/app.js`:
@@ -383,6 +393,7 @@ The older instructions mention a 28-entity small fixture. The current recorded b
 | 500 entities, 160 relationships | Phase 5 production-shaped functional gate | Diagram 2 editor and exact Compact oracle | 32.55 s D1, 32.94 s D2 inline, 27.19 s D2 worker | 1 initial, 0 measured routine increase | Low detail and viewport virtualization verified | Selection, marquee, field edit, move, style, manual route, worker start/cancel/cleanup all pass | Functional gate only; Phase 8 owns sustained promotion timing. |
 | 1000 entities, 120 relationships | Phase 5 focused functional gate | Diagram 2 editor and Compact worker | Worker starts and cancels on first progress event | 1 initial, 0 measured routine increase | Low detail, virtualization, and one outer multi-selection overlay verified | State, selection, history, revision, and manual routes unchanged after cancel | Focused cancellation/editing smoke; Phase 8 must complete promotion timing. |
 | 500 and 1,000 objects with one local mapping edit | Phase 6 focused mapping gate | Mapping index patch and live renderer | 0.04 ms at 500; 0.03 ms at 1,000 in the focused pure-index run | 0 mapping-caused full renders | One changed mapping/table row and bounded highlight routes | Incremental object visits 0; unrelated Entity reroutes 0 | Functional locality evidence; Phase 8 retains sustained promotion timing. |
+| 2/1, 96/257, 232/624, 500/1, and 1,000/1 | Phase 6 route-joint release correction, 20 post-warm-up drags each | Dedicated route delta command and keyed renderer patch | Settled p95: 13.1, 11.2, 20.3, 20.2, and 45.8 ms; visible-path p95: 0.8, 0.7, 1.4, 7.0, and 15.7 ms | 0 additional full renders and 0 dirty flushes | Zero preview/handle/DOM growth, exact viewport and selection retention | 1 relationship considered, 0 routed, 1 object/FK patched, 0 index rebuilds per drag | Replaces pre-fix 1,558.6 ms at 96/257 and 13,697.5 ms at 232/624. |
 
 ## Performance Gates for Later Phases
 

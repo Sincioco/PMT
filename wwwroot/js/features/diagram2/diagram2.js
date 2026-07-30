@@ -18,8 +18,8 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260731-diagram2-route-release-v15";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -46,7 +46,7 @@ import {
   diagramUpdatedTime,
   loadDiagramCanonicalState,
   loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../shared/diagram-documents.js?v=20260731-diagram2-route-release-v15";
 import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js";
@@ -54,19 +54,19 @@ import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../shared/tree-nav-state.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-compatibility.js?v=20260731-diagram2-route-release-v15";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-route-release-v15";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -86,8 +86,9 @@ import {
   setDiagram2ToolsPaneOpen,
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
+  updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -96,11 +97,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-renderer.js?v=20260731-diagram2-route-release-v15";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -1520,6 +1521,27 @@ export function createDiagram2Feature({
       diagram2Controller.onChange(event => {
         diagram2RendererState = diagram2Controller.currentState();
         diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+        if (event.reason === "relationship-route") {
+          const statusText = event.status.busy
+            ? "Saving..."
+            : (event.status.dirty ? "Unsaved changes" : "Saved");
+          const saveState = app.querySelector("[data-diagram2-save-state]");
+          const editState = app.querySelector("[data-diagram2-edit-state]");
+          if (saveState) saveState.textContent = statusText;
+          if (editState) editState.textContent = event.status.selectedCount
+            ? `${event.status.selectedCount} selected`
+            : statusText;
+          app.querySelector("[data-diagram2-screen]")
+            ?.classList.toggle("has-unsaved-diagram2", event.status.dirty === true);
+          updateDiagram2RouteCommitShellStatus(
+            app.querySelector("[data-diagram2-editor-shell]"),
+            {
+              ...event.status,
+              state: diagram2RendererState
+            }
+          );
+          return;
+        }
         refreshDiagram2TemplatePane(viewer);
         updateDiagram2EditorControls();
         if (event.diagnostics) updateDiagram2Diagnostics(event.diagnostics);

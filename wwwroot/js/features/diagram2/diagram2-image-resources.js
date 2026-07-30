@@ -1,4 +1,4 @@
-import { diagram2ImageSourceIdentity } from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { diagram2ImageSourceIdentity } from "./diagram2-editor-images.js?v=20260731-diagram2-route-release-v15";
 
 export function createDiagram2ImageResourceManager(options = {}) {
   const resourcesByIdentity = new Map();

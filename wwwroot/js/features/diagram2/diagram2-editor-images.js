@@ -1,4 +1,4 @@
-import { normalizeAnnotationState } from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { normalizeAnnotationState } from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
 
 let diagram2ImageSequence = 0;
 

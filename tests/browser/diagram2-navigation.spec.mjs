@@ -14,7 +14,7 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/css/base.css");
   const result = await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
     const state = {
       version: 1,
       width: 480,
@@ -72,20 +72,20 @@ test("Diagram 2 keeps relationship-heavy overview routes stable while zooming", 
       createDiagram2Renderer,
       diagram2CanonicalRelationships
     } = await import(
-      "/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14"
+      "/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"
     );
     const { createDiagram2EditorController } = await import(
-      "/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14"
+      "/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"
     );
     const {
       createDiagram2RelationshipRouteModel,
       diagram2RelationshipRouteKey,
       diagram2RelationshipRouteFromModel
     } = await import(
-      "/js/features/diagram2/diagram2-routing.js?v=20260730-diagram2-phase6-crop-closure-v14"
+      "/js/features/diagram2/diagram2-routing.js?v=20260731-diagram2-route-release-v15"
     );
     const { annotationCompactEntityRelationshipRouteStateKey } = await import(
-      "/js/components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14"
+      "/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15"
     );
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0;width:1920px;height:1080px";
@@ -837,11 +837,11 @@ test("Diagram 2 Compact visual evidence uses the same post-Compact state as Diag
       buildAnnotationSvg,
       normalizeAnnotationState,
       parseAnnotationSvg
-    } = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    } = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
     const {
       createDiagram2Renderer,
       diagram2ContentBounds
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
     const fixtures = {};
     if (fixtureNamesInput.includes("pmt-schema")) {
       const pmtSvg = await fetch("/assets/docs/pmt-database-schema.svg", { cache: "no-store" }).then(response => response.text());
@@ -1019,10 +1019,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15")
     ]);
     const state = {
       version: 1,
@@ -1141,8 +1141,8 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
 
   const marqueeCoalesce = await page.evaluate(async () => {
     const [controllerModule, interactionModule] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15")
     ]);
     const canvas = document.createElement("div");
     canvas.tabIndex = 0;
@@ -1511,7 +1511,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-crop-closure-v14">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260731-diagram2-route-release-v15">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -1522,11 +1522,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260730-diagram2-phase6-crop-closure-v14")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -1892,7 +1892,7 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-crop-closure-v14">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260731-diagram2-route-release-v15">
     <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
 
@@ -1903,10 +1903,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260730-diagram2-phase6-crop-closure-v14")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260731-diagram2-route-release-v15")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -2740,6 +2740,8 @@ CREATE TABLE [pmt].[Phase5Browser](
     window.__diagram2RouteBeforePointerHandle = JSON.stringify(
       controller.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride || []
     );
+    window.__diagram2PointerHandleHistoryBefore = controller.historyStatus().entryCount;
+    window.__diagram2PointerHandleFullRenderBefore = window.__pmtDiagram2Renderer.diagnostics().fullRenderCount;
     window.__diagram2PointerHandleStartedAt = performance.now();
   });
   await page.mouse.down();
@@ -2748,6 +2750,11 @@ CREATE TABLE [pmt].[Phase5Browser](
     handleBox.y + handleBox.height / 2 + (handleAxis === "y" ? 28 : 0)
   );
   await expect(page.locator("[data-diagram2-relationship-route-preview]")).toHaveCount(1);
+  await page.evaluate(() => {
+    window.__diagram2PointerHandlePreviewPath = document
+      .querySelector("[data-diagram2-relationship-route-preview]")
+      ?.getAttribute("d") || "";
+  });
   const handlePreviewDurationMs = await page.evaluate(() =>
     performance.now() - window.__diagram2PointerHandleStartedAt);
   await page.mouse.up();
@@ -2763,12 +2770,40 @@ CREATE TABLE [pmt].[Phase5Browser](
     await window.__pmtDiagram2Renderer.whenInteractive();
     return performance.now() - window.__diagram2PointerHandleStartedAt;
   });
+  const handleRelease = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const diagnostics = controller.diagnostics().lastRouteCommit;
+    const path = document.querySelector(
+      `[data-diagram2-relationship-id="${CSS.escape(window.__diagram2Phase5RelationshipId)}"] [data-diagram2-relationship-path]`
+    )?.getAttribute("d") || "";
+    return {
+      diagnostics,
+      historyDelta: controller.historyStatus().entryCount - window.__diagram2PointerHandleHistoryBefore,
+      fullRenderDelta: renderer.diagnostics().fullRenderCount - window.__diagram2PointerHandleFullRenderBefore,
+      previewMatchesCommitted: path === window.__diagram2PointerHandlePreviewPath
+    };
+  });
   console.info("DIAGRAM2_POINTER_RELATIONSHIP_HANDLE", JSON.stringify({
     handlePreviewDurationMs,
-    handleTotalDurationMs
+    handleTotalDurationMs,
+    routeCommitTotalMs: handleRelease.diagnostics?.routeCommitTotalMs,
+    routeCommitRendererFlushMs: handleRelease.diagnostics?.routeCommitRendererFlushMs
   }));
   expect(handlePreviewDurationMs).toBeLessThan(500);
   expect(handleTotalDurationMs).toBeLessThan(500);
+  expect(handleRelease.previewMatchesCommitted).toBe(true);
+  expect(handleRelease.historyDelta).toBe(1);
+  expect(handleRelease.fullRenderDelta).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitObjectsPatched).toBe(1);
+  expect(handleRelease.diagnostics.routeCommitRelationshipsConsidered).toBe(1);
+  expect(handleRelease.diagnostics.routeCommitRelationshipsRerouted).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitObjectIndexRebuildCount).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitRelationshipIndexRebuildCount).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitMappingIndexRebuildCount).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitAnnotationIndexRebuildCount).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitFullStateNormalizationCount).toBe(0);
+  expect(handleRelease.diagnostics.routeCommitFullStateSerializationCount).toBe(0);
 
   await page.evaluate(() => {
     window.__pmtDiagram2EditorCore.setSelection(["phase5-browser-parent"], { expandGroups: false });
@@ -3440,7 +3475,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -4509,7 +4544,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4619,7 +4654,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4826,7 +4861,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -5035,10 +5070,10 @@ async function assertDiagram2LargeEntityEditingGates(page) {
     const {
       createDiagram2Renderer,
       diagram2CanonicalRelationships
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
     const {
       createDiagram2EditorController
-    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15");
     const output = [];
 
     for (const entityCount of [500, 1000]) {

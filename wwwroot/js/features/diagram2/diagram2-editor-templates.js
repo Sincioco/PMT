@@ -6,13 +6,13 @@ import {
   parseAnnotationTemplateUpload,
   portableAnnotationTemplate,
   restoreAnnotationDefaultTemplates
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
 import {
   loadDiagram2DefaultTemplateLibrary,
   loadDiagram2TemplateLibrary,
   normalizeDiagram2TemplateLibrary,
   saveDiagram2TemplateLibrary
-} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-compatibility.js?v=20260731-diagram2-route-release-v15";
 
 const maximumDiagram2Templates = 50;
 

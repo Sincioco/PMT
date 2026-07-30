@@ -2,19 +2,19 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
 import { appUrl } from "../../shared/app-urls.js";
-import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-renderer.js?v=20260731-diagram2-route-release-v15";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-crop-closure-v14";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-route-release-v15";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -34,8 +34,9 @@ import {
   setDiagram2ToolsPaneOpen,
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
+  updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -44,7 +45,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-crop-closure-v14";
+} from "./diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -138,6 +139,13 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
     const abortController = new AbortController();
     const { signal } = abortController;
     controller.onChange(event => {
+      if (event.reason === "relationship-route") {
+        updateDiagram2RouteCommitShellStatus(dialog, {
+          ...event.status,
+          state: controller.currentState()
+        });
+        return;
+      }
       refreshDiagram2RteTemplatePane(dialog, controller);
       updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller, event.status));
       updateDiagram2ObjectTreeSelection(dialog, event.status.selectedObjectIds);

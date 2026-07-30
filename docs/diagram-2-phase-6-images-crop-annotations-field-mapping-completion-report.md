@@ -434,6 +434,57 @@ Top-navigation read-only/edit, `Annotate 2.0`, `Edit Annotation 2.0`, and export
 - Physical D1 to D2 to D1 and D2 to D1 to D2 RTE round trips preserve reversible crop, Field Rectangle, many-to-one mapping, table colors/row styles, Entity annotation children/arrows, and editable metadata. Transient attention arrows are absent from saved SVG.
 - D2 initial mount now consumes the saved zoom. Low detail simplifies Entity contents but preserves the same relationship endpoints, bends, manual routes, and Compact output used above the 25% detail threshold. Large diagrams avoid synchronous exact rerouting during real-time gestures by using one fast orthogonal route policy at every zoom. The explicit Compact action finalizes D1's exact route points in its worker and shows progress while it runs. The 29-Entity/78-relationship focused fixture has zero D1 path mismatches before/after detail promotion and after a serialized fresh read-mode render. Live document 31 selected from `pmt.WorkTasks` produces an unsaved routes-only change when no Entity moves; all 83 paths remain identical after Save, Close to read mode, and a full reload.
 
+### Relationship joint release performance correction
+
+The blocking symptom was isolated to relationship-joint `pointerup`. Pointer movement and the blue preview path remained responsive, but releasing a joint could freeze the 96-Entity/257-relationship fixture for about 1.6 seconds and the 232-Entity/624-relationship fixture for about 13.7 seconds.
+
+The old release path discarded the final preview and sent one FK route-point change through the generic structure-state planner and command. That path normalized the complete state twice, enumerated all relationships to rediscover the selected connector, mapped the complete object array, compared complete states with `JSON.stringify`, captured a complete history snapshot, rebuilt controller and renderer object/relationship/annotation/mapping indexes, and refreshed broad shell content. On the first manual edit, `manualEntityRelationshipRoutes` changed from `false` to `true`; the renderer treated that global Boolean change as an all-relationships dirty change. The failing dense fixtures therefore marked all 257 or 624 canonical relationships dirty and routed that broad set even though only one FK had changed.
+
+Diagram 1 was used as the interaction oracle. D1 mutates the selected `foreignKeySource.routeOverride` while the segment moves; release primarily records history/status and retains that exact geometry. D2 now keeps its better transient preview, but release passes the final normalized preview points and path directly to a dedicated route command.
+
+The failing pre-fix run was intentionally limited to one release per fixture after the 232/624 case blocked for 13.7 seconds. In this one-sample baseline, median and p95 are necessarily the same value:
+
+| Fixture | Pre-fix settled median/p95 | Pre-fix visible-path median/p95 | Largest release task |
+| --- | ---: | ---: | ---: |
+| 2 Entities / 1 relationship | 24.8 / 24.8 ms | 9.1 / 9.1 ms | No task over 50 ms |
+| 96 Entities / 257 relationships | 1,558.6 / 1,558.6 ms | 1,543.2 / 1,543.2 ms | 1,527 ms |
+| 232 Entities / 624 relationships | 13,697.5 / 13,697.5 ms | 13,665.7 / 13,665.7 ms | 13,611 ms |
+| 500 Entities / 1 focused relationship | 85.1 / 85.1 ms | 61.8 / 61.8 ms | No task over 50 ms |
+| 1,000 Entities / 1 focused relationship | 177.6 / 177.6 ms | 149.2 / 149.2 ms | 96 ms |
+
+The corrected benchmark runs 20 real handle drags per fixture after module warm-up:
+
+| Fixture | Settled median/p95 | Committed visible path median/p95 | Largest synchronous release |
+| --- | ---: | ---: | ---: |
+| 2 Entities / 1 relationship | 11.0 / 13.1 ms | 0.6 / 0.8 ms | 1.2 ms |
+| 96 Entities / 257 relationships | 10.6 / 11.2 ms | 0.6 / 0.7 ms | 1.0 ms |
+| 232 Entities / 624 relationships | 19.0 / 20.3 ms | 1.1 / 1.4 ms | 1.6 ms |
+| 500 Entities / 1 focused relationship | 18.4 / 20.2 ms | 5.4 / 7.0 ms | 20.3 ms |
+| 1,000 Entities / 1 focused relationship | 40.7 / 45.8 ms | 14.0 / 15.7 ms | 52.3 ms |
+
+The p95 release stages remained local:
+
+| Fixture | Plan | Canonical | History | Renderer | Shell |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2 / 1 | 0.2 ms | 0.1 ms | 0.2 ms | 0.7 ms | 0.0 ms |
+| 96 / 257 | 0.1 ms | 0.1 ms | 0.2 ms | 0.6 ms | 0.0 ms |
+| 232 / 624 | 0.1 ms | 0.1 ms | 0.3 ms | 1.2 ms | 0.1 ms |
+| 500 / 1 | 0.1 ms | 0.1 ms | 0.1 ms | 6.8 ms | 0.1 ms |
+| 1,000 / 1 | 0.1 ms | 0.1 ms | 0.2 ms | 15.6 ms | 0.1 ms |
+
+The localized boundary is:
+
+1. The gesture ends pointer capture and drag CSS immediately, retains the final preview, and sends its exact points/path to `commitRelationshipRouteOverride(...)`.
+2. A relationship locator index resolves relationship ID to source Entity and FK index without recreating all relationship objects. Route-only changes patch that record and do not rebuild the index.
+3. `createDiagram2RelationshipRouteCommand(...)` stores only previous/next route points, manual-route mode, stable source/FK identity, selection, and any dormant overrides whose effective display truly changes on the first manual-route transition.
+4. Canonical state copies one object array, one source Entity, one FK array, and one FK. It performs no full normalization, serialization, object-index rebuild, annotation-index rebuild, mapping-index rebuild, or relationship recount.
+5. The renderer patches the supplied path, route handles, route cache, bounds, and route sector, then removes the preview. It runs no automatic router and causes no dirty flush or full render. Identical SVG attributes are not rewritten.
+6. Top-navigation and RTE hosts update only save/dirty, Undo/Redo, selection, and relationship Inspector controls. Objects, Templates, and the full editor shell are not rebuilt.
+
+Normal-drag diagnostics are one relationship lookup, one object visit/patch, one FK patch, one relationship considered, zero relationships rerouted, zero index rebuilds, zero full-state normalization/serialization, zero dirty flushes, zero full renders, and one history entry. The five fixtures produced 100 entries for 100 completed drags with zero preview leaks, duplicate handles, DOM growth, viewport changes, selection changes, or route drift. Undo and Redo restore exact points through the same local path; Escape/pointer cancellation changes neither canonical revision nor history.
+
+The renderer's merged relationship paint is a style-group path, so a route commit still reconstructs that paint string from already cached mounted route geometry. It does not recreate relationship lookup maps, run the router, or invalidate unrelated route sectors. This bounded paint step measured 1.2 ms p95 on the 232/624 fixture and 15.6 ms p95 on the 1,000-Entity focused fixture. The final post-warm-up run observed one 54 ms browser long task in the 1,000-Entity fixture; the settled p95 remained 45.8 ms and no tested release exceeded the 100 ms hard task gate.
+
 Closure counters:
 
 ```text
@@ -456,6 +507,14 @@ Crop debounce firings/history commands:   1 / 1
 Crop image/overlay patches:               1 / 1
 Crop unrelated object/route work:         0 / 0
 Crop full renders/repeated decodes:        0 / 0
+Route-release drags measured:              100
+Route-release history entries:            100
+Route-release relationships considered:   1 per drag
+Route-release relationships rerouted:     0 per drag
+Route-release object/FK patches:           1 / 1 per drag
+Route-release index rebuilds:              0
+Route-release full renders/dirty flushes:  0 / 0
+Route-release Compact mismatches:          0
 ```
 
 ## Files Changed
@@ -476,6 +535,7 @@ wwwroot/js/features/diagram2/diagram2-editor-field-rectangles.js
 wwwroot/js/features/diagram2/diagram2-editor-images.js
 wwwroot/js/features/diagram2/diagram2-editor-interactions.js
 wwwroot/js/features/diagram2/diagram2-editor-phase6-host.js
+wwwroot/js/features/diagram2/diagram2-editor-relationships.js
 wwwroot/js/features/diagram2/diagram2-editor-shell.js
 wwwroot/js/features/diagram2/diagram2-image-resources.js
 wwwroot/js/features/diagram2/diagram2-renderer.js
@@ -509,8 +569,10 @@ Tests and documentation:
 tests/browser/diagram2-beta-readiness.spec.mjs
 tests/browser/diagram2-navigation.spec.mjs
 tests/browser/diagram2-phase6.spec.mjs
+tests/browser/diagram2-relationship-route-performance.spec.mjs
 tests/browser/diagram2-rte-annotation.spec.mjs
 tests/browser/image-annotation.spec.mjs
+tests/js/diagram2-editor-controller.test.mjs
 tests/js/diagram2-phase6.test.mjs
 docs/diagram-2-editor-migration-architecture.md
 docs/diagram-2-editor-parity-matrix.md
@@ -538,15 +600,31 @@ Final Crop-correction evidence:
 - `dotnet build` reached compilation but could not replace the running server's locked `bin/Debug/net6.0/PMT.exe`. The final `dotnet build -p:OutputPath=bin\CodexPhase6CropClosure\` run succeeded in 6.30 seconds with zero errors and two existing .NET 6 end-of-support warnings.
 - `git diff --check` - passed after documentation and screenshot cleanup.
 
+Relationship route-release correction evidence:
+
+- Changed-file syntax checks - 38/38 JavaScript and browser-test files passed.
+- `npm run check:js` - 190 JavaScript modules syntax-checked.
+- Focused controller/renderer suites - 50/50 passed in 1.32 seconds of Node test time.
+- Exact D1 Compact oracle - 28/28 passed in 188.37 seconds; all 21 parity fixtures retained zero Entity-position, automatic-route, locked/manual-route, route-contact, overlap, and full-render mismatches.
+- `npm run test:js` - 433/434 passed in 188.79 seconds. The sole unrelated failure remains the preserved untracked Day 39 prompt count (`36 !== 37`); every Diagram 2 controller, renderer, route, history, and Compact test passed.
+- Dedicated release benchmark - 1/1 passed in 8.7 seconds; 100 measured drags, 100 history entries, zero preview/path mismatches, zero selection or viewport changes, zero duplicate handles or DOM growth, zero broad index rebuilds, zero dirty flushes, and zero full renders.
+- Diagram 2 navigation - 12/12 at 1366 x 768 in 68.9 seconds and 12/12 at 1920 x 1080 in 80.0 seconds. Real top-navigation route commits measured 9.3 ms and 2.8 ms respectively.
+- Diagram 2 Phase 6 - 4 passed and 2 expected large-fixture skips at 1366 x 768 in 22.4 seconds; 6/6 passed at 1920 x 1080 in 30.5 seconds.
+- RTE Annotate/Edit 2.0 - 5/5 at 1366 x 768 in 14.3 seconds and 5/5 at 1920 x 1080 in 14.4 seconds. Route commits ranged from 8.8 to 10.9 ms.
+- Diagram 1 Image Annotation - 4/4 at 1366 x 768 in 5.7 seconds and 4/4 at 1920 x 1080 in 6.7 seconds.
+- Required browser matrix total - 52 passed, 2 expected skips, 0 final failures; the dedicated 100-drag performance test also passed.
+- Normal `dotnet build` reached compilation but could not replace the running server's locked `bin/Debug/net6.0/PMT.exe` (PID 796). The alternate-output build succeeded in 9.19 seconds with zero errors and the two existing .NET 6 end-of-support warnings.
+- `git diff --check` - passed before final review.
+
 The About 3D flyby was not tested because Phase 6 did not change it.
 
 ## Cache And Local Testing
 
 The browser entry point, both Diagram 2 hosts, changed renderer/controller modules, and their transitive Diagram compatibility dependencies use:
 
-`20260730-diagram2-phase6-crop-closure-v14`
+`20260731-diagram2-route-release-v15`
 
-No application CSS or image asset changed. The new PNG files are documentation evidence only.
+No application CSS or image asset changed for the route-release correction.
 
 No .NET source changed. After this commit, **no .NET recompile is required for manual testing**. Use **Ctrl + F5** once to fetch the Phase 6 CSS and ES modules with the new cache token.
 
@@ -570,11 +648,15 @@ No .NET source changed. After this commit, **no .NET recompile is required for m
 16. Cancel the RTE host and verify no upload and unchanged RTE HTML.
 17. Open read-only Diagram 2 and exercise mapping hover, click, double-click, and keyboard behavior.
 18. Use diagnostics to confirm no extra full render, no repeated image decode, local mapping index work, and clean resource counts after close.
+19. Select a relationship, drag one blue route joint repeatedly, and verify release is immediate with no preview flicker.
+20. Undo and Redo the route edit, then cancel another drag with Escape; verify exact points, retained selection, and no canceled history entry.
+21. Repeat the route release in `Annotate 2.0` and `Edit Annotation 2.0`, then save/reopen and verify the route remains identical.
 
 ## Known Limitations
 
 - Dedicated Excel/CSV Field Mapping Table workflow hardening remains in Phase 7, as required by the phase boundary.
 - The permanent 1,000-object browser evidence runs at 1920 x 1080; the 1366 project intentionally skips that duplicate large-fixture case while still running the full functional workflow.
+- Merged relationship segments remain a renderer paint grouping. A one-route commit rebuilds that grouped path from cached mounted geometry, but performs no unrelated routing or index rebuild.
 - No Phase 6 compatibility deferral or unsupported round trip was identified.
 
 ## Phase 7 Prerequisites
@@ -587,9 +669,9 @@ None. Phase 6 changes no database schema, stored procedure, version marker, migr
 
 ## Commit Record
 
-Phase 6 uses one coherent implementation checkpoint:
+The current Phase 6 closure correction uses:
 
-`Sin and Codex: make Diagram 2 Crop match Diagram 1`
+`Sin and Codex: eliminate Diagram 2 route joint release latency`
 
 The immutable final SHA is reported in the completion response. This correction stops after the local commit; no push was requested by the attached execution file. A Git commit cannot embed its own final SHA in the content it hashes.
 
