@@ -36,7 +36,7 @@ test("Diagram editable copy and paste writes the shared selection clipboard pack
   await page.goto("/image-annotation-clipboard-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
     const state = annotation.normalizeAnnotationState({
       width: 600,
       height: 400,
@@ -117,7 +117,7 @@ test("Field Mapping Table hover draws yellow mapping highlights without changing
   await page.goto("/image-annotation-hover-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
     const databaseEntity = {
       id: "project-entity",
       type: "entity",
@@ -244,7 +244,7 @@ test("public Diagram viewer hydrates Field Mapping Table highlights and arrows",
   await page.goto("/public-field-mapping-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
     const state = annotation.normalizeAnnotationState({
       width: 1000,
       height: 650,

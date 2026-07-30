@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import test from "node:test";
 
-import { normalizeAnnotationState } from "../../wwwroot/js/components/image-annotation.js";
+import {
+  annotationFieldMappingAttentionGeometry,
+  normalizeAnnotationState
+} from "../../wwwroot/js/components/image-annotation.js";
 import {
   createDiagram2PmtDiagramFile,
   createDiagram2SelectionClipboardText,
@@ -63,6 +66,46 @@ import {
 } from "../../wwwroot/js/features/diagram2/diagram2-image-resources.js";
 
 const imageSource = "data:image/png;base64,AAECAwQFBgcICQ==";
+
+test("D1 and D2 share exact label-aware Field Mapping attention-arrow geometry", () => {
+  const geometry = annotationFieldMappingAttentionGeometry({
+    uiLabelBounds: { x: 10, y: 20, width: 30, height: 10 },
+    databaseLabelBounds: { x: 200, y: 100, width: 50, height: 20 },
+    uiCellBounds: { x: 0, y: 10, width: 80, height: 30 },
+    databaseCellBounds: { x: 180, y: 90, width: 100, height: 40 },
+    fieldRectangleBounds: { x: 100, y: 5, width: 40, height: 40 },
+    databaseFieldPoint: { x: 400, y: 110 },
+    zoom: 2
+  });
+
+  assert.deepEqual(geometry.ui.start, { x: 43, y: 25 });
+  assert.deepEqual(geometry.ui.tip, { x: 100, y: 25 });
+  assert.deepEqual(geometry.ui.lineEnd, { x: 94, y: 25 });
+  assert.deepEqual(geometry.ui.head, [
+    { x: 100, y: 25 },
+    { x: 94, y: 27.76 },
+    { x: 94, y: 22.24 }
+  ]);
+  assert.deepEqual(geometry.database.start, { x: 253, y: 110 });
+  assert.deepEqual(geometry.database.tip, { x: 400, y: 110 });
+  assert.deepEqual(geometry.database.lineEnd, { x: 394, y: 110 });
+
+  const fallback = annotationFieldMappingAttentionGeometry({
+    uiCellBounds: { x: 0, y: 0, width: 80, height: 30 },
+    databaseCellBounds: { x: 100, y: 0, width: 120, height: 30 },
+    fieldRectangleBounds: { x: 300, y: 0, width: 60, height: 60 },
+    databaseFieldBounds: { x: 400, y: 80, width: 200, height: 30 },
+    zoom: 1
+  });
+  const roundedPoint = point => ({
+    x: Math.round(point.x * 1000) / 1000,
+    y: Math.round(point.y * 1000) / 1000
+  });
+  assert.deepEqual(roundedPoint(fallback.ui.start), { x: 80, y: 17.069 });
+  assert.deepEqual(roundedPoint(fallback.ui.tip), { x: 300, y: 28.448 });
+  assert.deepEqual(roundedPoint(fallback.database.start), { x: 220, y: 29.118 });
+  assert.deepEqual(roundedPoint(fallback.database.tip), { x: 436.25, y: 80 });
+});
 
 test("Diagram 2 creates canonical images and stable source identities", () => {
   const image = createDiagram2EmbeddedImage({

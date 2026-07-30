@@ -18,8 +18,8 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
-import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260730-diagram2-phase6-closure-v13";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -46,23 +46,27 @@ import {
   diagramUpdatedTime,
   loadDiagramCanonicalState,
   loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-v1";
+} from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-closure-v13";
 import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
+  captureTreeNavState,
+  restoreTreeNavState
+} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-closure-v13";
+import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-closure-v13";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-v1";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-closure-v13";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -83,7 +87,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -92,13 +96,15 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
+const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
+const diagram2TreeLayouts = new Set(["hierarchy", "flat"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
 const diagram2VisibilityModes = new Set(["both", "private", "public"]);
 const diagram2MinimumZoom = 0.1;
@@ -109,6 +115,7 @@ const diagram2TreePaneMaximumWidth = 560;
 const diagram2Compatibility = diagram2CompatibilitySummary();
 const diagram2HistoryLimit = 100;
 const collapsedDiagram2DocumentIds = new Set();
+const collapsedDiagram2TreeFolderKeys = new Set();
 const diagram2SvgSearchTextCache = new Map();
 
 export function createDiagram2Feature({
@@ -140,6 +147,12 @@ export function createDiagram2Feature({
     : "tree";
   let diagram2TreePaneWidth = clampTreePaneWidth(readNumberPreference(preferenceKeys.diagramTreePaneWidth, 300));
   let diagram2TreePaneHidden = readBooleanPreference(preferenceKeys.diagramTreePaneHidden, false);
+  let diagram2TreeGroup = diagram2TreeGroups.has(readPreference(preferenceKeys.diagramTreeGroup, "all"))
+    ? readPreference(preferenceKeys.diagramTreeGroup, "all")
+    : "all";
+  let diagram2TreeLayout = diagram2TreeLayouts.has(readPreference(preferenceKeys.diagramTreeLayout, "hierarchy"))
+    ? readPreference(preferenceKeys.diagramTreeLayout, "hierarchy")
+    : "hierarchy";
   let diagram2Search = readPreference(preferenceKeys.diagramSearch, "").trim();
   let diagram2ProjectId = readNumberPreference(preferenceKeys.diagramProject, 0);
   let diagram2SprintId = readPreference(preferenceKeys.diagramSprint, "all");
@@ -177,6 +190,7 @@ export function createDiagram2Feature({
   let diagram2ObjectSearch = "";
   let diagram2TemplateState = null;
   let diagram2ObjectTreeDrag = null;
+  let diagram2TreeRevealSelection = false;
 
   function syncDiagram2LeftNavContextFromStorage() {
     selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
@@ -184,6 +198,10 @@ export function createDiagram2Feature({
     diagram2ViewMode = diagram2ViewModes.has(viewMode) ? viewMode : "tree";
     diagram2TreePaneWidth = clampTreePaneWidth(readNumberPreference(preferenceKeys.diagramTreePaneWidth, 300));
     diagram2TreePaneHidden = readBooleanPreference(preferenceKeys.diagramTreePaneHidden, false);
+    const treeGroup = readPreference(preferenceKeys.diagramTreeGroup, "all");
+    diagram2TreeGroup = diagram2TreeGroups.has(treeGroup) ? treeGroup : "all";
+    const treeLayout = readPreference(preferenceKeys.diagramTreeLayout, "hierarchy");
+    diagram2TreeLayout = diagram2TreeLayouts.has(treeLayout) ? treeLayout : "hierarchy";
     diagram2Search = readPreference(preferenceKeys.diagramSearch, "").trim();
     diagram2ProjectId = readNumberPreference(preferenceKeys.diagramProject, 0);
     diagram2SprintId = readPreference(preferenceKeys.diagramSprint, "all");
@@ -197,6 +215,14 @@ export function createDiagram2Feature({
 
   function render() {
     const wasActive = active;
+    const treeNavState = diagram2ViewMode === "tree"
+      ? captureTreeNavState(app, {
+          identity: "diagram-2",
+          paneSelector: ".diagram2-tree-pane",
+          itemSelector: "[data-action='select-diagram2-document']",
+          selectedSelector: "[data-diagram2-tree-row].is-selected"
+        })
+      : null;
     active = true;
     if (!wasActive) syncDiagram2LeftNavContextFromStorage();
     abortTreePaneDrag();
@@ -206,6 +232,9 @@ export function createDiagram2Feature({
 
     if (routeDocumentId) {
       if (allDocumentIds.has(routeDocumentId)) {
+        if (!wasActive || selectedDiagramDocumentId !== routeDocumentId) {
+          diagram2TreeRevealSelection = true;
+        }
         selectedDiagramDocumentId = routeDocumentId;
         writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
       } else {
@@ -213,9 +242,13 @@ export function createDiagram2Feature({
       }
     }
 
-    let documents = diagram2Documents(allDocuments, selectedDiagramDocumentId);
-    if (!allDocumentIds.has(selectedDiagramDocumentId)) {
-      selectedDiagramDocumentId = documents[0]?.id || allDocuments[0]?.id || 0;
+    let documents = diagram2Documents(
+      allDocuments,
+      diagram2TreeRevealSelection ? selectedDiagramDocumentId : 0
+    );
+    const documentIds = new Set(documents.map(document => document.id));
+    if (!documentIds.has(selectedDiagramDocumentId)) {
+      selectedDiagramDocumentId = documents[0]?.id || 0;
       if (selectedDiagramDocumentId) writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
       documents = diagram2Documents(allDocuments, selectedDiagramDocumentId);
       if (currentRouteIsDiagram2DocumentRoute()) {
@@ -224,6 +257,7 @@ export function createDiagram2Feature({
     }
 
     const selectedDocument = allDocuments.find(document => document.id === selectedDiagramDocumentId) || null;
+    if (diagram2TreeRevealSelection) expandDiagram2TreePath(selectedDocument);
     const selectedMissingId = selectedDocument ? 0 : selectedDiagramDocumentId;
     const selectedDocumentId = selectedDocument?.id || 0;
     if (selectedDocumentId !== diagram2ModeDocumentId) {
@@ -250,6 +284,16 @@ export function createDiagram2Feature({
     `;
 
     bindDiagram2Controls();
+    if (!isEditMode && diagram2ViewMode === "tree") {
+      restoreTreeNavState(app, treeNavState, {
+        identity: "diagram-2",
+        paneSelector: ".diagram2-tree-pane",
+        itemSelector: "[data-action='select-diagram2-document']",
+        selectedId: selectedDiagramDocumentId,
+        revealSelected: diagram2TreeRevealSelection
+      });
+      diagram2TreeRevealSelection = false;
+    }
     hydrateDiagram2Viewer(hydrationToken, selectedDocument);
     if (diagram2Search) scheduleDiagram2SearchSourceLoad();
   }
@@ -289,6 +333,14 @@ export function createDiagram2Feature({
     }
     if (action === "select-diagram2-document" || action === "select-diagram2-card") {
       selectDiagram2Document(id);
+      return true;
+    }
+    if (action === "toggle-diagram2-tree-folder") {
+      const key = String(button?.dataset?.treeKey || "");
+      if (!key) return true;
+      if (collapsedDiagram2TreeFolderKeys.has(key)) collapsedDiagram2TreeFolderKeys.delete(key);
+      else collapsedDiagram2TreeFolderKeys.add(key);
+      render();
       return true;
     }
     if (action === "toggle-diagram2-tree-node") {
@@ -706,6 +758,12 @@ export function createDiagram2Feature({
     } else if (filter === "diagram2-visibility") {
       diagram2Visibility = diagram2VisibilityModes.has(target.value) ? target.value : "both";
       writePreference(preferenceKeys.diagramVisibility, diagram2Visibility);
+    } else if (filter === "diagram2-tree-group") {
+      diagram2TreeGroup = diagram2TreeGroups.has(target.value) ? target.value : "all";
+      writePreference(preferenceKeys.diagramTreeGroup, diagram2TreeGroup);
+    } else if (filter === "diagram2-tree-layout") {
+      diagram2TreeLayout = diagram2TreeLayouts.has(target.value) ? target.value : "hierarchy";
+      writePreference(preferenceKeys.diagramTreeLayout, diagram2TreeLayout);
     } else if (filter === "diagram2-sort") {
       diagram2Sort = diagram2SortModes.has(target.value) ? target.value : "latest";
       writePreference(preferenceKeys.diagramSort, diagram2Sort);
@@ -737,6 +795,7 @@ export function createDiagram2Feature({
   function view(id) {
     const nextId = positiveRouteId(id);
     if (nextId !== selectedDiagramDocumentId) {
+      diagram2TreeRevealSelection = true;
       diagram2DocumentMode = "readonly";
       diagram2ModeDocumentId = nextId;
       resetDiagram2ViewerToFit();
@@ -914,6 +973,14 @@ export function createDiagram2Feature({
         diagram2Visibility = diagram2VisibilityModes.has(event.target.value) ? event.target.value : "both";
         writePreference(preferenceKeys.diagramVisibility, diagram2Visibility);
         render();
+      } else if (filter === "diagram2-tree-group") {
+        diagram2TreeGroup = diagram2TreeGroups.has(event.target.value) ? event.target.value : "all";
+        writePreference(preferenceKeys.diagramTreeGroup, diagram2TreeGroup);
+        render();
+      } else if (filter === "diagram2-tree-layout") {
+        diagram2TreeLayout = diagram2TreeLayouts.has(event.target.value) ? event.target.value : "hierarchy";
+        writePreference(preferenceKeys.diagramTreeLayout, diagram2TreeLayout);
+        render();
       } else if (filter === "diagram2-sort") {
         diagram2Sort = diagram2SortModes.has(event.target.value) ? event.target.value : "latest";
         writePreference(preferenceKeys.diagramSort, diagram2Sort);
@@ -948,7 +1015,14 @@ export function createDiagram2Feature({
     if (!body) return;
     const sprintItems = state.sprints
       .filter(sprint => !diagram2ProjectId || Number(sprint.projectId) === diagram2ProjectId)
-      .map(sprint => ({ value: sprint.id, text: `${sprint.code} - ${sprint.title}` }));
+      .map(sprint => {
+        const project = state.projects.find(item => Number(item.id) === Number(sprint.projectId));
+        const sprintLabel = `${sprint.code} - ${sprint.title}`;
+        return {
+          value: sprint.id,
+          text: diagram2ProjectId ? sprintLabel : `${project?.code || "Project"} - ${sprintLabel}`
+        };
+      });
     body.innerHTML = `
       <div class="tasks-filter-panel documentation-filter-fields">
         <div class="task-filter-row documentation-filter-row">
@@ -957,11 +1031,35 @@ export function createDiagram2Feature({
             <input data-filter="diagram2-search" type="search" value="${escapeAttr(diagram2Search)}">
           </label>
           ${filterSelect("Project", "diagram2-project", state.projects.map(project => ({ value: project.id, text: projectLabel(project) })), diagram2ProjectId || "", "All Projects")}
-          ${filterSelect("Sprint", "diagram2-sprint", sprintItems, diagram2SprintId === "all" ? "" : diagram2SprintId, "All Sprints")}
+          ${filterSelect("Sprint", "diagram2-sprint", [
+            { value: "none", text: "No Sprint" },
+            ...sprintItems
+          ], diagram2SprintId === "all" ? "" : diagram2SprintId, "All Sprints")}
           ${filterSelect("Visibility", "diagram2-visibility", [
             { value: "private", text: "Private" },
             { value: "public", text: "Public" }
-          ], diagram2Visibility === "both" ? "" : diagram2Visibility, "Public and Private")}
+          ], diagram2Visibility === "both" ? "" : diagram2Visibility, "Both")}
+          <label>
+            <span>Group</span>
+            <select data-filter="diagram2-tree-group">
+              ${selectOptionsHtml([
+                { value: "all", text: "All Diagrams" },
+                { value: "project", text: "Project Only" },
+                { value: "project-sprint", text: "Project and Sprint" }
+              ], diagram2TreeGroup)}
+            </select>
+          </label>
+          ${diagram2ViewMode === "tree" ? `
+            <label>
+              <span>Layout</span>
+              <select data-filter="diagram2-tree-layout">
+                ${selectOptionsHtml([
+                  { value: "hierarchy", text: "Hierarchy" },
+                  { value: "flat", text: "Flat" }
+                ], diagram2TreeLayout)}
+              </select>
+            </label>
+          ` : ""}
           <label>
             <span>Sort</span>
             <select data-filter="diagram2-sort">
@@ -987,6 +1085,8 @@ export function createDiagram2Feature({
     diagram2ProjectId = 0;
     diagram2SprintId = "all";
     diagram2Visibility = "both";
+    diagram2TreeGroup = "all";
+    diagram2TreeLayout = "hierarchy";
     diagram2Sort = "latest";
     diagram2CreatorFilters = [];
     diagram2LastEditorFilters = [];
@@ -994,6 +1094,8 @@ export function createDiagram2Feature({
     writePreference(preferenceKeys.diagramProject, diagram2ProjectId);
     writePreference(preferenceKeys.diagramSprint, diagram2SprintId);
     writePreference(preferenceKeys.diagramVisibility, diagram2Visibility);
+    writePreference(preferenceKeys.diagramTreeGroup, diagram2TreeGroup);
+    writePreference(preferenceKeys.diagramTreeLayout, diagram2TreeLayout);
     writePreference(preferenceKeys.diagramSort, diagram2Sort);
     writeJsonPreference(preferenceKeys.diagramCreatorFilters, diagram2CreatorFilters);
     writeJsonPreference(preferenceKeys.diagramLastEditorFilters, diagram2LastEditorFilters);
@@ -1010,7 +1112,7 @@ export function createDiagram2Feature({
   function diagram2TreeViewHtml(documents, selectedDocument, selectedMissingId) {
     return `
       <div class="documentation-tree-layout diagram-tree-layout diagram2-tree-layout ${diagram2TreePaneHidden ? "is-tree-hidden" : ""}" data-diagram2-tree-layout style="--documentation-tree-pane-width:${diagram2TreePaneWidth}px">
-        <aside class="panel documentation-tree-pane diagram-tree-pane diagram2-tree-pane" data-diagram2-tree aria-label="Diagram 2 document library" ${diagram2TreePaneHidden ? "hidden" : ""}>
+        <aside class="panel documentation-tree-pane diagram-tree-pane diagram2-tree-pane" data-diagram2-tree data-tree-nav-identity="diagram-2" aria-label="Diagram 2 document library" ${diagram2TreePaneHidden ? "hidden" : ""}>
           ${documents.length ? diagram2TreeListHtml(documents) : `<div class="documentation-tree-empty">No diagrams match the current filters.</div>`}
         </aside>
         <div class="documentation-tree-splitter diagram2-tree-splitter" data-diagram2-tree-splitter ${diagram2TreePaneHidden ? "hidden" : ""} role="separator" aria-orientation="vertical" aria-label="Resize diagram navigation"></div>
@@ -1027,10 +1129,99 @@ export function createDiagram2Feature({
     if (!documents.length) {
       return `<div class="empty">No diagrams match the current filters. Select Filters to reset them, or select New Diagram to create one.</div>`;
     }
+    if (diagram2TreeGroup !== "all") {
+      return `<div class="documentation-card-sections">
+        ${diagram2CardGroups(documents).map(group => `
+          <section class="documentation-card-section">
+            <h2>${escapeHtml(group.label)}</h2>
+            ${diagram2CardListHtml(group.documents)}
+          </section>
+        `).join("")}
+      </div>`;
+    }
     return diagram2CardListHtml(documents);
   }
 
   function diagram2TreeListHtml(documents) {
+    const rootDrop = `<div class="diagram-tree-root-drop diagram2-tree-root-drop" data-diagram2-root-drop aria-hidden="true"></div>`;
+    let treeHtml = "";
+    if (diagram2TreeGroup === "all") {
+      treeHtml = diagram2TreeDocumentsHtml(documents, 0);
+    } else {
+      const globalDocuments = documents.filter(document => !document.projectId);
+      const projectFolders = state.projects.map(project => {
+        const projectDocuments = documents.filter(document => Number(document.projectId || 0) === Number(project.id));
+        if (!projectDocuments.length) return "";
+
+        if (diagram2TreeGroup === "project") {
+          return diagram2TreeFolderHtml({
+            key: `project:${project.id}`,
+            label: projectLabel(project),
+            depth: 0,
+            count: projectDocuments.length,
+            childrenHtml: diagram2TreeDocumentsHtml(projectDocuments, 1)
+          });
+        }
+
+        const directDocuments = projectDocuments.filter(document => !diagram2SprintForDocument(document));
+        const directFolder = directDocuments.length
+          ? diagram2TreeFolderHtml({
+            key: `project:${project.id}:direct`,
+            label: "Project Diagrams",
+            depth: 1,
+            count: directDocuments.length,
+            childrenHtml: diagram2TreeDocumentsHtml(directDocuments, 2)
+          })
+          : "";
+        const sprintFolders = state.sprints
+          .filter(sprint => Number(sprint.projectId || 0) === Number(project.id))
+          .map(sprint => {
+            const sprintDocuments = projectDocuments.filter(document => Number(document.sprintId || 0) === Number(sprint.id));
+            if (!sprintDocuments.length) return "";
+            return diagram2TreeFolderHtml({
+              key: `sprint:${sprint.id}`,
+              label: `${sprint.code} - ${sprint.title}`,
+              depth: 1,
+              count: sprintDocuments.length,
+              childrenHtml: diagram2TreeDocumentsHtml(sprintDocuments, 2)
+            });
+          })
+          .join("");
+
+        return diagram2TreeFolderHtml({
+          key: `project:${project.id}`,
+          label: projectLabel(project),
+          depth: 0,
+          count: projectDocuments.length,
+          childrenHtml: directFolder + sprintFolders
+        });
+      }).join("");
+      const globalFolder = globalDocuments.length
+        ? diagram2TreeFolderHtml({
+          key: "global",
+          label: "Global",
+          depth: 0,
+          count: globalDocuments.length,
+          childrenHtml: diagram2TreeDocumentsHtml(globalDocuments, 1)
+        })
+        : "";
+      treeHtml = globalFolder + projectFolders;
+    }
+
+    return `
+      <div class="documentation-tree diagram2-tree-list" role="tree" aria-label="Diagram documents">
+        ${rootDrop}
+        ${treeHtml || `<div class="documentation-tree-empty">No diagrams match the current filters.</div>`}
+      </div>
+    `;
+  }
+
+  function diagram2TreeDocumentsHtml(documents, depth) {
+    const sortedDocuments = [...documents].sort(diagram2DocumentCompare);
+    if (diagram2TreeLayout === "flat") {
+      return sortedDocuments.map(document => diagram2TreeRowHtml(document, depth, [], null)).join("");
+    }
+
     const byId = new Map(documents.map(document => [document.id, document]));
     const childrenByParent = new Map();
     documents.forEach(document => {
@@ -1041,20 +1232,14 @@ export function createDiagram2Feature({
     childrenByParent.forEach(children => children.sort(diagram2DocumentCompare));
 
     const renderChildren = (parentId, depth) => (childrenByParent.get(parentId) || [])
-      .map(document => diagram2TreeRowHtml(document, depth, childrenByParent, renderChildren))
+      .map(document => diagram2TreeRowHtml(document, depth, childrenByParent.get(document.id) || [], renderChildren))
       .join("");
 
-    return `
-      <div class="documentation-tree diagram2-tree-list" role="tree" aria-label="Diagram documents">
-        <div class="diagram-tree-root-drop diagram2-tree-root-drop" data-diagram2-root-drop aria-hidden="true"></div>
-        ${renderChildren(0, 0)}
-      </div>
-    `;
+    return renderChildren(0, depth);
   }
 
-  function diagram2TreeRowHtml(document, depth, childrenByParent, renderChildren) {
+  function diagram2TreeRowHtml(document, depth, children, renderChildren) {
     const selected = document.id === selectedDiagramDocumentId;
-    const children = childrenByParent.get(document.id) || [];
     const hasChildren = children.length > 0;
     const collapsed = collapsedDiagram2DocumentIds.has(document.id);
     const canMove = diagram2CanEdit(document);
@@ -1068,8 +1253,79 @@ export function createDiagram2Feature({
           ${document.isPrivate !== false ? `<span class="diagram-tree-private diagram2-private" title="Private" aria-label="Private">${diagram2LockIconHtml()}</span>` : ""}
         </button>
       </div>
-      ${hasChildren && !collapsed ? renderChildren(document.id, depth + 1) : ""}
+      ${hasChildren && !collapsed && renderChildren ? renderChildren(document.id, depth + 1) : ""}
     `;
+  }
+
+  function diagram2TreeFolderHtml({ key, label, depth, count, childrenHtml }) {
+    const collapsed = collapsedDiagram2TreeFolderKeys.has(key);
+    const countText = count === 1 ? "1 diagram" : `${count} diagrams`;
+    return `
+      <div class="documentation-tree-row documentation-tree-folder-row" style="--tree-depth:${depth}" role="treeitem" aria-expanded="${!collapsed}">
+        <button class="documentation-tree-folder" type="button" data-action="toggle-diagram2-tree-folder" data-tree-key="${escapeAttr(key)}">
+          <span class="documentation-tree-expander" aria-hidden="true">${collapsed ? "&#9656;" : "&#9662;"}</span>
+          <span class="documentation-tree-icon" aria-hidden="true">&#128193;</span>
+          <span class="documentation-tree-label">${escapeHtml(label)}</span>
+          <span class="documentation-tree-count">${escapeHtml(countText)}</span>
+        </button>
+      </div>
+      ${collapsed ? "" : childrenHtml}
+    `;
+  }
+
+  function diagram2CardGroups(documents) {
+    const groups = new Map();
+    documents.forEach(document => {
+      const group = diagram2CardGroup(document);
+      const existing = groups.get(group.key);
+      if (existing) existing.documents.push(document);
+      else groups.set(group.key, { ...group, documents: [document] });
+    });
+    return [...groups.values()];
+  }
+
+  function diagram2CardGroup(document) {
+    if (!document.projectId) return { key: "global", label: "Global" };
+    const projectName = diagramProjectLabel(document.projectId);
+    if (diagram2TreeGroup === "project") {
+      return { key: `project:${document.projectId}`, label: projectName };
+    }
+
+    const sprint = diagram2SprintForDocument(document);
+    return sprint
+      ? { key: `sprint:${sprint.id}`, label: `${projectName} / ${diagramSprintLabel(sprint.id)}` }
+      : { key: `project:${document.projectId}:direct`, label: `${projectName} / Project Diagrams` };
+  }
+
+  function diagram2SprintForDocument(document) {
+    return state.sprints.find(sprint =>
+      Number(sprint.id) === Number(document.sprintId || 0)
+      && Number(sprint.projectId || 0) === Number(document.projectId || 0)
+    ) || null;
+  }
+
+  function expandDiagram2TreePath(document) {
+    if (!document) return;
+    if (diagram2TreeGroup !== "all") {
+      if (!document.projectId) {
+        collapsedDiagram2TreeFolderKeys.delete("global");
+      } else {
+        collapsedDiagram2TreeFolderKeys.delete(`project:${document.projectId}`);
+        if (diagram2TreeGroup === "project-sprint") {
+          const sprint = diagram2SprintForDocument(document);
+          collapsedDiagram2TreeFolderKeys.delete(sprint
+            ? `sprint:${sprint.id}`
+            : `project:${document.projectId}:direct`);
+        }
+      }
+    }
+
+    const byId = new Map(diagram2AllDocuments().map(item => [item.id, item]));
+    let current = document;
+    while (current) {
+      collapsedDiagram2DocumentIds.delete(current.id);
+      current = byId.get(current.parentBlogId);
+    }
   }
 
   function diagram2TreeContextMenuHtml() {
@@ -1231,7 +1487,8 @@ export function createDiagram2Feature({
       host: surface,
       onDiagnostics: updateDiagram2Diagnostics,
       viewportPadding: isEditMode ? undefined : 0,
-      fitScaleStep: isEditMode ? undefined : 0.05
+      fitScaleStep: isEditMode ? undefined : 0.05,
+      initialZoom: diagram2ViewerZoom
     });
     globalThis.__pmtDiagram2Renderer = diagram2Renderer;
     diagram2RendererDocumentId = document.id;
@@ -1740,6 +1997,9 @@ export function createDiagram2Feature({
 
   function resetDiagram2Renderer() {
     abortDiagram2ViewportControls();
+    if (diagram2IgnoreScrollTimer) globalThis.clearTimeout(diagram2IgnoreScrollTimer);
+    diagram2IgnoreScrollTimer = 0;
+    diagram2IgnoringScrollEvent = false;
     diagram2Controller?.destroy?.();
     diagram2Renderer?.destroy?.();
     if (globalThis.__pmtDiagram2Renderer === diagram2Renderer) {
@@ -1985,7 +2245,7 @@ export function createDiagram2Feature({
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
-    const diagnostics = await diagram2Renderer.whenIdle();
+    const diagnostics = await (diagram2Renderer.whenInteractive?.() || diagram2Renderer.whenIdle());
     updateDiagram2Diagnostics(diagnostics);
     return true;
   }
@@ -2006,7 +2266,7 @@ export function createDiagram2Feature({
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
-    const diagnostics = await diagram2Renderer.whenIdle();
+    const diagnostics = await (diagram2Renderer.whenInteractive?.() || diagram2Renderer.whenIdle());
     updateDiagram2Diagnostics(diagnostics);
     return true;
   }
@@ -2164,7 +2424,8 @@ export function createDiagram2Feature({
 
     canvas.addEventListener("pointerdown", event => {
       if (!diagram2Renderer || (event.button !== 0 && event.button !== 1)) return;
-      if (event.button === 0 && event.target.closest?.("[data-diagram2-field-mapping-row]")) return;
+      if (event.button === 0 && event.target.closest?.("[data-diagram2-field-mapping-cell]")) return;
+      if (event.button === 0) diagram2Renderer.clearFieldMappingSelection?.();
       event.preventDefault();
 
       abortDiagram2Pan();
@@ -2198,38 +2459,65 @@ export function createDiagram2Feature({
   }
 
   function bindDiagram2ReadonlyMappingInteractions(canvas, signal) {
-    const show = row => diagram2Renderer?.showFieldMappingHover?.(
-      row?.dataset?.diagram2FieldMappingId,
-      { tableId: row?.dataset?.diagram2FieldMappingTableId }
+    const mappingOptions = cell => ({
+      tableId: cell?.dataset?.diagram2FieldMappingTableId,
+      cellKind: cell?.dataset?.diagram2FieldMappingCellKind
+    });
+    const show = cell => diagram2Renderer?.showFieldMappingHover?.(
+      cell?.dataset?.diagram2FieldMappingId,
+      mappingOptions(cell)
     );
     canvas.addEventListener("pointerover", event => {
-      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-      if (!row || event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]") === row) return;
-      show(row);
+      const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+      if (!cell || event.relatedTarget?.closest?.("[data-diagram2-field-mapping-cell]") === cell) return;
+      show(cell);
     }, { signal });
     canvas.addEventListener("pointerout", event => {
-      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-      if (!row || event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]") === row) return;
+      const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+      if (!cell || event.relatedTarget?.closest?.("[data-diagram2-field-mapping-cell]") === cell) return;
       diagram2Renderer?.clearFieldMappingHover?.();
     }, { signal });
     canvas.addEventListener("click", event => {
-      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-      if (!row) return;
+      const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+      if (!cell) return;
       event.preventDefault();
-      show(row);
+      diagram2Renderer?.pinFieldMapping?.(
+        cell.dataset.diagram2FieldMappingId,
+        mappingOptions(cell)
+      );
+      cell.focus?.({ preventScroll: true });
     }, { signal });
     canvas.addEventListener("dblclick", event => {
-      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-      if (!row) return;
+      const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+      if (!cell) return;
       event.preventDefault();
-      diagram2Renderer?.focusFieldMappingTarget?.(row.dataset.diagram2FieldMappingId);
+      diagram2Renderer?.pinFieldMapping?.(
+        cell.dataset.diagram2FieldMappingId,
+        mappingOptions(cell)
+      );
+      diagram2Renderer?.focusFieldMappingTarget?.(
+        cell.dataset.diagram2FieldMappingId,
+        { cellKind: cell.dataset.diagram2FieldMappingCellKind }
+      );
     }, { signal });
     canvas.addEventListener("keydown", event => {
-      const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-      if (!row || !["Enter", " "].includes(event.key)) return;
+      if (event.key === "Escape" && diagram2Renderer?.clearFieldMappingSelection?.()) {
+        event.preventDefault();
+        return;
+      }
+      const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+      if (!cell || !["Enter", " "].includes(event.key)) return;
       event.preventDefault();
-      show(row);
-      if (event.key === "Enter") diagram2Renderer?.focusFieldMappingTarget?.(row.dataset.diagram2FieldMappingId);
+      diagram2Renderer?.pinFieldMapping?.(
+        cell.dataset.diagram2FieldMappingId,
+        mappingOptions(cell)
+      );
+      if (event.key === "Enter") {
+        diagram2Renderer?.focusFieldMappingTarget?.(
+          cell.dataset.diagram2FieldMappingId,
+          { cellKind: cell.dataset.diagram2FieldMappingCellKind }
+        );
+      }
     }, { signal });
   }
 
@@ -2348,7 +2636,7 @@ export function createDiagram2Feature({
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
-    const diagnostics = await diagram2Renderer.whenIdle();
+    const diagnostics = await (diagram2Renderer.whenInteractive?.() || diagram2Renderer.whenIdle());
     updateDiagram2Diagnostics(diagnostics);
     return true;
   }
@@ -2373,7 +2661,7 @@ export function createDiagram2Feature({
     diagram2Controller.setBusy(true);
     updateDiagram2EditorControls();
     try {
-      await diagram2Renderer?.whenIdle();
+      await (diagram2Renderer?.whenInteractive?.() || diagram2Renderer?.whenIdle());
       const stateForSave = diagram2Controller.state();
       const saved = await diagram2HostAdapter.save({
         diagram: {
@@ -2719,7 +3007,7 @@ export function createDiagram2Feature({
       reason: "object tree focus"
     });
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
-    const settledDiagnostics = await diagram2Renderer?.whenIdle?.();
+    const settledDiagnostics = await (diagram2Renderer?.whenInteractive?.() || diagram2Renderer?.whenIdle?.());
     if (settledDiagnostics) updateDiagram2Diagnostics(settledDiagnostics);
     diagram2ViewerZoom = diagram2ZoomOptionValue(diagram2CurrentViewportScale());
     app.querySelector("[data-diagram2-renderer-surface]")?.classList.remove("is-fit");
@@ -3242,7 +3530,7 @@ export function createDiagram2Feature({
     syncDiagram2InteractionState();
     refreshDiagram2ObjectsPane();
     refreshDiagram2TemplatePane();
-    const diagnostics = await diagram2Renderer?.whenIdle();
+    const diagnostics = await (diagram2Renderer?.whenInteractive?.() || diagram2Renderer?.whenIdle());
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     syncDiagram2InteractionState();
   }
@@ -3275,7 +3563,7 @@ export function createDiagram2Feature({
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     refreshDiagram2ObjectsPane();
     updateDiagram2EditorControls();
-    const diagnostics = await diagram2Renderer?.whenIdle();
+    const diagnostics = await (diagram2Renderer?.whenInteractive?.() || diagram2Renderer?.whenIdle());
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     return result;
   }
@@ -3287,7 +3575,7 @@ export function createDiagram2Feature({
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     refreshDiagram2ObjectsPane();
     updateDiagram2EditorControls();
-    const diagnostics = await diagram2Renderer?.whenIdle();
+    const diagnostics = await (diagram2Renderer?.whenInteractive?.() || diagram2Renderer?.whenIdle());
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     return result;
   }
@@ -3308,7 +3596,7 @@ export function createDiagram2Feature({
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     refreshDiagram2ObjectsPane();
     updateDiagram2EditorControls();
-    const diagnostics = await diagram2Renderer.whenIdle();
+    const diagnostics = await (diagram2Renderer.whenInteractive?.() || diagram2Renderer.whenIdle());
     updateDiagram2Diagnostics(diagnostics);
     return true;
   }
@@ -4183,7 +4471,12 @@ export function createDiagram2Feature({
 
   function diagram2MatchesFilters(document) {
     if (diagram2ProjectId && Number(document.projectId || 0) !== diagram2ProjectId) return false;
-    if (diagram2SprintId !== "all" && Number(document.sprintId || 0) !== Number(diagram2SprintId || 0)) return false;
+    if (diagram2SprintId === "none" && document.sprintId) return false;
+    if (
+      diagram2SprintId !== "all"
+      && diagram2SprintId !== "none"
+      && Number(document.sprintId || 0) !== Number(diagram2SprintId || 0)
+    ) return false;
     if (diagram2Visibility === "private" && document.isPrivate === false) return false;
     if (diagram2Visibility === "public" && document.isPrivate !== false) return false;
     if (diagram2CreatorFilters.length && !diagram2CreatorFilters.includes(String(document.createdByUserId || ""))) return false;

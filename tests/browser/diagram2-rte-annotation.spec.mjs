@@ -2,6 +2,28 @@ import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
+import {
+  buildAnnotationSvg,
+  normalizeAnnotationState,
+  parseAnnotationSvg
+} from "../../wwwroot/js/components/image-annotation.js";
+import {
+  createDiagram2EntityAnnotationPlan
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-entity-annotations.js";
+import {
+  createDiagram2FieldMappingTable
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mapping-tables.js";
+import {
+  createDiagram2FieldMappingIndexes
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mappings.js";
+import {
+  createDiagram2FieldRectangle,
+  setDiagram2FieldRectangleMapping
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-field-rectangles.js";
+import {
+  createDiagram2EmbeddedImage
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-images.js";
+
 test.use({ timezoneId: "Asia/Taipei" });
 
 test("Annotate 2.0 saves through the RTE upload URL and remains editable", async ({ page }, testInfo) => {
@@ -31,7 +53,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -167,7 +189,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -592,7 +614,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -637,7 +659,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-v1");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -692,7 +714,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;
@@ -732,10 +754,271 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   expect(result.notifications).toContain("You do not have permission to edit this content.");
 });
 
+test("D1 and D2 physically round-trip Phase 6 RTE metadata in both directions", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.route("**/uploads/phase6-roundtrip-original.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#f8fafc"/></svg>`
+  }));
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/phase6-roundtrip-original.svg" alt="Phase 6 roundtrip" style="width: 320px;"></p>
+    </div>
+  `);
+  await loadDiagram2RteStyles(page);
+
+  const d1FirstState = phase6RteRoundtripState("d1-first");
+  await openD1RoundtripHost(page, buildAnnotationSvg(d1FirstState), "d1First");
+  await assertD1RoundtripHost(page, "d1-first");
+  await applyD1RoundtripHost(page, "d1First");
+  const d1SavedSvg = await roundtripSavedSvg(page, "d1First");
+  assertPhase6RteRoundtripSvg(d1SavedSvg, "d1-first", "D1FirstId");
+
+  await openD2RoundtripHost(page, d1SavedSvg, "d1ToD2", { annotated: true });
+  await assertD2RoundtripHost(page, "d1-first");
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.renameFieldRectangle("d1-first-field", "D1ToD2Id");
+  });
+  await applyD2RoundtripHost(page, "d1ToD2");
+  const d1ToD2Svg = await roundtripSavedSvg(page, "d1ToD2");
+  assertPhase6RteRoundtripSvg(d1ToD2Svg, "d1-first", "D1ToD2Id");
+
+  await openD1RoundtripHost(page, d1ToD2Svg, "d1Reopen");
+  await assertD1RoundtripHost(page, "d1-first", "D1ToD2Id");
+  await cancelD1RoundtripHost(page, "d1Reopen");
+
+  const d2FirstState = phase6RteRoundtripState("d2-first");
+  await openD2RoundtripHost(page, "", "d2First", {
+    annotated: false,
+    initialState: d2FirstState
+  });
+  await assertD2RoundtripHost(page, "d2-first");
+  await applyD2RoundtripHost(page, "d2First");
+  const d2SavedSvg = await roundtripSavedSvg(page, "d2First");
+  assertPhase6RteRoundtripSvg(d2SavedSvg, "d2-first", "D2FirstId");
+
+  await openD1RoundtripHost(page, d2SavedSvg, "d2ToD1");
+  await assertD1RoundtripHost(page, "d2-first");
+  await applyD1RoundtripHost(page, "d2ToD1");
+  const d2ToD1Svg = await roundtripSavedSvg(page, "d2ToD1");
+  assertPhase6RteRoundtripSvg(d2ToD1Svg, "d2-first", "D2FirstId");
+
+  await openD2RoundtripHost(page, d2ToD1Svg, "d2Reopen", { annotated: true });
+  await assertD2RoundtripHost(page, "d2-first");
+  await cancelD2RoundtripHost(page, "d2Reopen");
+});
+
 async function waitForDiagram2RteCleanup(page) {
   await page.evaluate(() => new Promise(resolve => {
     requestAnimationFrame(() => requestAnimationFrame(resolve));
   }));
+}
+
+async function openD1RoundtripHost(page, svg, key) {
+  await page.evaluate(({ markup, storageKey }) => {
+    void (async () => {
+      const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
+      const image = document.querySelector("#targetImage");
+      const annotationUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+      window[`__${storageKey}Promise`] = annotation.openImageAnnotationDialog({
+        annotationUrl,
+        originalReference: "/uploads/phase6-roundtrip-original.svg",
+        originalFileName: "phase6-roundtrip.svg",
+        canvasWidth: 1600,
+        canvasHeight: 900,
+        fixedOriginalImage: true,
+        persistOutputBoundsInMetadata: true,
+        initialSelection: "none",
+        title: "Phase 6 physical D1 roundtrip",
+        applyLabel: "Apply to RTE",
+        confirm: async () => true,
+        notify: () => {},
+        apply: async result => {
+          window[`__${storageKey}Svg`] = result.svg;
+          image.setAttribute(
+            "src",
+            `data:image/svg+xml;charset=utf-8,${encodeURIComponent(result.svg)}`
+          );
+          image.dataset.pmtAnnotationVersion = String(result.state.version || 1);
+        }
+      });
+    })();
+  }, { markup: svg, storageKey: key });
+  await expect(page.locator("dialog.image-annotation-dialog")).toBeVisible();
+}
+
+async function openD2RoundtripHost(page, svg, key, options = {}) {
+  await page.evaluate(({ markup, storageKey, annotated, initialState }) => {
+    void (async () => {
+      const { openDiagram2RteAnnotationHost } = await import(
+        "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13"
+      );
+      const image = document.querySelector("#targetImage");
+      const editor = document.querySelector(".rich-editor");
+      const annotationUrl = markup
+        ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`
+        : "";
+      const source = annotated
+        ? annotationUrl
+        : "/uploads/phase6-roundtrip-original.svg";
+      window[`__${storageKey}Promise`] = openDiagram2RteAnnotationHost({
+        image,
+        editor,
+        source,
+        annotationUrl,
+        originalUrl: annotated ? "" : source,
+        originalReference: "/uploads/phase6-roundtrip-original.svg",
+        originalFileName: "phase6-roundtrip.svg",
+        annotated,
+        canEdit: true,
+        confirm: async () => true,
+        notify: () => {},
+        restoreFocus: () => image.focus({ preventScroll: true }),
+        apply: async result => {
+          window[`__${storageKey}Svg`] = result.svg;
+          image.setAttribute(
+            "src",
+            `data:image/svg+xml;charset=utf-8,${encodeURIComponent(result.svg)}`
+          );
+          image.dataset.pmtAnnotationVersion = String(result.state.version || 1);
+        }
+      });
+      if (initialState) {
+        await new Promise(resolve => {
+          const wait = () => {
+            if (window.__pmtDiagram2EditorCore && window.__pmtDiagram2Renderer) {
+              resolve();
+              return;
+            }
+            requestAnimationFrame(wait);
+          };
+          wait();
+        });
+        window.__pmtDiagram2EditorCore.setState(initialState, {
+          resetHistory: true,
+          saved: false,
+          reason: "physical D2 annotate fixture"
+        });
+        window.__pmtDiagram2Renderer.render(
+          window.__pmtDiagram2EditorCore.currentState(),
+          { reason: "physical D2 annotate fixture" }
+        );
+      }
+    })();
+  }, {
+    markup: svg,
+    storageKey: key,
+    annotated: options.annotated === true,
+    initialState: options.initialState || null
+  });
+  await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+  if (options.initialState) {
+    await expect.poll(() => page.evaluate(() =>
+      window.__pmtDiagram2EditorCore?.currentState?.().objects.length || 0
+    )).toBe(options.initialState.objects.length);
+  }
+}
+
+async function assertD1RoundtripHost(page, prefix, expectedUiField = "") {
+  const uiField = expectedUiField || roundtripFieldName(prefix);
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  await expect(canvas.locator(`[data-annotation-object-id='${prefix}-image']`)).toHaveAttribute("clip-path", /.+/);
+  await expect(canvas.locator(`[data-annotation-object-id='${prefix}-field']`)).toBeVisible();
+  await expect(canvas.locator(`[data-annotation-object-id='${prefix}-entity']`)).toBeVisible();
+  await expect(canvas.locator(`[data-annotation-object-id='${prefix}-table']`)).toContainText(uiField);
+  const uiCell = canvas.locator(
+    `[data-annotation-object-id='${prefix}-table'] [data-annotation-field-mapping-cell='true'][data-annotation-field-mapping-cell-kind='ui']`
+  );
+  await uiCell.click();
+  await expect(canvas.locator("[data-annotation-field-mapping-attention-arrow]")).toHaveCount(2);
+}
+
+async function assertD2RoundtripHost(page, prefix) {
+  await expect.poll(() => page.evaluate(id =>
+    Boolean(window.__pmtDiagram2EditorCore?.getObjectById?.(id)), `${prefix}-table`
+  )).toBe(true);
+  const host = page.locator("[data-diagram2-rte-host]");
+  const uiCell = host.locator(
+    `[data-diagram2-object-id='${prefix}-table'] [data-diagram2-field-mapping-cell='true'][data-diagram2-field-mapping-cell-kind='ui']`
+  );
+  await uiCell.click();
+  await expect(host.locator("[data-diagram2-field-mapping-attention-arrow]")).toHaveCount(2);
+  const stateEvidence = await page.evaluate(idPrefix => {
+    const state = window.__pmtDiagram2EditorCore.currentState();
+    const image = state.objects.find(object => object.id === `${idPrefix}-image`);
+    const field = state.objects.find(object => object.id === `${idPrefix}-field`);
+    const table = state.objects.find(object => object.id === `${idPrefix}-table`);
+    return {
+      imageClip: image?.imageClip,
+      relationshipType: field?.foreignKeys?.[0]?.relationshipType,
+      tableStyle: {
+        headerFill: table?.headerFill,
+        uiFill: table?.uiFill,
+        databaseFill: table?.databaseFill,
+        fieldMappingRowHoverFill: table?.fieldMappingRowHoverFill
+      },
+      annotationChildren: state.objects.filter(object =>
+        object.entityAnnotationOwnerId === `${idPrefix}-entity`).length
+    };
+  }, prefix);
+  expect(stateEvidence.imageClip).toEqual({
+    x: 84,
+    y: 124,
+    width: 588,
+    height: 360
+  });
+  expect(stateEvidence.relationshipType).toBe("many-to-one");
+  expect(stateEvidence.tableStyle).toEqual({
+    headerFill: "#dbeafe",
+    uiFill: "#f8fafc",
+    databaseFill: "#ffffff",
+    fieldMappingRowHoverFill: "#fef08a"
+  });
+  expect(stateEvidence.annotationChildren).toBeGreaterThanOrEqual(1);
+}
+
+async function applyD1RoundtripHost(page, key) {
+  await page.locator("dialog.image-annotation-dialog")
+    .getByRole("button", { name: "Apply to RTE", exact: true })
+    .first()
+    .click();
+  await page.evaluate(storageKey => window[`__${storageKey}Promise`], key);
+  await expect(page.locator("dialog.image-annotation-dialog")).toHaveCount(0);
+}
+
+async function cancelD1RoundtripHost(page, key) {
+  await page.locator("dialog.image-annotation-dialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .first()
+    .click();
+  await page.evaluate(storageKey => window[`__${storageKey}Promise`], key);
+  await expect(page.locator("dialog.image-annotation-dialog")).toHaveCount(0);
+}
+
+async function applyD2RoundtripHost(page, key) {
+  await page.locator("[data-diagram2-rte-host]")
+    .getByRole("button", { name: "Apply to RTE", exact: true })
+    .click();
+  await page.evaluate(storageKey => window[`__${storageKey}Promise`], key);
+  await expect(page.locator("[data-diagram2-rte-host]")).toHaveCount(0);
+}
+
+async function cancelD2RoundtripHost(page, key) {
+  await page.locator("[data-diagram2-rte-host]")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await page.evaluate(storageKey => window[`__${storageKey}Promise`], key);
+  await expect(page.locator("[data-diagram2-rte-host]")).toHaveCount(0);
+}
+
+async function roundtripSavedSvg(page, key) {
+  const svg = await page.evaluate(storageKey => window[`__${storageKey}Svg`] || "", key);
+  expect(svg).toContain("data-pmt-image-annotation-state");
+  expect(svg).not.toContain("field-mapping-attention-arrow");
+  return svg;
 }
 
 async function ensureDiagram2RteToolsPaneOpen(scope) {
@@ -911,4 +1194,166 @@ async function diagram2RteCleanupSnapshot(page) {
     editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
     rteHostLive: Boolean(window.__pmtDiagram2RteHost)
   }));
+}
+
+function phase6RteRoundtripState(prefix) {
+  const image = {
+    ...createDiagram2EmbeddedImage({
+      id: `${prefix}-image`,
+      name: `${prefix} screenshot`,
+      source: roundtripImageDataUrl(),
+      x: 60,
+      y: 100,
+      width: 640,
+      height: 400,
+      isOriginalImage: true
+    }),
+    imageClip: { x: 84, y: 124, width: 588, height: 360 },
+    cropCornerRadius: 12,
+    cropVisible: true
+  };
+  const entity = {
+    id: `${prefix}-entity`,
+    type: "entity",
+    x: 980,
+    y: 130,
+    width: 320,
+    height: 190,
+    entitySchema: "pmt",
+    entityName: `${roundtripPascalPrefix(prefix)}Target`,
+    fields: [
+      {
+        name: "TargetId",
+        dataType: "INT",
+        nullable: false,
+        isPrimaryKey: true,
+        isImportant: true
+      },
+      {
+        name: "Title",
+        dataType: "NVARCHAR(200)",
+        nullable: false,
+        isImportant: true
+      }
+    ],
+    foreignKeys: [],
+    fill: "#ffffff",
+    stroke: "#334155",
+    entityHeaderFill: "#dcfce7",
+    entityNameTextColor: "#14532d",
+    showKeyColumn: true,
+    showDataTypes: true
+  };
+  const field = setDiagram2FieldRectangleMapping(createDiagram2FieldRectangle({
+    id: `${prefix}-field`,
+    name: roundtripFieldName(prefix),
+    x: 250,
+    y: 255,
+    width: 190,
+    height: 62
+  }), {
+    referencedEntity: `pmt.${entity.entityName}`,
+    referencedField: "TargetId",
+    relationshipType: "many-to-one"
+  });
+  let state = normalizeAnnotationState({
+    version: 1,
+    width: 1600,
+    height: 900,
+    objects: [image, entity, field]
+  });
+  const annotationPlan = createDiagram2EntityAnnotationPlan(
+    state,
+    entity.id,
+    `${roundtripPascalPrefix(prefix)} target annotation`,
+    { showArrow: true }
+  );
+  if (annotationPlan) {
+    const replacedIds = new Set(annotationPlan.beforeObjects.map(object => object.id));
+    state = normalizeAnnotationState({
+      ...state,
+      objects: [
+        ...state.objects.filter(object => !replacedIds.has(object.id)),
+        ...annotationPlan.afterObjects
+      ],
+      groupNames: {
+        ...state.groupNames,
+        ...annotationPlan.afterGroupNames
+      },
+      groupVisibility: {
+        ...state.groupVisibility,
+        ...annotationPlan.afterGroupVisibility
+      }
+    });
+  }
+  const table = createDiagram2FieldMappingTable(
+    state,
+    image.id,
+    {
+      id: `${prefix}-table`,
+      x: 900,
+      y: 520,
+      indexes: createDiagram2FieldMappingIndexes(state.objects),
+      style: {
+        headerFill: "#dbeafe",
+        uiFill: "#f8fafc",
+        databaseFill: "#ffffff",
+        fieldMappingRowHoverFill: "#fef08a",
+        fieldMappingHighlightColor: "#facc15",
+        fieldMappingHighlightStrokeWidth: 9
+      }
+    }
+  );
+  return normalizeAnnotationState({
+    ...state,
+    objects: [...state.objects, table]
+  });
+}
+
+function assertPhase6RteRoundtripSvg(svg, prefix, expectedUiField) {
+  const state = parseAnnotationSvg(svg);
+  const image = state.objects.find(object => object.id === `${prefix}-image`);
+  const field = state.objects.find(object => object.id === `${prefix}-field`);
+  const table = state.objects.find(object => object.id === `${prefix}-table`);
+  expect(image).toMatchObject({
+    imageClip: { x: 84, y: 124, width: 588, height: 360 },
+    cropCornerRadius: 12,
+    cropVisible: true
+  });
+  expect(field).toBeTruthy();
+  expect(field.foreignKeys?.[0]).toMatchObject({
+    columns: [expectedUiField],
+    referencedColumns: ["TargetId"],
+    relationshipType: "many-to-one"
+  });
+  expect(table).toMatchObject({
+    headerFill: "#dbeafe",
+    uiFill: "#f8fafc",
+    databaseFill: "#ffffff",
+    fieldMappingRowHoverFill: "#fef08a"
+  });
+  expect(table.rows?.[0]).toMatchObject({
+    uiEntityId: `${prefix}-field`,
+    uiField: expectedUiField
+  });
+  expect(state.objects.filter(object =>
+    object.entityAnnotationOwnerId === `${prefix}-entity`).length
+  ).toBeGreaterThanOrEqual(1);
+}
+
+function roundtripFieldName(prefix) {
+  return `${roundtripPascalPrefix(prefix)}Id`;
+}
+
+function roundtripPascalPrefix(prefix) {
+  return String(prefix || "")
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+    .map(value => `${value.charAt(0).toUpperCase()}${value.slice(1)}`)
+    .join("");
+}
+
+function roundtripImageDataUrl() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><rect width="640" height="400" fill="#e0f2fe"/><rect x="100" y="80" width="440" height="240" fill="#ffffff" stroke="#175fbd" stroke-width="4"/><text x="320" y="210" text-anchor="middle" font-family="Arial" font-size="28" fill="#172b4d">Phase 6 roundtrip</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
 }

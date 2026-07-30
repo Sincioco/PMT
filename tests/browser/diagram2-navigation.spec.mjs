@@ -14,7 +14,7 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/css/base.css");
   const result = await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
     const state = {
       version: 1,
       width: 480,
@@ -55,7 +55,339 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
   expect(result.height).toBe(280);
 });
 
+test("Diagram 2 keeps relationship-heavy overview routes stable while zooming", async ({ page }) => {
+  const svg = await readFile(
+    new URL("../../wwwroot/assets/docs/pmt-database-schema.svg", import.meta.url),
+    "utf8"
+  );
+  const state = parseAnnotationSvg(svg);
+  state.manualEntityRelationshipRoutes = true;
+  state.compactEntityRelationshipRouting = false;
+  const compactRoot = state.objects.find(object => object.type === "entity");
+  if (compactRoot) compactRoot.x += 73;
+
+  await page.goto("/css/base.css");
+  const result = await page.evaluate(async canonicalState => {
+    const {
+      createDiagram2Renderer,
+      diagram2CanonicalRelationships
+    } = await import(
+      "/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13"
+    );
+    const { createDiagram2EditorController } = await import(
+      "/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13"
+    );
+    const {
+      createDiagram2RelationshipRouteModel,
+      diagram2RelationshipRouteKey,
+      diagram2RelationshipRouteFromModel
+    } = await import(
+      "/js/features/diagram2/diagram2-routing.js?v=20260730-diagram2-phase6-closure-v13"
+    );
+    const { annotationCompactEntityRelationshipRouteStateKey } = await import(
+      "/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13"
+    );
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;width:1920px;height:1080px";
+    document.body.replaceChildren(host);
+    const renderer = createDiagram2Renderer({
+      host,
+      initialZoom: "0.15",
+      viewportPadding: 0,
+      fitScaleStep: 0.05
+    });
+    const startedAt = performance.now();
+    const diagnostics = renderer.render(canonicalState, {
+      reason: "relationship-heavy overview load"
+    });
+    const elapsedMs = performance.now() - startedAt;
+    const relationshipPathMaxCommands = Math.max(
+      0,
+      ...[...host.querySelectorAll("[data-diagram2-relationship-path]")]
+        .map(path => ((path.getAttribute("d") || "").match(/[MLHV]/g) || []).length)
+    );
+    const lowRelationshipPaths = new Map(
+      [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+        .map(node => [
+          node.dataset.diagram2RelationshipId,
+          node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""
+        ])
+    );
+    const lowFieldCount = host.querySelectorAll("[data-diagram2-entity-low-field]").length;
+    const lowTitle = host.querySelector("[data-diagram2-entity-title]");
+    const zoomStartedAt = performance.now();
+    renderer.setZoom("0.5");
+    const zoomFrameDelayMs = await new Promise(resolve => {
+      requestAnimationFrame(() => resolve(performance.now() - zoomStartedAt));
+    });
+    const zoomContinuationDelayMs = performance.now() - zoomStartedAt;
+    const zoomDiagnostics = renderer.diagnostics();
+    const panStartedAt = performance.now();
+    renderer.panBy(18, 12);
+    const panCommandMs = performance.now() - panStartedAt;
+    const panFrameDelayMs = await new Promise(resolve => {
+      requestAnimationFrame(() => resolve(performance.now() - panStartedAt));
+    });
+    const panDiagnostics = renderer.diagnostics();
+    const zoomOutStartedAt = performance.now();
+    renderer.setZoom("0.2");
+    const zoomOutFrameDelayMs = await new Promise(resolve => {
+      requestAnimationFrame(() => resolve(performance.now() - zoomOutStartedAt));
+    });
+    const zoomOutDiagnostics = renderer.diagnostics();
+    const secondZoomStartedAt = performance.now();
+    renderer.setZoom("0.5");
+    const secondZoomFrameDelayMs = await new Promise(resolve => {
+      requestAnimationFrame(() => resolve(performance.now() - secondZoomStartedAt));
+    });
+    await renderer.whenIdle();
+    const detailedDiagnostics = renderer.diagnostics();
+    const detailedRelationshipPathMaxCommands = Math.max(
+      0,
+      ...[...host.querySelectorAll("[data-diagram2-relationship-path]")]
+        .map(path => ((path.getAttribute("d") || "").match(/[MLHV]/g) || []).length)
+    );
+    const zoomPathMismatchCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => lowRelationshipPaths.get(node.dataset.diagram2RelationshipId)
+        !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
+      .length;
+    const detailedFieldCount = host.querySelectorAll("[data-diagram2-entity-field]").length;
+    const remainingLowFieldCount = host.querySelectorAll("[data-diagram2-entity-low-field]").length;
+    const controller = createDiagram2EditorController({
+      renderer,
+      state: canonicalState,
+      host: {
+        canEdit: true,
+        security: { canUpdate: true }
+      }
+    });
+    const relationshipId = diagram2CanonicalRelationships(canonicalState)[0]?.id || "";
+    const useRouteStartedAt = performance.now();
+    const useRouteApplied = await controller.useRelationshipRoute(relationshipId);
+    await renderer.whenIdle();
+    const useRouteDurationMs = performance.now() - useRouteStartedAt;
+    const manualRelationship = diagram2CanonicalRelationships(controller.currentState())
+      .find(relationship => relationship.id === relationshipId);
+    const manualPoints = manualRelationship?.foreignKeySource?.routeOverride || [];
+    const segmentIndex = manualPoints.findIndex((point, index) => {
+      const next = manualPoints[index + 1];
+      return next && (Math.abs(point.x - next.x) <= 0.001 || Math.abs(point.y - next.y) <= 0.001);
+    });
+    const segmentAxis = segmentIndex >= 0
+      && Math.abs(manualPoints[segmentIndex].x - manualPoints[segmentIndex + 1].x) <= 0.001
+      ? "x"
+      : "y";
+    const routeHandleStartedAt = performance.now();
+    const routeHandleApplied = await controller.adjustRelationshipRoute(
+      relationshipId,
+      segmentIndex,
+      segmentAxis,
+      Number(manualPoints[segmentIndex]?.[segmentAxis] || 0) + 20
+    );
+    const routeHandleCommandMs = performance.now() - routeHandleStartedAt;
+    await renderer.whenInteractive();
+    const routeHandleDurationMs = performance.now() - routeHandleStartedAt;
+    renderer.setZoom("0.15");
+    await renderer.whenIdle();
+    const compactRootId = canonicalState.objects.find(object => object.type === "entity")?.id || "";
+    controller.setSelection([compactRootId], { expandGroups: false });
+    const compactPathsBefore = new Map(
+      [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+        .map(node => [
+          node.dataset.diagram2RelationshipId,
+          node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""
+        ])
+    );
+    let compactFirstProgressMs = Number.POSITIVE_INFINITY;
+    const compactStartedAt = performance.now();
+    const compactApplied = await controller.autoFormatCompact({
+      onProgress: () => {
+        if (!Number.isFinite(compactFirstProgressMs)) {
+          compactFirstProgressMs = performance.now() - compactStartedAt;
+        }
+      }
+    });
+    await renderer.whenIdle();
+    const compactDurationMs = performance.now() - compactStartedAt;
+    const compactState = controller.currentState();
+    const compactRelationships = diagram2CanonicalRelationships(compactState);
+    const compactRouteModel = createDiagram2RelationshipRouteModel(compactState);
+    const expectedCompactPaths = new Map(compactRelationships.map(relationship => [
+      relationship.id,
+      diagram2RelationshipRouteFromModel(relationship, compactRouteModel)?.path || ""
+    ]));
+    const compactStoredRouteKeys = new Set(
+      (compactState.compactEntityRelationshipRoutes || []).map(entry => entry.key)
+    );
+    const compactLowRouteMismatchCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => expectedCompactPaths.get(node.dataset.diagram2RelationshipId)
+        !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
+      .length;
+    const compactPathChangedCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => compactPathsBefore.get(node.dataset.diagram2RelationshipId)
+        !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
+      .length;
+    renderer.setZoom("0.5");
+    await renderer.whenIdle();
+    const compactDetailedDiagnostics = renderer.diagnostics();
+    const compactDetailedRelationshipPathMaxCommands = Math.max(
+      0,
+      ...[...host.querySelectorAll("[data-diagram2-relationship-path]")]
+        .map(path => ((path.getAttribute("d") || "").match(/[MLHV]/g) || []).length)
+    );
+    const compactDetailedRouteMismatchCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => expectedCompactPaths.get(node.dataset.diagram2RelationshipId)
+        !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
+      .length;
+    const savedCompactState = JSON.parse(JSON.stringify(compactState));
+    controller.destroy();
+    renderer.destroy();
+    host.replaceChildren();
+    const readRenderer = createDiagram2Renderer({
+      host,
+      initialZoom: "0.15",
+      viewportPadding: 0,
+      fitScaleStep: 0.05
+    });
+    readRenderer.render(savedCompactState, { reason: "saved Compact read mode" });
+    const savedLowRouteMismatchCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => expectedCompactPaths.get(node.dataset.diagram2RelationshipId)
+        !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
+      .length;
+    readRenderer.setZoom("0.5");
+    await readRenderer.whenIdle();
+    const savedDetailedRouteMismatchCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => expectedCompactPaths.get(node.dataset.diagram2RelationshipId)
+        !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
+      .length;
+    readRenderer.destroy();
+    return {
+      elapsedMs,
+      diagnostics,
+      relationshipPathMaxCommands,
+      lowFieldCount,
+      lowTitleFontSize: Number(lowTitle?.getAttribute("font-size") || 0),
+      lowTitleFontWeight: Number(lowTitle?.getAttribute("font-weight") || 0),
+      zoomFrameDelayMs,
+      zoomContinuationDelayMs,
+      zoomDiagnostics,
+      panCommandMs,
+      panFrameDelayMs,
+      panDiagnostics,
+      zoomOutFrameDelayMs,
+      zoomOutDiagnostics,
+      secondZoomFrameDelayMs,
+      detailedDiagnostics,
+      detailedRelationshipPathMaxCommands,
+      zoomPathMismatchCount,
+      detailedFieldCount,
+      remainingLowFieldCount,
+      useRouteApplied,
+      useRouteDurationMs,
+      routeHandleApplied,
+      routeHandleCommandMs,
+      routeHandleDurationMs,
+      compactApplied,
+      compactFirstProgressMs,
+      compactDurationMs,
+      compactPathChangedCount,
+      compactStoredRouteKey: compactState.compactEntityRelationshipRouteKey || "",
+      compactComputedRouteKey: annotationCompactEntityRelationshipRouteStateKey(compactState),
+      compactStoredRouteKeyMissingCount: compactRelationships
+        .filter(relationship => !compactStoredRouteKeys.has(diagram2RelationshipRouteKey(relationship))).length,
+      compactLowRouteMismatchCount,
+      compactDetailedRouteMismatchCount,
+      savedCompactRouteCount: savedCompactState.compactEntityRelationshipRoutes?.length || 0,
+      savedCompactRouteKey: savedCompactState.compactEntityRelationshipRouteKey || "",
+      savedLowRouteMismatchCount,
+      savedDetailedRouteMismatchCount,
+      compactDetailedRelationshipCount: compactDetailedDiagnostics.overviewDetailDetailedRelationshipCount,
+      compactDetailedRelationshipPathMaxCommands
+    };
+  }, state);
+
+  console.info("DIAGRAM2_ZOOM_PROMOTION", JSON.stringify({
+    initialRenderMs: result.elapsedMs,
+    firstZoomFrameMs: result.zoomFrameDelayMs,
+    firstZoomContinuationMs: result.zoomContinuationDelayMs,
+    firstZoomLowRelationshipCount: result.zoomDiagnostics.overviewDetailLowRelationshipCount,
+    firstZoomDetailedRelationshipCount: result.zoomDiagnostics.overviewDetailDetailedRelationshipCount,
+    panCommandMs: result.panCommandMs,
+    promotionPanFrameMs: result.panFrameDelayMs,
+    panLowRelationshipCount: result.panDiagnostics.overviewDetailLowRelationshipCount,
+    panDetailedRelationshipCount: result.panDiagnostics.overviewDetailDetailedRelationshipCount,
+    panPromotionStepCount: result.panDiagnostics.relationshipPromotionStepCount,
+    panPromotionLastStepMs: result.panDiagnostics.relationshipPromotionLastStepDuration,
+    panPromotionMaxStepMs: result.panDiagnostics.relationshipPromotionMaxStepDuration,
+    zoomOutFrameMs: result.zoomOutFrameDelayMs,
+    secondZoomFrameMs: result.secondZoomFrameDelayMs,
+    compactFirstProgressMs: result.compactFirstProgressMs,
+    compactDurationMs: result.compactDurationMs,
+    compactPathChangedCount: result.compactPathChangedCount,
+    compactRouteKeyMatches: result.compactStoredRouteKey === result.compactComputedRouteKey,
+    compactStoredRouteKeyMissingCount: result.compactStoredRouteKeyMissingCount,
+    compactLowRouteMismatchCount: result.compactLowRouteMismatchCount,
+    compactDetailedRouteMismatchCount: result.compactDetailedRouteMismatchCount,
+    savedCompactRouteCount: result.savedCompactRouteCount,
+    savedLowRouteMismatchCount: result.savedLowRouteMismatchCount,
+    savedDetailedRouteMismatchCount: result.savedDetailedRouteMismatchCount,
+    compactDetailedRelationshipCount: result.compactDetailedRelationshipCount,
+    compactDetailedRelationshipPathMaxCommands: result.compactDetailedRelationshipPathMaxCommands,
+    zoomPathMismatchCount: result.zoomPathMismatchCount,
+    useRouteDurationMs: result.useRouteDurationMs,
+    routeHandleDurationMs: result.routeHandleDurationMs,
+    routeHandleCommandMs: result.routeHandleCommandMs,
+    relationshipCount: result.diagnostics.canonicalRelationshipCount,
+    lowFieldCount: result.lowFieldCount,
+    detailedFieldCount: result.detailedFieldCount
+  }));
+  expect(result.diagnostics.canonicalEntityCount).toBeLessThan(80);
+  expect(result.diagnostics.canonicalRelationshipCount).toBeGreaterThanOrEqual(64);
+  expect(result.diagnostics.overviewDetailLevel).toBe("low");
+  expect(result.relationshipPathMaxCommands).toBeGreaterThan(2);
+  expect(result.elapsedMs).toBeLessThan(500);
+  expect(result.lowFieldCount).toBeGreaterThan(0);
+  expect(result.lowTitleFontSize).toBeLessThanOrEqual(14);
+  expect(result.lowTitleFontWeight).toBeLessThanOrEqual(600);
+  expect(result.zoomFrameDelayMs).toBeLessThan(250);
+  expect(result.zoomDiagnostics.overviewDetailLevel).toBe("detailed");
+  expect(result.zoomDiagnostics.overviewDetailLowRelationshipCount).toBe(result.diagnostics.canonicalRelationshipCount);
+  expect(result.panFrameDelayMs).toBeLessThan(500);
+  expect(result.panDiagnostics.overviewDetailLevel).toBe("detailed");
+  expect(result.zoomOutFrameDelayMs).toBeLessThan(500);
+  expect(result.zoomOutDiagnostics.overviewDetailLevel).toBe("low");
+  expect(result.zoomOutDiagnostics.overviewDetailLowRelationshipCount)
+    .toBe(result.diagnostics.canonicalRelationshipCount);
+  expect(result.secondZoomFrameDelayMs).toBeLessThan(500);
+  expect(result.detailedDiagnostics.overviewDetailDetailedRelationshipCount)
+    .toBe(result.diagnostics.canonicalRelationshipCount);
+  expect(result.detailedRelationshipPathMaxCommands).toBeGreaterThan(2);
+  expect(result.zoomPathMismatchCount).toBe(0);
+  expect(result.detailedFieldCount).toBeGreaterThan(0);
+  expect(result.remainingLowFieldCount).toBe(0);
+  expect(result.useRouteApplied).toBe(true);
+  expect(result.useRouteDurationMs).toBeLessThan(500);
+  expect(result.routeHandleApplied).toBe(true);
+  expect(result.routeHandleCommandMs).toBeLessThan(500);
+  expect(result.routeHandleDurationMs).toBeLessThan(500);
+  expect(result.compactApplied).toBe(true);
+  expect(result.compactFirstProgressMs).toBeLessThan(500);
+  expect(result.compactDurationMs).toBeLessThan(5000);
+  expect(result.compactPathChangedCount).toBeGreaterThan(0);
+  expect(result.compactStoredRouteKey).toBe(result.compactComputedRouteKey);
+  expect(result.compactStoredRouteKeyMissingCount).toBe(0);
+  expect(result.compactLowRouteMismatchCount).toBe(0);
+  expect(result.compactDetailedRouteMismatchCount).toBe(0);
+  expect(result.savedCompactRouteCount).toBe(result.diagnostics.canonicalRelationshipCount);
+  expect(result.savedCompactRouteKey).not.toBe("");
+  expect(result.savedLowRouteMismatchCount).toBe(0);
+  expect(result.savedDetailedRouteMismatchCount).toBe(0);
+  expect(result.compactDetailedRelationshipCount).toBe(result.diagnostics.canonicalRelationshipCount);
+  expect(result.compactDetailedRelationshipPathMaxCommands).toBeGreaterThan(2);
+});
+
 test("Diagram 2 top navigation separates read-only document mode from Edit mode", async ({ page }, testInfo) => {
+  testInfo.setTimeout(120000);
   const browserErrors = [];
   const clipboardImageBytes = await readFile(new URL("../../wwwroot/assets/pmt-logo-full.png", import.meta.url));
   const clipboardImageBase64 = clipboardImageBytes.toString("base64");
@@ -175,9 +507,10 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   const readZoomBefore = Number(await readZoomControl.inputValue());
   await page.locator("[data-action='zoom-diagram2-in']").click();
   await expect(readZoomControl).toHaveValue(nextDiagram2TestZoomValue(readZoomBefore, 1));
+  const readZoomedIn = await readZoomControl.inputValue();
   await page.locator("[data-action='fit-diagram2-viewer']").click();
   await waitForViewportReason(page, "fit");
-  await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
+  await expect.poll(async () => readZoomControl.inputValue()).not.toBe(readZoomedIn);
   const readFitZoom = Number(await readZoomControl.inputValue());
   await page.locator("[data-action='zoom-diagram2-out']").click();
   await expect(readZoomControl).toHaveValue(nextDiagram2TestZoomValue(readFitZoom, -1));
@@ -200,6 +533,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect.poll(async () =>
     page.locator("[data-diagram2-object-plane] [data-diagram2-object-type='entity']").count()
   ).toBeGreaterThanOrEqual(28);
+  await assertDiagram2ZoomRouteGeometryStable(page, "read-only");
   await page.getByRole("button", { name: "Cards" }).click();
   await expect(page.locator(".diagram2-card-list")).toBeVisible();
   await expect(page.locator("[data-diagram2-tree]")).toHaveCount(0);
@@ -208,8 +542,17 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-tree-row] [data-action='select-diagram2-document']")).toHaveCount(2);
   await expect(page.locator("[data-diagram2-readonly-shell]")).toBeVisible();
 
+  await page.evaluate(() => {
+    window.__diagram2EditModeStartedAt = performance.now();
+  });
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  const editModeInteractionMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer?.whenInteractive?.();
+    return performance.now() - window.__diagram2EditModeStartedAt;
+  });
+  console.info("DIAGRAM2_EDIT_MODE_INTERACTION", JSON.stringify({ editModeInteractionMs }));
+  expect(editModeInteractionMs).toBeLessThan(500);
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-page-document-head]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-tree]")).toHaveCount(0);
@@ -275,6 +618,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-diagnostic='canonical-object-count']")).toHaveText("88");
   await expect(page.locator("[data-diagram2-diagnostic='canonical-relationship-count']")).toHaveText("78");
   await expect(page.locator("[data-diagram2-diagnostic='mounted-relationship-count']")).toHaveText("78");
+  await assertDiagram2ZoomRouteGeometryStable(page, "edit");
   await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("initial");
   await expect.poll(async () => Number(await page.locator("[data-diagram2-diagnostic='svg-descendant-count']").textContent()))
     .toBeGreaterThan(0);
@@ -294,6 +638,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   const transformOnlyRenderCount = await diagram2FullRenderCount(page);
   await assertKeyedDiagram2NodePatches(page, transformOnlyRenderCount);
   await assertDiagram2LiveGeometryPreview(page, transformOnlyRenderCount);
+  await assertDiagram2PointerEntityDragPerformance(page, transformOnlyRenderCount);
   await assertDiagram2SelectiveRoutingStress(page);
   await assertDiagram2ViewportHaloVirtualization(page);
   await assertDiagram2LowDetailOverviewRendering(page);
@@ -301,6 +646,10 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   for (const zoom of ["0.1", "0.5", "0.75", "1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
+  await page.evaluate(() => {
+    window.__diagram2StableText = document
+      .querySelector("[data-diagram2-object-plane] [data-diagram2-object-type='entity'] text");
+  });
   await assertTransformOnlyPan(page, transformOnlyRenderCount);
   await assertCursorCenteredWheelZoom(page, transformOnlyRenderCount);
   await assertDiagram2Phase5EntityErdEditing(page, testInfo);
@@ -440,8 +789,17 @@ test("Diagram 2 generates a live PMT database schema Diagram", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
   await openNavigationScreen(page, "Diagram 2");
+  await page.evaluate(() => {
+    window.__diagram2EditModeStartedAt = performance.now();
+  });
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  const editModeInteractionMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer?.whenInteractive?.();
+    return performance.now() - window.__diagram2EditModeStartedAt;
+  });
+  console.info("DIAGRAM2_EDIT_MODE_INTERACTION", JSON.stringify({ editModeInteractionMs }));
+  expect(editModeInteractionMs).toBeLessThan(500);
   await ensureDiagram2ObjectsPaneOpen(page);
   await page.locator("[data-diagram2-object-tree-row][data-diagram2-object-type='entity']")
     .first()
@@ -479,11 +837,11 @@ test("Diagram 2 Compact visual evidence uses the same post-Compact state as Diag
       buildAnnotationSvg,
       normalizeAnnotationState,
       parseAnnotationSvg
-    } = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-v1");
+    } = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
     const {
       createDiagram2Renderer,
       diagram2ContentBounds
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const fixtures = {};
     if (fixtureNamesInput.includes("pmt-schema")) {
       const pmtSvg = await fetch("/assets/docs/pmt-database-schema.svg", { cache: "no-store" }).then(response => response.text());
@@ -661,10 +1019,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13")
     ]);
     const state = {
       version: 1,
@@ -783,8 +1141,8 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
 
   const marqueeCoalesce = await page.evaluate(async () => {
     const [controllerModule, interactionModule] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-closure-v13")
     ]);
     const canvas = document.createElement("div");
     canvas.tabIndex = 0;
@@ -797,10 +1155,18 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
     let selectionEvents = 0;
     let stateChanges = 0;
     let clearCalls = 0;
+    let hitTestCalls = 0;
+    let selectionCallsDuringDrag = 0;
+    let pointerUp = false;
     const renderer = {
       screenToWorld: point => ({ x: point.clientX, y: point.clientY }),
-      previewMarquee: () => {
+      previewMarquee: (_bounds, options) => {
         previewCalls += 1;
+        if (options?.hitTest !== false) throw new Error("Marquee drag performed an object hit-test.");
+        return [];
+      },
+      objectIdsInBounds: () => {
+        hitTestCalls += 1;
         return ["rect-a", "circle-a"];
       },
       clearMarquee: () => {
@@ -808,6 +1174,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       },
       setSelectedIds: () => {
         rendererSelectionCalls += 1;
+        if (!pointerUp) selectionCallsDuringDrag += 1;
         return {};
       }
     };
@@ -875,6 +1242,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       }));
     }
     await new Promise(resolve => requestAnimationFrame(resolve));
+    pointerUp = true;
     window.dispatchEvent(new PointerEvent("pointerup", {
       bubbles: true,
       button: 0,
@@ -885,23 +1253,55 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       pointerType: "mouse"
     }));
     await new Promise(resolve => requestAnimationFrame(resolve));
+    const selectedAfterDrag = controller.selectedObjectIds();
+
+    pointerUp = false;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      clientX: 360,
+      clientY: 220,
+      pointerId: 43,
+      pointerType: "mouse"
+    }));
+    const selectedDuringBlankClick = controller.selectedObjectIds();
+    pointerUp = true;
+    window.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      buttons: 0,
+      clientX: 360,
+      clientY: 220,
+      pointerId: 43,
+      pointerType: "mouse"
+    }));
+    await new Promise(resolve => requestAnimationFrame(resolve));
     abortController.abort();
     canvas.remove();
     return {
       previewCalls,
+      hitTestCalls,
       rendererSelectionCalls,
+      selectionCallsDuringDrag,
       selectionEvents,
       stateChanges,
       clearCalls,
+      selectedAfterDrag,
+      selectedDuringBlankClick,
       selectedIds: controller.selectedObjectIds()
     };
   });
   expect(marqueeCoalesce.previewCalls).toBeLessThanOrEqual(2);
-  expect(marqueeCoalesce.rendererSelectionCalls).toBe(1);
-  expect(marqueeCoalesce.selectionEvents).toBe(1);
+  expect(marqueeCoalesce.hitTestCalls).toBe(1);
+  expect(marqueeCoalesce.rendererSelectionCalls).toBe(2);
+  expect(marqueeCoalesce.selectionCallsDuringDrag).toBe(0);
+  expect(marqueeCoalesce.selectionEvents).toBe(2);
   expect(marqueeCoalesce.stateChanges).toBe(0);
-  expect(marqueeCoalesce.clearCalls).toBe(1);
-  expect(marqueeCoalesce.selectedIds).toEqual(["rect-a", "circle-a"]);
+  expect(marqueeCoalesce.clearCalls).toBe(2);
+  expect(marqueeCoalesce.selectedAfterDrag).toEqual(["rect-a", "circle-a"]);
+  expect(marqueeCoalesce.selectedDuringBlankClick).toEqual(["rect-a", "circle-a"]);
+  expect(marqueeCoalesce.selectedIds).toEqual([]);
 
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   await expect(canvas).toHaveAttribute("data-diagram2-active-tool", "select");
@@ -1111,7 +1511,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-closure-v13">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -1122,11 +1522,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260730-diagram2-phase6-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260730-diagram2-phase6-closure-v13")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -1492,7 +1892,7 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-v1">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260730-diagram2-phase6-closure-v13">
     <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
 
@@ -1503,10 +1903,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260730-diagram2-phase6-v1")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260730-diagram2-phase6-closure-v13")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -2310,11 +2710,14 @@ CREATE TABLE [pmt].[Phase5Browser](
   const routePointCountBeforeRightClick = await page.evaluate(() =>
     window.__pmtDiagram2EditorCore.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride?.length || 0);
   const routeRightClickPoint = await page.evaluate(relationshipId => {
+    const route = window.__pmtDiagram2EditorCore
+      .getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride || [];
     const path = document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"] [data-diagram2-relationship-path]`);
-    if (!path || typeof path.getPointAtLength !== "function" || typeof path.getTotalLength !== "function") {
+    const pointIndex = Math.max(1, Math.min(route.length - 2, Math.floor(route.length / 2)));
+    const point = route[pointIndex];
+    if (!path || !point) {
       return { ready: false };
     }
-    const point = path.getPointAtLength(path.getTotalLength() * 0.55);
     const matrix = path.getScreenCTM();
     if (!matrix) return { ready: false };
     const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
@@ -2332,21 +2735,40 @@ CREATE TABLE [pmt].[Phase5Browser](
   expect(handleBox).toBeTruthy();
   const handleAxis = await handle.getAttribute("data-diagram2-relationship-segment-axis");
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    window.__diagram2RouteBeforePointerHandle = JSON.stringify(
+      controller.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride || []
+    );
+    window.__diagram2PointerHandleStartedAt = performance.now();
+  });
   await page.mouse.down();
   await page.mouse.move(
     handleBox.x + handleBox.width / 2 + (handleAxis === "x" ? 28 : 0),
     handleBox.y + handleBox.height / 2 + (handleAxis === "y" ? 28 : 0)
   );
   await expect(page.locator("[data-diagram2-relationship-route-preview]")).toHaveCount(1);
+  const handlePreviewDurationMs = await page.evaluate(() =>
+    performance.now() - window.__diagram2PointerHandleStartedAt);
   await page.mouse.up();
   await expect(page.locator("[data-diagram2-relationship-route-preview]")).toHaveCount(0);
   await expect.poll(() =>
     page.evaluate(() => {
       const controller = window.__pmtDiagram2EditorCore;
       const route = controller.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride || [];
-      return JSON.stringify(route) !== window.__diagram2Phase5RouteBefore;
+      return JSON.stringify(route) !== window.__diagram2RouteBeforePointerHandle;
     })
   ).toBe(true);
+  const handleTotalDurationMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    return performance.now() - window.__diagram2PointerHandleStartedAt;
+  });
+  console.info("DIAGRAM2_POINTER_RELATIONSHIP_HANDLE", JSON.stringify({
+    handlePreviewDurationMs,
+    handleTotalDurationMs
+  }));
+  expect(handlePreviewDurationMs).toBeLessThan(500);
+  expect(handleTotalDurationMs).toBeLessThan(500);
 
   await page.evaluate(() => {
     window.__pmtDiagram2EditorCore.setSelection(["phase5-browser-parent"], { expandGroups: false });
@@ -2825,22 +3247,94 @@ async function viewportRelativeBounds(page, viewportSelector, objectSelector) {
   }, { viewportSelector, objectSelector });
 }
 
+async function assertDiagram2ZoomRouteGeometryStable(page, mode) {
+  const zoomControl = page.locator("[data-filter='diagram2-zoom']");
+  await page.evaluate(() => {
+    window.__diagram2RouteZoomStartedAt = performance.now();
+  });
+  await zoomControl.selectOption("0.2");
+  await waitForViewportReason(page, "toolbar zoom");
+  const lowZoomInteractionMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    const elapsed = performance.now() - window.__diagram2RouteZoomStartedAt;
+    await window.__pmtDiagram2Renderer.whenIdle();
+    return elapsed;
+  });
+  const lowPaths = await page.locator("[data-diagram2-relationship-id]").evaluateAll(nodes =>
+    Object.fromEntries(nodes.map(node => [
+      node.dataset.diagram2RelationshipId,
+      node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""
+    ]))
+  );
+
+  await page.evaluate(() => {
+    window.__diagram2RouteZoomStartedAt = performance.now();
+  });
+  await zoomControl.selectOption("0.35");
+  await waitForViewportReason(page, "toolbar zoom");
+  const highZoomInteractionMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    const elapsed = performance.now() - window.__diagram2RouteZoomStartedAt;
+    await window.__pmtDiagram2Renderer.whenIdle();
+    return elapsed;
+  });
+  const result = await page.locator("[data-diagram2-relationship-id]").evaluateAll((nodes, expectedPaths) => {
+    const mismatches = nodes
+      .map(node => ({
+        id: node.dataset.diagram2RelationshipId,
+        path: node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""
+      }))
+      .filter(item => expectedPaths[item.id] !== item.path);
+    return {
+      relationshipCount: nodes.length,
+      mismatches
+    };
+  }, lowPaths);
+
+  console.info("DIAGRAM2_ZOOM_ROUTE_PARITY", JSON.stringify({
+    mode,
+    relationshipCount: result.relationshipCount,
+    mismatchCount: result.mismatches.length,
+    lowZoomInteractionMs,
+    highZoomInteractionMs
+  }));
+  expect(result.relationshipCount).toBeGreaterThan(0);
+  expect(result.mismatches).toEqual([]);
+  expect(lowZoomInteractionMs).toBeLessThan(500);
+  expect(highZoomInteractionMs).toBeLessThan(500);
+}
+
 async function assertTransformOnlyZoom(page, zoom, expectedFullRenderCount) {
   const before = await diagram2StabilitySnapshot(page);
+  await page.evaluate(() => {
+    window.__diagram2ZoomTextBefore = document
+      .querySelector("[data-diagram2-object-plane] [data-diagram2-object-type='entity'] text");
+    window.__diagram2ZoomInteractionStartedAt = performance.now();
+  });
   await page.locator("[data-filter='diagram2-zoom']").selectOption(zoom);
   await expect.poll(() => diagram2ViewportScale(page)).toBe(Number(zoom));
   await waitForViewportReason(page, "toolbar zoom");
+  const zoomInteractionMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    return performance.now() - window.__diagram2ZoomInteractionStartedAt;
+  });
   const afterFrame = await diagram2StabilitySnapshot(page);
   await waitForStableAnimationFrame(page);
   const afterSettle = await diagram2StabilitySnapshot(page);
 
   expect(afterFrame.svgStable).toBe(true);
   expect(afterFrame.entityStable).toBe(true);
-  expect(afterFrame.textStable).toBe(true);
+  expect(afterFrame.zoomTextStable).toBe(before.overviewDetailLevel === afterFrame.overviewDetailLevel);
   expect(afterFrame.fullRenderCount).toBe(expectedFullRenderCount);
   expect(afterFrame.fullRendersDuringSettle).toBe(0);
-  expect(afterFrame.routesRecalculatedDuringSettle).toBe(0);
-  expect(afterFrame.nodeIdentityBeforeAfter).toBe("true");
+  if (before.overviewDetailLevel === afterFrame.overviewDetailLevel) {
+    expect(afterFrame.routesRecalculatedDuringSettle).toBe(0);
+    expect(afterFrame.nodeIdentityBeforeAfter).toBe("true");
+  } else {
+    expect(afterFrame.overviewDetailChanged).toBe("true");
+  }
+  console.info("DIAGRAM2_ZOOM_INTERACTION", JSON.stringify({ zoom, zoomInteractionMs }));
+  expect(zoomInteractionMs).toBeLessThan(500);
   expect(afterSettle.fullRenderCount).toBe(expectedFullRenderCount);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
@@ -2946,7 +3440,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -4015,7 +4509,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4125,7 +4619,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4141,6 +4635,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
     const renderer = createDiagram2Renderer({ host });
     const initial = renderer.render(state, { reason: "halo initial" });
     renderer.setZoom("1");
+    await renderer.whenIdle();
     await waitForViewport();
     const focused = renderer.diagnostics();
     const focusedObjectCount = host.querySelectorAll("[data-diagram2-object-id]").length;
@@ -4331,7 +4826,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4348,13 +4843,15 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
     const initial = renderer.render(state, { reason: "overview initial" });
     const initialDescendantCount = renderer.svgNode().querySelectorAll("*").length;
     const initialFieldTextCount = host.querySelectorAll("[data-diagram2-entity-field]").length;
-    const initialRelationshipPath = host.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || "";
+    const initialRelationshipPaths = [...host.querySelectorAll("[data-diagram2-relationship-path]")]
+      .map(path => path.getAttribute("d") || "");
 
     renderer.setZoom("0.1");
     await waitForViewport();
     const low = renderer.diagnostics();
     const lowDescendantCount = renderer.svgNode().querySelectorAll("*").length;
     const lowFieldTextCount = host.querySelectorAll("[data-diagram2-entity-field]").length;
+    const lowMiniFieldCount = host.querySelectorAll("[data-diagram2-entity-low-field]").length;
     const lowTitleCount = host.querySelectorAll("[data-diagram2-entity-title]").length;
     const lowCompactKeyCount = host.querySelectorAll("[data-diagram2-entity-compact-key]").length;
     const lowRelationshipPaths = [...host.querySelectorAll("[data-diagram2-relationship-path]")]
@@ -4391,6 +4888,7 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
       .map(title => title.textContent || "")
       .filter(Boolean);
     const readableLowCompactKeyCount = host.querySelectorAll("[data-diagram2-entity-compact-key]").length;
+    renderer.destroy();
     host.remove();
 
     return {
@@ -4399,7 +4897,7 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
       initialDetailLevel: initial.overviewDetailLevel,
       initialDescendantCount,
       initialFieldTextCount,
-      initialRelationshipCommandCount: (initialRelationshipPath.match(/[ML]/g) || []).length,
+      initialRelationshipPathCount: initialRelationshipPaths.length,
       lowDetailLevel: low.overviewDetailLevel,
       lowChanged: low.overviewDetailChanged,
       lowProjectedRows: low.overviewDetailProjectedRowPixels,
@@ -4407,6 +4905,7 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
       lowRelationshipPatches: low.overviewDetailRelationshipPatchCount,
       lowDescendantCount,
       lowFieldTextCount,
+      lowMiniFieldCount,
       lowTitleCount,
       lowCompactKeyCount,
       lowMountedObjects: low.mountedObjectCount,
@@ -4426,6 +4925,7 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
       restoredDescendantCount,
       restoredRelationshipPathCount: restoredRelationshipPaths.length,
       restoredRelationshipCommandCount: restoredRelationshipMaxCommandCount,
+      detailedPendingRelationshipCount: detailed.overviewDetailLowRelationshipCount,
       readableLowDetailLevel: readableLow.overviewDetailLevel,
       readableLowProjectedRows: readableLow.overviewDetailProjectedRowPixels,
       readableLowTitleCount: readableLowTitles.length,
@@ -4497,9 +4997,10 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
   expect(result.lowProjectedRows).toBeLessThan(4);
   expect(result.lowObjectPatches).toBeGreaterThan(0);
   expect(result.lowRelationshipPatches).toBeGreaterThan(0);
-  expect(result.lowDescendantCount).toBeLessThan(result.initialDescendantCount * 0.65);
+  expect(result.lowDescendantCount).toBeLessThan(result.initialDescendantCount * 0.67);
   expect(result.lowFieldTextCount).toBe(0);
-  expect(result.lowTitleCount).toBe(0);
+  expect(result.lowMiniFieldCount).toBeGreaterThan(0);
+  expect(result.lowTitleCount).toBe(result.lowMountedObjects);
   expect(result.lowCompactKeyCount).toBe(0);
   expect(result.lowRelationshipPathCount).toBe(result.lowMountedRelationships);
   expect(result.lowRelationshipMaxCommandCount).toBeLessThanOrEqual(2);
@@ -4514,13 +5015,15 @@ async function assertDiagram2LowDetailOverviewRendering(page) {
   expect(result.detailedProjectedRows).toBeGreaterThan(6);
   expect(result.restoredFieldTextCount).toBeGreaterThan(0);
   expect(result.restoredDescendantCount).toBeGreaterThan(result.lowDescendantCount);
+  expect(result.initialRelationshipPathCount).toBe(result.initialCanonicalRelationships);
   expect(result.restoredRelationshipPathCount).toBe(result.finalCanonicalRelationships);
-  expect(result.restoredRelationshipCommandCount).toBeGreaterThanOrEqual(result.lowRelationshipMaxCommandCount);
+  expect(result.restoredRelationshipCommandCount).toBeGreaterThan(0);
+  expect(result.detailedPendingRelationshipCount).toBe(result.finalCanonicalRelationships);
   expect(result.readableLowDetailLevel).toBe("low");
   expect(result.readableLowProjectedRows).toBeGreaterThan(4);
   expect(result.readableLowProjectedRows).toBeLessThan(6);
   expect(result.readableLowTitleCount).toBeGreaterThan(0);
-  expect(result.readableLowTitleHasSchema).toBe(false);
+  expect(result.readableLowTitleHasSchema).toBe(true);
   expect(result.readableLowCompactKeyCount).toBe(0);
   expect(result.finalCanonicalObjects).toBe(224);
   expect(result.finalCanonicalRelationships).toBe(448);
@@ -4532,10 +5035,10 @@ async function assertDiagram2LargeEntityEditingGates(page) {
     const {
       createDiagram2Renderer,
       diagram2CanonicalRelationships
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const {
       createDiagram2EditorController
-    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1");
+    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13");
     const output = [];
 
     for (const entityCount of [500, 1000]) {
@@ -4769,7 +5272,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     const entityAText = entityA.querySelector("[data-diagram2-entity-title], text") || null;
 
     renderer.setSelectedIds([entityAId]);
-    await renderer.whenIdle();
+    await renderer.whenInteractive();
     const selectionVisible = id => {
       const overlay = document.querySelector(`[data-diagram2-selection-id="${CSS.escape(id)}"]`);
       return Boolean(overlay) && getComputedStyle(overlay).visibility !== "hidden";
@@ -4783,11 +5286,15 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     const commitBeforeMove = Number(svg.dataset.diagram2GeometryPreviewCommitCount || 0);
     const previewFrameBeforeMove = Number(svg.dataset.diagram2GeometryPreviewFrameCount || 0);
 
+    const moveStartAt = performance.now();
     const startDiagnostics = renderer.beginGeometryPreview({ objectId: entityAId, mode: "move" });
+    const moveStartDuration = performance.now() - moveStartAt;
+    const movePreviewStartedAt = performance.now();
     renderer.previewGeometry({ deltaX: 36, deltaY: 22 });
     const pendingAfterFirstMove = renderer.diagnostics().pendingGeometryPreview;
     renderer.previewGeometry({ deltaX: 72, deltaY: 35 });
-    const movePreviewDiagnostics = await renderer.whenIdle();
+    const movePreviewDiagnostics = await renderer.whenInteractive();
+    const movePreviewDuration = performance.now() - movePreviewStartedAt;
     const transformDuringMove = entityA.getAttribute("transform") || "";
     const relationshipPathDuringMove = relationship.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || "";
     const mergedRelationshipPathDuringMove = document.querySelector("[data-diagram2-merged-relationship-path]")?.getAttribute("d") || "";
@@ -4795,15 +5302,17 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     const previewPathCountDuringMove = document.querySelectorAll("[data-diagram2-relationship-preview-path]").length;
     const selectionHiddenDuringMove = !selectionVisible(entityAId);
 
+    const moveCommitStartedAt = performance.now();
     renderer.commitGeometryPreview();
-    const moveCommitDiagnostics = await renderer.whenIdle();
+    const moveCommitDiagnostics = await renderer.whenInteractive();
+    const moveCommitDuration = performance.now() - moveCommitStartedAt;
     const transformAfterCommit = entityA.getAttribute("transform") || "";
     const dirtyFlushAfterCommit = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const fullRenderAfterCommit = Number(svg.dataset.diagram2FullRenderCount || 0);
     const selectionRestoredAfterMoveCommit = selectionVisible(entityAId);
 
     renderer.setSelectedIds([entityAId, entityBId]);
-    await renderer.whenIdle();
+    await renderer.whenInteractive();
     const dirtyFlushBeforeMulti = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const undoBeforeMulti = Number(svg.dataset.diagram2GeometryPreviewUndoEntryCount || 0);
     const transformABeforeMulti = entityA.getAttribute("transform") || "";
@@ -4811,7 +5320,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 
     renderer.beginGeometryPreview({ objectId: entityAId, mode: "move" });
     renderer.previewGeometry({ deltaX: -18, deltaY: 12 });
-    const multiPreviewDiagnostics = await renderer.whenIdle();
+    const multiPreviewDiagnostics = await renderer.whenInteractive();
     const transformADuringMulti = entityA.getAttribute("transform") || "";
     const transformBDuringMulti = entityB.getAttribute("transform") || "";
     renderer.cancelGeometryPreview();
@@ -4819,7 +5328,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     const dirtyFlushAfterMultiCancel = Number(svg.dataset.diagram2DirtyFlushCount || 0);
 
     renderer.setSelectedIds([entityCId]);
-    await renderer.whenIdle();
+    await renderer.whenInteractive();
     const selectionVisibleBeforeResize = selectionVisible(entityCId);
     const dirtyFlushBeforeResize = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     const resizeNodeBefore = entityC;
@@ -4828,7 +5337,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 
     renderer.beginGeometryPreview({ objectId: entityCId, mode: "resize" });
     renderer.previewGeometry({ deltaWidth: 28, deltaHeight: 14 });
-    const resizePreviewDiagnostics = await renderer.whenIdle();
+    const resizePreviewDiagnostics = await renderer.whenInteractive();
     const resizeBodyDuring = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
     const selectionHiddenDuringResize = !selectionVisible(entityCId);
     renderer.cancelGeometryPreview();
@@ -4840,6 +5349,9 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
     return {
       ready: true,
       previewStarted: startDiagnostics.geometryPreviewActive,
+      moveStartDuration,
+      movePreviewDuration,
+      moveCommitDuration,
       pendingAfterFirstMove,
       selectionVisibleBeforeMove,
       selectionHiddenDuringMove,
@@ -4883,6 +5395,9 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 
   expect(result.ready).toBe(true);
   expect(result.previewStarted).toBe(true);
+  expect(result.moveStartDuration).toBeLessThan(500);
+  expect(result.movePreviewDuration).toBeLessThan(500);
+  expect(result.moveCommitDuration).toBeLessThan(500);
   expect(result.pendingAfterFirstMove).toBe(true);
   expect(result.selectionVisibleBeforeMove).toBe(true);
   expect(result.selectionHiddenDuringMove).toBe(true);
@@ -4921,6 +5436,71 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
   expect(result.resizeCancelNoUndo).toBe(true);
 }
 
+async function assertDiagram2PointerEntityDragPerformance(page, expectedFullRenderCount) {
+  await ensureDiagram2ToolsPaneOpen(page);
+  await page.locator("[data-diagram2-tool='select']").click();
+  await ensureDiagram2LeftPaneClosed(page);
+  const setup = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const entity = controller?.currentState()?.objects?.find(object =>
+      object?.type === "entity" && object.visible !== false && object.locked !== true);
+    if (!controller || !renderer || !entity) return { ready: false };
+    controller.setSelection([entity.id], { expandGroups: false });
+    renderer.focusObjectIds([entity.id], {
+      scale: 1,
+      reason: "pointer entity drag performance"
+    });
+    await renderer.whenInteractive();
+    return {
+      ready: true,
+      id: entity.id,
+      x: entity.x,
+      y: entity.y
+    };
+  });
+  expect(setup.ready).toBe(true);
+
+  const entity = page.locator(
+    `[data-diagram2-object-plane] [data-diagram2-object-id='${setup.id}']`
+  ).first();
+  await expect(entity).toBeVisible();
+  const box = await entity.boundingBox();
+  expect(box).toBeTruthy();
+  const startX = box.x + Math.min(40, box.width / 2);
+  const startY = box.y + Math.min(14, box.height / 4);
+  await page.mouse.move(startX, startY);
+  await page.evaluate(() => {
+    window.__diagram2PointerDragStartedAt = performance.now();
+  });
+  await page.mouse.down();
+  await page.mouse.move(startX + 36, startY + 22);
+  const previewDurationMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    return performance.now() - window.__diagram2PointerDragStartedAt;
+  });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(({ id, x, y }) => {
+    const object = window.__pmtDiagram2EditorCore.getObjectById(id);
+    return object?.x !== x || object?.y !== y;
+  }, setup)).toBe(true);
+  const result = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      totalDurationMs: performance.now() - window.__diagram2PointerDragStartedAt,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+  console.info("DIAGRAM2_POINTER_ENTITY_DRAG", JSON.stringify({
+    previewDurationMs,
+    totalDurationMs: result.totalDurationMs
+  }));
+  expect(previewDurationMs).toBeLessThan(500);
+  expect(result.totalDurationMs).toBeLessThan(500);
+  expect(result.fullRenderCount).toBe(expectedFullRenderCount);
+}
+
 async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   const box = await canvas.boundingBox();
@@ -4930,10 +5510,17 @@ async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   await ensureDiagram2LeftPaneClosed(page);
   const before = await diagram2StabilitySnapshot(page);
   await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+  await page.evaluate(() => {
+    window.__diagram2PointerPanStartedAt = performance.now();
+  });
   await page.mouse.down();
   await page.mouse.move(box.x + (box.width / 2) + 80, box.y + (box.height / 2) + 42);
   await page.mouse.up();
   await waitForViewportReason(page, "pan");
+  const panDurationMs = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    return performance.now() - window.__diagram2PointerPanStartedAt;
+  });
   const afterFrame = await diagram2StabilitySnapshot(page);
   await waitForStableAnimationFrame(page);
   const afterSettle = await diagram2StabilitySnapshot(page);
@@ -4946,6 +5533,8 @@ async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   expect(afterFrame.routesRecalculatedDuringSettle).toBe(0);
   expect(afterFrame.translateX).not.toBe(before.translateX);
   expect(afterFrame.translateY).not.toBe(before.translateY);
+  console.info("DIAGRAM2_POINTER_PAN", JSON.stringify({ panDurationMs }));
+  expect(panDurationMs).toBeLessThan(500);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
   await ensureDiagram2ToolsPaneOpen(page);
@@ -5012,6 +5601,7 @@ async function diagram2StabilitySnapshot(page) {
       svgStable: svg === window.__diagram2StableSvg,
       entityStable: entity === window.__diagram2StableEntity,
       textStable: text === window.__diagram2StableText,
+      zoomTextStable: text === window.__diagram2ZoomTextBefore,
       entityRect: rect ? {
         x: rect.x,
         y: rect.y,
@@ -5025,6 +5615,8 @@ async function diagram2StabilitySnapshot(page) {
       fullRendersDuringSettle: Number(svg?.dataset.diagram2FullRendersDuringSettle || 0),
       routesRecalculatedDuringSettle: Number(svg?.dataset.diagram2RoutesRecalculatedDuringSettle || 0),
       nodeIdentityBeforeAfter: svg?.dataset.diagram2NodeIdentityBeforeAfter || "",
+      overviewDetailLevel: svg?.dataset.diagram2OverviewDetailLevel || "",
+      overviewDetailChanged: svg?.dataset.diagram2OverviewDetailChanged || "",
       cursorScreenPoint: svg?.dataset.diagram2CursorScreenPoint || "",
       screenPointAfterSettle: svg?.dataset.diagram2ScreenPointAfterSettle || ""
     };

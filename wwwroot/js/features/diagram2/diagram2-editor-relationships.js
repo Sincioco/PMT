@@ -2,19 +2,19 @@ import {
   adjustAnnotationEntityRelationshipRoute,
   autoFormatAnnotationStateEntitiesOrgTree,
   formatAnnotationEntityIdentifier
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipType
-} from "./diagram2-routing.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2CompactDiagnostics
-} from "./diagram2-route-costing.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-route-costing.js?v=20260730-diagram2-phase6-closure-v13";
 
 const relationshipObjectType = "entity-relationship";
 const relationshipGroupObjectType = "entity-relationships";
@@ -236,14 +236,21 @@ export function diagram2SetRelationshipRoutingOptionsPlan(stateInput, patchInput
   );
 }
 
-export function diagram2UseCurrentRelationshipRoutePlan(stateInput, idInput) {
+export function diagram2UseCurrentRelationshipRoutePlan(stateInput, idInput, renderedPointsInput = null) {
   const state = normalizeDiagram2CanonicalState(stateInput);
   const relationship = diagram2RelationshipById(state, idInput);
   if (!relationship || relationship.source?.locked === true) return null;
-  const routeModel = createDiagram2RelationshipRouteModel(state, { manualRoutes: false });
-  const route = diagram2RelationshipRouteFromModel(relationship, routeModel);
-  if (!route?.points?.length) return null;
-  return updateRelationshipRouteOverride(state, relationship, route.points, "Use manual relationship route");
+  const renderedPoints = (Array.isArray(renderedPointsInput) ? renderedPointsInput : [])
+    .map(normalizeRelationshipRoutePoint)
+    .filter(Boolean);
+  const routePoints = renderedPoints.length > 1
+    ? renderedPoints
+    : diagram2RelationshipRouteFromModel(
+        relationship,
+        createDiagram2RelationshipRouteModel(state, { manualRoutes: false })
+      )?.points;
+  if (!routePoints?.length) return null;
+  return updateRelationshipRouteOverride(state, relationship, routePoints, "Use manual relationship route");
 }
 
 export function diagram2AdjustRelationshipRoutePlan(stateInput, idInput, segmentIndexInput, axisInput, coordinateInput) {

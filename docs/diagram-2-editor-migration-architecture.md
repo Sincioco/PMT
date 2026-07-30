@@ -30,7 +30,7 @@ The post-Phase 1 visual editor parity addendum is incorporated into this archite
 - Diagram 2 must keep its own route, feature module, renderer, preferences, and beta label until manually promoted.
 - Visual parity is the default. Diagram 2's editor layout, toolbar grouping/order, center canvas, right inspector tabs, right-pane Objects tab, dialogs, context menus, affordances, keyboard shortcuts, and save/import/export workflows should match the approved Phase 2 baseline unless Sin explicitly approves a visible change.
 - Diagram 1 and Diagram 2 must keep one Diagram backing-document model. Do not introduce a Diagram 2 table, second save endpoint, second template library, second clipboard shape, or second file format.
-- Persisted Diagram state may include canonical annotation data only. Renderer caches, mounted node maps, viewport halo state, dirty flags, diagnostics, and live indexes stay session-only.
+- Persisted Diagram state may include canonical annotation data only. Exact automatic route points produced by the explicit Compact command are canonical output and may be saved with a geometry signature so read mode can reproduce D1 exactly without rerouting. Renderer caches, mounted node maps, viewport halo state, dirty flags, diagnostics, and live indexes stay session-only.
 - Routine Diagram 2 editor operations must use command-driven canonical changes and incremental renderer patches. Full `renderer.render()` remains acceptable for initial open, import, full reset, corruption recovery, and explicit benchmark setup.
 - Save/export may rebuild SVG from canonical state off-screen, but that must not become the normal live edit repaint mechanism.
 - Renderer diagnostics, benchmark counters, and refresh controls must not dominate the production editor. They belong behind a development-only or collapsible diagnostics surface.
@@ -213,6 +213,15 @@ The renderer's explicit paint order is:
 12. gesture/crop overlays.
 
 The three ordinary-object planes retain the legacy `data-diagram2-object-plane` marker for descendant selectors, while tests and new code query across all explicit planes. Mapping hover/click/double-click/keyboard behavior works in edit and read-only modes without canonical mutation. No database schema, endpoint, file format, clipboard format, template store, image store, or document type changed.
+
+The Phase 6 closure pass adds two small shared, renderer-neutral boundaries:
+
+- `tree-nav-state.js` captures and restores the actual TreeNav scroll owner, stable tree identity, focused item, and selected item across markup replacement. Documentation, Diagram 1, and Diagram 2 use it for direct selection; external route selection separately reveals an item only when it is outside the visible tree.
+- `annotationFieldMappingAttentionGeometry(...)` is the single D1-compatible geometry oracle for both renderers. It resolves label-aware UI/database arrow starts, the Field Rectangle edge endpoint, the exact database field label/fallback endpoint, and zoom-aware arrowhead points. Diagram 1's generated/interactive SVG path and Diagram 2's keyed overlay therefore do not maintain separate approximations.
+
+Mapping highlight state and temporary attention-arrow state remain separate renderer concerns. Configurable yellow mapping highlights can remain pinned, while the focus-ring-blue arrow nodes live only in the mapping-highlight plane and are removed by a renderer-owned three-second timer. Activation, replacement, expiration, outside click, Escape, and renderer destruction clear only the relevant transient nodes and timer; none enter canonical state or command history.
+
+Diagram 2 overview rendering now uses saved zoom at initial mount and keeps relationship geometry independent from visual detail level. Low detail may simplify Entity text and field DOM, but it never replaces a relationship with a straight endpoint line. Diagrams with no more than 32 relationships use the existing exact shared route model at every zoom. Larger diagrams use the same fast orthogonal/manual-route geometry at every zoom unless a valid saved Compact snapshot exists. Compact calculates D1's exact routes in its worker, saves only stable relationship identity and route points with a geometry signature, and reuses them in edit/read mode only while that signature matches. Detail promotion therefore changes presentation only; Compact output, manual routes, endpoints, and bends remain identical across the 25% low-detail boundary, Save/close, and reload.
 
 ## Existing RTE Annotation Launch Path
 

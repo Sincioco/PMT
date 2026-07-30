@@ -8,7 +8,7 @@ import {
   parseDiagramSelectionClipboardPackage,
   remapDiagramSelectionClipboardPackageIds,
   serializeDiagramSelectionClipboardPackage
-} from "../shared/diagram-contracts.js?v=20260730-diagram2-phase6-v1";
+} from "../shared/diagram-contracts.js?v=20260730-diagram2-phase6-closure-v13";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const annotationVersion = 1;
@@ -1031,6 +1031,143 @@ export function annotationFieldMappingTableLayout(object) {
     width: uiColumnWidth + databaseColumnWidth,
     height: rowHeight * (rows.length + 1)
   };
+}
+
+export function annotationFieldMappingAttentionGeometry(options = {}) {
+  const zoom = Math.max(minimumZoom, positiveNumber(options.zoom, 1));
+  const fieldRectangleBounds = annotationFieldMappingBounds(options.fieldRectangleBounds);
+  const databaseFieldPoint = annotationFieldMappingPoint(options.databaseFieldPoint);
+  const databaseFieldBounds = annotationFieldMappingBounds(options.databaseFieldBounds);
+  const databaseEntityBounds = annotationFieldMappingBounds(options.databaseEntityBounds);
+
+  const uiTarget = fieldRectangleBounds ? annotationFieldMappingBoundsCenter(fieldRectangleBounds) : null;
+  const uiStart = annotationFieldMappingLabelStart(
+    options.uiLabelBounds,
+    options.uiCellBounds,
+    uiTarget,
+    zoom
+  );
+  const uiEnd = uiStart && fieldRectangleBounds
+    ? annotationFieldMappingBoundsEdgePointToward(fieldRectangleBounds, uiStart)
+    : null;
+
+  const databaseTarget = databaseFieldPoint
+    || (databaseFieldBounds ? annotationFieldMappingBoundsCenter(databaseFieldBounds) : null)
+    || (databaseEntityBounds ? annotationFieldMappingBoundsCenter(databaseEntityBounds) : null);
+  const databaseStart = annotationFieldMappingLabelStart(
+    options.databaseLabelBounds,
+    options.databaseCellBounds,
+    databaseTarget,
+    zoom
+  );
+  const databaseEnd = databaseStart && databaseFieldPoint
+    ? databaseFieldPoint
+    : databaseStart && databaseFieldBounds
+      ? annotationFieldMappingBoundsEdgePointToward(databaseFieldBounds, databaseStart)
+      : databaseStart && databaseEntityBounds
+        ? annotationFieldMappingBoundsEdgePointToward(databaseEntityBounds, databaseStart)
+        : null;
+
+  return {
+    ui: annotationFieldMappingAttentionArrowGeometry(uiStart, uiEnd, zoom),
+    database: annotationFieldMappingAttentionArrowGeometry(databaseStart, databaseEnd, zoom)
+  };
+}
+
+export function annotationFieldMappingAttentionArrowGeometry(startInput, endInput, zoomInput = 1) {
+  const start = annotationFieldMappingPoint(startInput);
+  const tip = annotationFieldMappingPoint(endInput);
+  if (!start || !tip) return null;
+  const dx = tip.x - start.x;
+  const dy = tip.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (length < annotationCoordinateTolerance) return null;
+
+  const unitX = dx / length;
+  const unitY = dy / length;
+  const size = 12 / Math.max(minimumZoom, positiveNumber(zoomInput, 1));
+  const lineEnd = {
+    x: tip.x - (unitX * size),
+    y: tip.y - (unitY * size)
+  };
+  const wing = size * 0.46;
+  return {
+    start,
+    lineEnd,
+    tip,
+    head: [
+      tip,
+      {
+        x: lineEnd.x + (-unitY * wing),
+        y: lineEnd.y + (unitX * wing)
+      },
+      {
+        x: lineEnd.x - (-unitY * wing),
+        y: lineEnd.y - (unitX * wing)
+      }
+    ]
+  };
+}
+
+function annotationFieldMappingLabelStart(labelBoundsInput, cellBoundsInput, targetPoint, zoom) {
+  const labelBounds = annotationFieldMappingBounds(labelBoundsInput);
+  if (labelBounds) {
+    return {
+      x: labelBounds.x + labelBounds.width + (6 / zoom),
+      y: labelBounds.y + (labelBounds.height / 2)
+    };
+  }
+  const cellBounds = annotationFieldMappingBounds(cellBoundsInput);
+  return cellBounds && targetPoint
+    ? annotationFieldMappingBoundsEdgePointToward(cellBounds, targetPoint)
+    : null;
+}
+
+function annotationFieldMappingBoundsEdgePointToward(bounds, target) {
+  const center = annotationFieldMappingBoundsCenter(bounds);
+  const halfWidth = Math.max(0.5, bounds.width / 2);
+  const halfHeight = Math.max(0.5, bounds.height / 2);
+  const dx = target.x - center.x;
+  const dy = target.y - center.y;
+  if (Math.abs(dx) < annotationCoordinateTolerance && Math.abs(dy) < annotationCoordinateTolerance) return center;
+  if (Math.abs(dx) * halfHeight > Math.abs(dy) * halfWidth) {
+    const scale = halfWidth / Math.max(annotationCoordinateTolerance, Math.abs(dx));
+    return {
+      x: center.x + (Math.sign(dx) * halfWidth),
+      y: center.y + (dy * scale)
+    };
+  }
+  const scale = halfHeight / Math.max(annotationCoordinateTolerance, Math.abs(dy));
+  return {
+    x: center.x + (dx * scale),
+    y: center.y + (Math.sign(dy) * halfHeight)
+  };
+}
+
+function annotationFieldMappingBoundsCenter(bounds) {
+  return {
+    x: bounds.x + (bounds.width / 2),
+    y: bounds.y + (bounds.height / 2)
+  };
+}
+
+function annotationFieldMappingBounds(bounds) {
+  if (!bounds) return null;
+  const width = Number(bounds.width);
+  const height = Number(bounds.height);
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
+  return {
+    x: finiteNumber(bounds.x, 0),
+    y: finiteNumber(bounds.y, 0),
+    width,
+    height
+  };
+}
+
+function annotationFieldMappingPoint(point) {
+  const x = Number(point?.x);
+  const y = Number(point?.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
 function annotationFieldMappingTableText(object, delimiter = "\t") {
@@ -2369,6 +2506,12 @@ export function normalizeAnnotationState(input, fallback = {}) {
   groupIds.forEach(groupId => {
     groupVisibility[groupId] = suppliedGroupVisibility[groupId] !== false;
   });
+  const compactEntityRelationshipRoutes = normalizeAnnotationCompactRelationshipRoutes(
+    source.compactEntityRelationshipRoutes
+  );
+  const compactEntityRelationshipRouteKey = String(
+    source.compactEntityRelationshipRouteKey || ""
+  ).trim().slice(0, 128);
 
   return {
     version: annotationVersion,
@@ -2386,8 +2529,48 @@ export function normalizeAnnotationState(input, fallback = {}) {
     relationshipStyle: normalizeAnnotationEntityRelationshipStyle(source.relationshipStyle),
     groupNames,
     groupVisibility,
-    objects
+    objects,
+    ...(compactEntityRelationshipRoutes.length && compactEntityRelationshipRouteKey
+      ? {
+          compactEntityRelationshipRoutes,
+          compactEntityRelationshipRouteKey
+        }
+      : {})
   };
+}
+
+function normalizeAnnotationCompactRelationshipRoutes(routesInput) {
+  return (Array.isArray(routesInput) ? routesInput : [])
+    .map(entry => {
+      const id = String(entry?.id || "").trim();
+      const key = String(entry?.key || "").trim();
+      const route = entry?.route && typeof entry.route === "object" ? entry.route : {};
+      const points = (Array.isArray(route.points) ? route.points : [])
+        .map(point => ({
+          x: finiteNumber(point?.x, Number.NaN),
+          y: finiteNumber(point?.y, Number.NaN)
+        }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (!id || points.length < 2) return null;
+      const normalizePoint = (point, fallback) => {
+        const x = finiteNumber(point?.x, Number.NaN);
+        const y = finiteNumber(point?.y, Number.NaN);
+        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : fallback;
+      };
+      return {
+        id,
+        ...(key ? { key } : {}),
+        route: {
+          start: normalizePoint(route.start, points[0]),
+          end: normalizePoint(route.end, points.at(-1)),
+          sourceUnit: normalizePoint(route.sourceUnit, { x: 1, y: 0 }),
+          targetUnit: normalizePoint(route.targetUnit, { x: 1, y: 0 }),
+          points,
+          relationshipType: safeAnnotationEntityRelationshipType(route.relationshipType)
+        }
+      };
+    })
+    .filter(Boolean);
 }
 
 function normalizeAnnotationEntityRelationshipStyle(input) {
@@ -6647,57 +6830,12 @@ function createAnnotationDialog(context) {
       return true;
     };
 
-    const boundsCenter = bounds => ({
-      x: bounds.x + (bounds.width / 2),
-      y: bounds.y + (bounds.height / 2)
-    });
-
-    const boundsEdgePointToward = (bounds, target) => {
-      const center = boundsCenter(bounds);
-      const halfWidth = Math.max(0.5, bounds.width / 2);
-      const halfHeight = Math.max(0.5, bounds.height / 2);
-      const dx = target.x - center.x;
-      const dy = target.y - center.y;
-      if (Math.abs(dx) < annotationCoordinateTolerance && Math.abs(dy) < annotationCoordinateTolerance) return center;
-      if (Math.abs(dx) * halfHeight > Math.abs(dy) * halfWidth) {
-        const scale = halfWidth / Math.max(annotationCoordinateTolerance, Math.abs(dx));
-        return {
-          x: center.x + (Math.sign(dx) * halfWidth),
-          y: center.y + (dy * scale)
-        };
-      }
-      const scale = halfHeight / Math.max(annotationCoordinateTolerance, Math.abs(dy));
-      return {
-        x: center.x + (dx * scale),
-        y: center.y + (Math.sign(dy) * halfHeight)
-      };
-    };
-
-    const fieldMappingAttentionArrowSvg = (start, end) => {
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const length = Math.hypot(dx, dy);
-      if (length < annotationCoordinateTolerance) return "";
-      const unitX = dx / length;
-      const unitY = dy / length;
-      const size = 12 / Math.max(minimumZoom, zoom);
-      const base = {
-        x: end.x - (unitX * size),
-        y: end.y - (unitY * size)
-      };
-      const wing = size * 0.46;
-      const left = {
-        x: base.x + (-unitY * wing),
-        y: base.y + (unitX * wing)
-      };
-      const right = {
-        x: base.x - (-unitY * wing),
-        y: base.y - (unitX * wing)
-      };
+    const fieldMappingAttentionArrowSvg = geometry => {
+      if (!geometry) return "";
       return `
         <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
-          <line class="image-annotation-field-mapping-attention-arrow-line" x1="${formatNumber(start.x)}" y1="${formatNumber(start.y)}" x2="${formatNumber(base.x)}" y2="${formatNumber(base.y)}" pointer-events="none"></line>
-          <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${formatNumber(end.x)},${formatNumber(end.y)} ${formatNumber(left.x)},${formatNumber(left.y)} ${formatNumber(right.x)},${formatNumber(right.y)}" pointer-events="none"></polygon>
+          <line class="image-annotation-field-mapping-attention-arrow-line" x1="${formatNumber(geometry.start.x)}" y1="${formatNumber(geometry.start.y)}" x2="${formatNumber(geometry.lineEnd.x)}" y2="${formatNumber(geometry.lineEnd.y)}" pointer-events="none"></line>
+          <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${geometry.head.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" ")}" pointer-events="none"></polygon>
         </g>
       `;
     };
@@ -6718,60 +6856,25 @@ function createAnnotationDialog(context) {
         : null;
     };
 
-    const fieldMappingLabelEndPoint = (cell, targetPoint) => {
+    const fieldMappingLabelBounds = cell => {
       const text = cell?.querySelector?.("text");
       if (text) {
         try {
           const box = text.getBBox();
           if (Number.isFinite(box.x) && Number.isFinite(box.y) && Number.isFinite(box.width) && Number.isFinite(box.height)) {
-            return {
-              x: box.x + box.width + (6 / Math.max(minimumZoom, zoom)),
-              y: box.y + (box.height / 2)
-            };
+            return box;
           }
         } catch {
           // Fall back to the cell edge if the browser cannot measure the SVG text.
         }
       }
-      const bounds = fieldMappingCellBounds(cell);
-      return Number.isFinite(bounds.x) && Number.isFinite(bounds.y) && bounds.width && bounds.height && targetPoint
-        ? boundsEdgePointToward(bounds, targetPoint)
-        : null;
+      return null;
     };
 
     const fieldMappingDatabaseFieldBounds = targets =>
       annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
         || annotationObjectVisualBounds(targets.databaseEntity)
         || annotationObjectBounds(targets.databaseEntity);
-
-    const fieldMappingAttentionArrowToBounds = (rowBounds, targetBounds) => {
-      if (!targetBounds) return "";
-      const targetCenter = boundsCenter(targetBounds);
-      const start = boundsEdgePointToward(rowBounds, targetCenter);
-      const end = boundsEdgePointToward(targetBounds, start);
-      return fieldMappingAttentionArrowSvg(start, end);
-    };
-
-    const fieldMappingAttentionArrowFromLabelToBounds = (cell, targetBounds) => {
-      if (!targetBounds) return "";
-      const targetCenter = boundsCenter(targetBounds);
-      const start = fieldMappingLabelEndPoint(cell, targetCenter);
-      if (!start) return "";
-      const end = boundsEdgePointToward(targetBounds, start);
-      return fieldMappingAttentionArrowSvg(start, end);
-    };
-
-    const fieldMappingAttentionArrowFromLabelToPoint = (cell, targetPoint) => {
-      if (!targetPoint) return "";
-      const start = fieldMappingLabelEndPoint(cell, targetPoint);
-      return start ? fieldMappingAttentionArrowSvg(start, targetPoint) : "";
-    };
-
-    const fieldMappingAttentionArrowToPoint = (rowBounds, targetPoint) => {
-      if (!targetPoint) return "";
-      const start = boundsEdgePointToward(rowBounds, targetPoint);
-      return fieldMappingAttentionArrowSvg(start, targetPoint);
-    };
 
     const renderFieldMappingAttentionArrow = () => {
       removeFieldMappingAttentionArrow();
@@ -6790,15 +6893,22 @@ function createAnnotationDialog(context) {
       const databaseFieldBounds = fieldMappingDatabaseFieldBounds(targets);
       const uiCell = fieldMappingCellForKind(cell, "ui") || cell;
       const databaseCell = fieldMappingCellForKind(cell, "database") || cell;
-      const markup = [
-        fieldMappingAttentionArrowFromLabelToBounds(uiCell, fieldBounds)
-          || fieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
-        databaseFieldPoint
-          ? fieldMappingAttentionArrowFromLabelToPoint(databaseCell, databaseFieldPoint)
-            || fieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
-          : fieldMappingAttentionArrowFromLabelToBounds(databaseCell, databaseFieldBounds)
-            || fieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
-      ].filter(Boolean).slice(0, 2).join("");
+      const geometry = annotationFieldMappingAttentionGeometry({
+        uiLabelBounds: fieldMappingLabelBounds(uiCell),
+        databaseLabelBounds: fieldMappingLabelBounds(databaseCell),
+        uiCellBounds: fieldMappingCellBounds(uiCell),
+        databaseCellBounds: fieldMappingCellBounds(databaseCell),
+        fieldRectangleBounds: fieldBounds,
+        databaseFieldPoint,
+        databaseFieldBounds,
+        databaseEntityBounds: annotationObjectVisualBounds(targets.databaseEntity)
+          || annotationObjectBounds(targets.databaseEntity),
+        zoom
+      });
+      const markup = [geometry.ui, geometry.database]
+        .map(fieldMappingAttentionArrowSvg)
+        .filter(Boolean)
+        .join("");
       if (markup) canvas.insertAdjacentHTML("beforeend", markup);
     };
 
@@ -10522,7 +10632,64 @@ export function autoFormatAnnotationStateEntitiesOrgTree(stateInput, options = {
     translateAllAnnotationObjects(annotationEntityAnnotationChildren(state, entity), deltaX, deltaY);
   });
   syncAnnotationEntityAnnotationArrows(state);
+  const routeModel = annotationEntityRelationshipRenderModel(
+    state.objects,
+    state.relationshipStyle,
+    {
+      allowOverlappingLines: state.allowOverlappingEntityLines === true,
+      manualRoutes: state.manualEntityRelationshipRoutes === true,
+      compactRouting: true
+    }
+  );
+  state.compactEntityRelationshipRoutes = routeModel.renderedRelationships
+    .map(item => ({
+      id: item.relationship.id,
+      key: annotationEntityRelationshipRouteCacheKey(item.relationship),
+      route: {
+        start: { ...item.geometry.start },
+        end: { ...item.geometry.end },
+        sourceUnit: { ...item.geometry.sourceUnit },
+        targetUnit: { ...item.geometry.targetUnit },
+        points: item.geometry.points.map(point => ({ ...point })),
+        relationshipType: item.geometry.relationshipType
+      }
+    }));
+  state.compactEntityRelationshipRouteKey = annotationCompactEntityRelationshipRouteStateKey(state);
   return result;
+}
+
+function annotationEntityRelationshipRouteCacheKey(relationship) {
+  return [
+    relationship?.source?.id,
+    relationship?.sourceField?.name,
+    relationship?.target?.id,
+    relationship?.targetField?.name,
+    relationship?.foreignKey?.name,
+    ...(Array.isArray(relationship?.foreignKey?.columns) ? relationship.foreignKey.columns : []),
+    ...(Array.isArray(relationship?.foreignKey?.referencedColumns)
+      ? relationship.foreignKey.referencedColumns
+      : [])
+  ].map(value => String(value || "").trim().toLowerCase()).join("\u001f");
+}
+
+export function annotationCompactEntityRelationshipRouteStateKey(stateInput) {
+  const state = stateInput && typeof stateInput === "object" ? stateInput : {};
+  const text = JSON.stringify({
+    allowOverlappingEntityLines: state.allowOverlappingEntityLines === true,
+    manualEntityRelationshipRoutes: state.manualEntityRelationshipRoutes === true,
+    relationshipStyle: state.relationshipStyle || null,
+    groupVisibility: state.groupVisibility || null,
+    entities: (Array.isArray(state.objects) ? state.objects : [])
+      .filter(object => object?.type === "entity")
+  });
+  let first = 2166136261;
+  let second = 2246822519;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second ^ code, 3266489917);
+  }
+  return `${text.length.toString(36)}-${(first >>> 0).toString(36)}-${(second >>> 0).toString(36)}`;
 }
 
 export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) {
@@ -10714,7 +10881,9 @@ export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) 
     entity.y = Math.round(planned.y + translation.y);
   });
 
-  const routeAdjustment = options?.skipRouteAdjustment === true
+  const fixedConstraintScanRequired = entities.some(entity =>
+    entity.anchorTable === true || entity.locked === true);
+  const routeAdjustment = options?.skipRouteAdjustment === true || !fixedConstraintScanRequired
     ? {
         adjustedCount: 0,
         unresolvedContactCount: 0,
@@ -10946,12 +11115,14 @@ function separateAnnotationEntitiesFromRelationshipRoutes(entitiesInput, relatio
 
 function annotationEntityRelationshipRouteContacts(entities, relationships, globalStyle, allowOverlappingLines) {
   const contacts = [];
+  const obstacleIndex = annotationEntityRelationshipObstacleIndex(entities);
   relationships.forEach((relationship, index) => {
     const style = annotationEntityRelationshipEffectiveStyle(relationship, globalStyle);
     const geometry = annotationEntityRelationshipGeometry(relationship, style, {
       index,
       relationships,
       entities,
+      obstacleIndex,
       allowOverlappingLines,
       skipObstacleRouting: false
     });
@@ -11188,6 +11359,11 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
   const targetCenter = { x: target.x + (target.width / 2), y: target.y + (target.height / 2) };
   const obstacles = (Array.isArray(options.entities) ? options.entities : [])
     .filter(Boolean);
+  const obstacleEntries = Array.isArray(options.obstacleIndex?.entries)
+    ? options.obstacleIndex.entries
+    : obstacles
+      .map((object, index) => ({ object, bounds: annotationObjectBounds(object), index }))
+      .filter(entry => entry.bounds);
   const skipObstacleRouting = options.skipObstacleRouting === true;
   const compactRouting = options.compactRouting === true;
   const obstacleRouteOptions = {
@@ -11339,9 +11515,7 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
           clearance,
           candidateSourceUnit,
           candidateTargetUnit,
-          obstacles
-            .map((object, index) => ({ object, bounds: annotationObjectBounds(object), index }))
-            .filter(entry => entry.bounds),
+          obstacleEntries,
           compactRouting ? options.preferredHorizontalLanes : [],
           compactRouting ? options.preferredVerticalLanes : [],
           compactRouting
@@ -11556,9 +11730,11 @@ function annotationEntityRelationshipObstacleRoute(
 ) {
   const basePoints = compactAnnotationEntityRelationshipPoints(basePointsInput);
   const allObstacles = (Array.isArray(entitiesInput) ? entitiesInput : []).filter(Boolean);
-  const allEntries = allObstacles
-    .map((object, index) => ({ object, bounds: annotationObjectBounds(object), index }))
-    .filter(entry => entry.bounds);
+  const allEntries = Array.isArray(options?.obstacleIndex?.entries)
+    ? options.obstacleIndex.entries
+    : allObstacles
+      .map((object, index) => ({ object, bounds: annotationObjectBounds(object), index }))
+      .filter(entry => entry.bounds);
   const allEntities = allEntries.map(entry => entry.bounds);
   const obstacleIndex = options?.obstacleIndex;
   const excludedObjects = options?.excludedObjects;
@@ -12206,13 +12382,43 @@ function annotationEntityRelationshipVisibilityRoute(
   const best = new Map([[startKey, 0]]);
   const previous = new Map();
   const pending = [{ key: startKey, nodeIndex: startIndex, direction: "", cost: 0 }];
+  const comparePending = (first, second) => first.cost - second.cost
+    || nodes[first.nodeIndex].y - nodes[second.nodeIndex].y
+    || nodes[first.nodeIndex].x - nodes[second.nodeIndex].x
+    || first.direction.localeCompare(second.direction);
+  const pushPending = item => {
+    pending.push(item);
+    let index = pending.length - 1;
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2);
+      if (comparePending(pending[parentIndex], pending[index]) <= 0) break;
+      [pending[parentIndex], pending[index]] = [pending[index], pending[parentIndex]];
+      index = parentIndex;
+    }
+  };
+  const shiftPending = () => {
+    const first = pending[0];
+    const last = pending.pop();
+    if (!pending.length) return first;
+    pending[0] = last;
+    let index = 0;
+    while (true) {
+      const leftIndex = (index * 2) + 1;
+      const rightIndex = leftIndex + 1;
+      let nextIndex = index;
+      if (leftIndex < pending.length
+        && comparePending(pending[leftIndex], pending[nextIndex]) < 0) nextIndex = leftIndex;
+      if (rightIndex < pending.length
+        && comparePending(pending[rightIndex], pending[nextIndex]) < 0) nextIndex = rightIndex;
+      if (nextIndex === index) break;
+      [pending[index], pending[nextIndex]] = [pending[nextIndex], pending[index]];
+      index = nextIndex;
+    }
+    return first;
+  };
   let endState = null;
   while (pending.length) {
-    pending.sort((first, second) => first.cost - second.cost
-      || nodes[first.nodeIndex].y - nodes[second.nodeIndex].y
-      || nodes[first.nodeIndex].x - nodes[second.nodeIndex].x
-      || first.direction.localeCompare(second.direction));
-    const current = pending.shift();
+    const current = shiftPending();
     if (current.cost !== best.get(current.key)) continue;
     if (current.nodeIndex === endIndex) {
       endState = current;
@@ -12230,7 +12436,7 @@ function annotationEntityRelationshipVisibilityRoute(
       if (cost >= (best.get(key) ?? Number.POSITIVE_INFINITY)) return;
       best.set(key, cost);
       previous.set(key, current.key);
-      pending.push({ key, nodeIndex: next.index, direction, cost });
+      pushPending({ key, nodeIndex: next.index, direction, cost });
     });
   }
   if (!endState) return null;

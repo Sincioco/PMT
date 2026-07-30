@@ -2,17 +2,17 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2EmbeddedImage
-} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   permanentlyCropDiagram2Image
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2EntityAnnotationIndexes,
   createDiagram2EntityAnnotationPlan
-} from "./diagram2-editor-entity-annotations.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-entity-annotations.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2FieldRectangle,
   diagram2FieldRectangleMapping,
@@ -20,21 +20,21 @@ import {
   renameDiagram2FieldRectangle,
   setDiagram2FieldRectangleConnectionSide,
   setDiagram2FieldRectangleMapping
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2FieldMappingIndexes,
   patchDiagram2FieldMappingIndexes
-} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2FieldMappingTable,
   syncDiagram2FieldMappingTableForFieldRectangle,
   syncDiagram2FieldMappingTableForImage
-} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
@@ -45,7 +45,7 @@ import {
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2StructureStateCommand,
   diagram2GroupSelectionPlan,
@@ -57,15 +57,15 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-v1";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-closure-v13";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   diagram2AddRelationshipPlan,
   diagram2AdjustRelationshipRoutePlan,
@@ -81,13 +81,13 @@ import {
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-closure-v13";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260730-diagram2-phase6-v1";
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260730-diagram2-phase6-closure-v13";
 const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
@@ -1399,7 +1399,11 @@ export function createDiagram2EditorController(options = {}) {
 
   async function useRelationshipRoute(relationshipId, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
-    const plan = diagram2UseCurrentRelationshipRoutePlan(canonicalState, relationshipId);
+    const plan = diagram2UseCurrentRelationshipRoutePlan(
+      canonicalState,
+      relationshipId,
+      renderer?.relationshipRoutePoints?.(relationshipId)
+    );
     return executeDiagram2StatePlan(plan, {
       label: commandOptions.label || "Use manual relationship route",
       reason: commandOptions.reason || "use manual relationship route"
@@ -1985,10 +1989,12 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function setStructureStateCanonical(nextStateInput = {}, structureOptions = {}) {
-    const nextState = pruneDiagram2GroupMetadata({
-      ...canonicalState,
-      ...(nextStateInput && typeof nextStateInput === "object" ? nextStateInput : {})
-    });
+    const nextState = pruneDiagram2GroupMetadata(structureOptions.replaceState === true
+      ? nextStateInput
+      : {
+          ...canonicalState,
+          ...(nextStateInput && typeof nextStateInput === "object" ? nextStateInput : {})
+        });
     const currentOrder = canonicalState.objects.map(object => object.id);
     const nextOrder = nextState.objects.map(object => object.id);
     const requestedAffectedIds = uniqueStrings(structureOptions.affectedObjectIds);

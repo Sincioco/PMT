@@ -1,11 +1,13 @@
 import {
+  annotationEntityFieldBounds,
   annotationEntityFieldLabelPoint,
   annotationEntityFieldSupportsMapping,
   annotationEntityVisibleFields,
+  annotationFieldMappingAttentionGeometry,
   annotationFieldMappingAttentionHighlightSvg,
   buildAnnotationSvg,
   parseAnnotationSvg
-} from "./image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "./image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 
 export function buildInteractiveDiagramViewerSvg(svgMarkup) {
   const diagramState = parseAnnotationSvg(svgMarkup);
@@ -25,62 +27,91 @@ export function bindDiagramFieldMappingInteractions(svg, svgMarkup) {
   const cellSelector = "[data-annotation-field-mapping-cell]";
   let hoveredCell = null;
   let pinnedCell = null;
+  let arrowTimer = 0;
 
-  const clearRenderedAttention = () => {
-    svg.querySelectorAll(
-      "[data-annotation-field-mapping-attention-highlight], [data-annotation-field-mapping-attention-arrow]"
-    ).forEach(element => element.remove());
+  const clearRenderedHighlight = () => {
+    svg.querySelectorAll("[data-annotation-field-mapping-attention-highlight]")
+      .forEach(element => element.remove());
     svg.querySelectorAll("[data-annotation-field-mapping-row].is-pinned")
       .forEach(element => element.classList.remove("is-pinned"));
   };
 
-  const renderAttention = cell => {
-    clearRenderedAttention();
+  const clearRenderedArrows = () => {
+    if (arrowTimer) {
+      window.clearTimeout(arrowTimer);
+      arrowTimer = 0;
+    }
+    svg.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
+      .forEach(element => element.remove());
+  };
+
+  const renderHighlight = cell => {
+    clearRenderedHighlight();
     if (!cell) return;
     const row = cell.closest("[data-annotation-field-mapping-row]");
     row?.classList.add("is-pinned");
     const targets = fieldMappingTargets(diagramState, cell);
     const highlight = annotationFieldMappingAttentionHighlightSvg(diagramState, targets.ids, 1);
     if (highlight) svg.insertAdjacentHTML("beforeend", highlight);
+  };
+
+  const renderArrows = cell => {
+    clearRenderedArrows();
+    if (!cell) return;
+    const targets = fieldMappingTargets(diagramState, cell);
     const arrows = fieldMappingAttentionArrows(svg, cell, targets);
     if (arrows) svg.insertAdjacentHTML("beforeend", arrows);
+    arrowTimer = window.setTimeout(() => {
+      arrowTimer = 0;
+      svg.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
+        .forEach(element => element.remove());
+    }, 3000);
+  };
+
+  const activateCell = (cell, options = {}) => {
+    if (options.pin === true) pinnedCell = cell;
+    renderHighlight(cell);
+    renderArrows(cell);
   };
 
   svg.addEventListener("pointermove", event => {
     const cell = event.target.closest?.(cellSelector);
     if (cell === hoveredCell) return;
     hoveredCell = cell && svg.contains(cell) ? cell : null;
-    renderAttention(hoveredCell || pinnedCell);
+    renderHighlight(hoveredCell || pinnedCell);
+    if (hoveredCell) renderArrows(hoveredCell);
+    else if (!pinnedCell) clearRenderedArrows();
   });
   svg.addEventListener("pointerleave", () => {
     hoveredCell = null;
-    renderAttention(pinnedCell);
+    renderHighlight(pinnedCell);
+    if (!pinnedCell) clearRenderedArrows();
   });
   svg.addEventListener("click", event => {
     const cell = event.target.closest?.(cellSelector);
     if (!cell || !svg.contains(cell)) {
       pinnedCell = null;
-      renderAttention(null);
+      clearRenderedHighlight();
+      clearRenderedArrows();
       return;
     }
     event.preventDefault();
     event.stopPropagation();
-    pinnedCell = cell;
-    renderAttention(cell);
+    activateCell(cell, { pin: true });
     cell.focus?.({ preventScroll: true });
   });
   svg.addEventListener("keydown", event => {
     const cell = event.target.closest?.(cellSelector);
     if (cell && ["Enter", " "].includes(event.key)) {
       event.preventDefault();
-      pinnedCell = cell;
-      renderAttention(cell);
+      activateCell(cell, { pin: true });
       return;
     }
     if (event.key === "Escape" && pinnedCell) {
       event.preventDefault();
       pinnedCell = null;
-      renderAttention(null);
+      clearRenderedHighlight();
+      clearRenderedArrows();
     }
   });
 }
@@ -164,15 +195,18 @@ function relationshipId(relationship) {
 function fieldMappingAttentionArrows(svg, cell, targets) {
   const uiCell = fieldMappingCellForKind(svg, cell, "ui") || cell;
   const databaseCell = fieldMappingCellForKind(svg, cell, "database") || cell;
-  const fieldBounds = objectBounds(targets.fieldRectangle);
-  const databasePoint = annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField);
-  const databaseBounds = objectBounds(targets.databaseEntity);
-  return [
-    attentionArrowToBounds(fieldMappingCellBounds(uiCell), fieldBounds),
-    databasePoint
-      ? attentionArrowToPoint(fieldMappingCellBounds(databaseCell), databasePoint)
-      : attentionArrowToBounds(fieldMappingCellBounds(databaseCell), databaseBounds)
-  ].filter(Boolean).join("");
+  const geometry = annotationFieldMappingAttentionGeometry({
+    uiLabelBounds: fieldMappingLabelBounds(uiCell),
+    databaseLabelBounds: fieldMappingLabelBounds(databaseCell),
+    uiCellBounds: fieldMappingCellBounds(uiCell),
+    databaseCellBounds: fieldMappingCellBounds(databaseCell),
+    fieldRectangleBounds: objectBounds(targets.fieldRectangle),
+    databaseFieldPoint: annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField),
+    databaseFieldBounds: annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField),
+    databaseEntityBounds: objectBounds(targets.databaseEntity),
+    zoom: 1
+  });
+  return [geometry.ui, geometry.database].map(attentionArrowSvg).filter(Boolean).join("");
 }
 
 function fieldMappingCellForKind(svg, cell, kind) {
@@ -192,84 +226,36 @@ function fieldMappingCellBounds(cell) {
   };
 }
 
+function fieldMappingLabelBounds(cell) {
+  try {
+    const bounds = cell?.querySelector?.("text")?.getBBox?.();
+    return bounds?.width > 0 ? bounds : null;
+  } catch {
+    return null;
+  }
+}
+
 function objectBounds(object) {
   if (!object) return null;
+  const strokeRadius = ["rectangle", "circle", "textbox", "rich-text", "entity", "field-mapping-table"].includes(object.type)
+    && object.outlineVisible !== false
+    ? Math.max(1, Number(object.strokeWidth) || 1) / 2
+    : 0;
   return {
-    x: Number(object.x) || 0,
-    y: Number(object.y) || 0,
-    width: Math.max(1, Number(object.width) || 1),
-    height: Math.max(1, Number(object.height) || 1)
+    x: (Number(object.x) || 0) - strokeRadius,
+    y: (Number(object.y) || 0) - strokeRadius,
+    width: Math.max(1, Number(object.width) || 1) + (strokeRadius * 2),
+    height: Math.max(1, Number(object.height) || 1) + (strokeRadius * 2)
   };
 }
 
-function boundsCenter(bounds) {
-  return {
-    x: bounds.x + (bounds.width / 2),
-    y: bounds.y + (bounds.height / 2)
-  };
-}
-
-function boundsEdgePointToward(bounds, target) {
-  const center = boundsCenter(bounds);
-  const halfWidth = Math.max(0.5, bounds.width / 2);
-  const halfHeight = Math.max(0.5, bounds.height / 2);
-  const dx = target.x - center.x;
-  const dy = target.y - center.y;
-  if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return center;
-  if (Math.abs(dx) * halfHeight > Math.abs(dy) * halfWidth) {
-    const scale = halfWidth / Math.max(0.001, Math.abs(dx));
-    return {
-      x: center.x + (Math.sign(dx) * halfWidth),
-      y: center.y + (dy * scale)
-    };
-  }
-  const scale = halfHeight / Math.max(0.001, Math.abs(dy));
-  return {
-    x: center.x + (dx * scale),
-    y: center.y + (Math.sign(dy) * halfHeight)
-  };
-}
-
-function attentionArrowToBounds(sourceBounds, targetBounds) {
-  if (!sourceBounds || !targetBounds) return "";
-  const targetCenter = boundsCenter(targetBounds);
-  const start = boundsEdgePointToward(sourceBounds, targetCenter);
-  const end = boundsEdgePointToward(targetBounds, start);
-  return attentionArrowSvg(start, end);
-}
-
-function attentionArrowToPoint(sourceBounds, targetPoint) {
-  if (!sourceBounds || !targetPoint) return "";
-  const start = boundsEdgePointToward(sourceBounds, targetPoint);
-  return attentionArrowSvg(start, targetPoint);
-}
-
-function attentionArrowSvg(start, end) {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const length = Math.hypot(dx, dy);
-  if (length < 0.001) return "";
-  const unitX = dx / length;
-  const unitY = dy / length;
-  const size = 12;
-  const base = {
-    x: end.x - (unitX * size),
-    y: end.y - (unitY * size)
-  };
-  const wing = size * 0.46;
-  const left = {
-    x: base.x + (-unitY * wing),
-    y: base.y + (unitX * wing)
-  };
-  const right = {
-    x: base.x - (-unitY * wing),
-    y: base.y - (unitX * wing)
-  };
+function attentionArrowSvg(geometry) {
+  if (!geometry) return "";
   const number = value => String(Math.round(Number(value || 0) * 1000) / 1000);
   return `
     <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
-      <line class="image-annotation-field-mapping-attention-arrow-line" x1="${number(start.x)}" y1="${number(start.y)}" x2="${number(base.x)}" y2="${number(base.y)}" pointer-events="none"></line>
-      <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${number(end.x)},${number(end.y)} ${number(left.x)},${number(left.y)} ${number(right.x)},${number(right.y)}" pointer-events="none"></polygon>
+      <line class="image-annotation-field-mapping-attention-arrow-line" x1="${number(geometry.start.x)}" y1="${number(geometry.start.y)}" x2="${number(geometry.lineEnd.x)}" y2="${number(geometry.lineEnd.y)}" pointer-events="none"></line>
+      <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${geometry.head.map(point => `${number(point.x)},${number(point.y)}`).join(" ")}" pointer-events="none"></polygon>
     </g>
   `;
 }

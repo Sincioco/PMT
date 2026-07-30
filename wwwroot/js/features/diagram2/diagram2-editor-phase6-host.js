@@ -2,24 +2,24 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationFieldMappingImages
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   diagram2CropCornerPatch,
   diagram2CropPatchFromInsets,
   diagram2ResetCropPatch
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   isDiagram2ImageFile,
   loadDiagram2ImageDimensions
-} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   openDiagram2EntityAnnotationEditor,
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;

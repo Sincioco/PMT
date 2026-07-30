@@ -7,23 +7,23 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
   diagram2ImageHasReversibleCrop
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-v1";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-closure-v13";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-closure-v13";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";

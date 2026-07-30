@@ -25,7 +25,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -50,10 +50,16 @@ import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260730-diagram2-phase6-v1";
-import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260730-diagram2-phase6-v1";
+import {
+  captureTreeNavState,
+  restoreTreeNavState
+} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-closure-v13";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260730-diagram2-phase6-closure-v13";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260730-diagram2-phase6-closure-v13";
 
 const diagramViewModes = new Set(["cards", "tree"]);
+const diagramTreeGroups = new Set(["all", "project", "project-sprint"]);
+const diagramTreeLayouts = new Set(["hierarchy", "flat"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
 const diagramVisibilityModes = new Set(["both", "private", "public"]);
 const blankDiagramWidth = 1600;
@@ -73,6 +79,12 @@ let diagramViewMode = diagramViewModes.has(readPreference(preferenceKeys.diagram
   : "tree";
 let diagramTreePaneWidth = readNumberPreference(preferenceKeys.diagramTreePaneWidth, 300);
 let diagramTreePaneHidden = readBooleanPreference(preferenceKeys.diagramTreePaneHidden, false);
+let diagramTreeGroup = diagramTreeGroups.has(readPreference(preferenceKeys.diagramTreeGroup, "all"))
+  ? readPreference(preferenceKeys.diagramTreeGroup, "all")
+  : "all";
+let diagramTreeLayout = diagramTreeLayouts.has(readPreference(preferenceKeys.diagramTreeLayout, "hierarchy"))
+  ? readPreference(preferenceKeys.diagramTreeLayout, "hierarchy")
+  : "hierarchy";
 let diagramSearch = readPreference(preferenceKeys.diagramSearch, "").trim();
 let diagramProjectId = readNumberPreference(preferenceKeys.diagramProject, 0);
 let diagramSprintId = readPreference(preferenceKeys.diagramSprint, "all");
@@ -89,12 +101,17 @@ let sharedDiagramDocumentId = 0;
 let previewDiagramDocumentId = 0;
 let previewZoom = 1;
 const collapsedDiagramDocumentIds = new Set();
+const collapsedDiagramTreeFolderKeys = new Set();
 
 function syncDiagramLeftNavContextFromStorage() {
   const viewMode = readPreference(preferenceKeys.diagramViewMode, "tree");
   diagramViewMode = diagramViewModes.has(viewMode) ? viewMode : "tree";
   diagramTreePaneWidth = readNumberPreference(preferenceKeys.diagramTreePaneWidth, 300);
   diagramTreePaneHidden = readBooleanPreference(preferenceKeys.diagramTreePaneHidden, false);
+  const treeGroup = readPreference(preferenceKeys.diagramTreeGroup, "all");
+  diagramTreeGroup = diagramTreeGroups.has(treeGroup) ? treeGroup : "all";
+  const treeLayout = readPreference(preferenceKeys.diagramTreeLayout, "hierarchy");
+  diagramTreeLayout = diagramTreeLayouts.has(treeLayout) ? treeLayout : "hierarchy";
   diagramSearch = readPreference(preferenceKeys.diagramSearch, "").trim();
   diagramProjectId = readNumberPreference(preferenceKeys.diagramProject, 0);
   diagramSprintId = readPreference(preferenceKeys.diagramSprint, "all");
@@ -143,12 +160,24 @@ export function createDiagramFeature({
   let diagramTreeContextMenuController = null;
   let diagramReadonlyContextMenuController = null;
   let diagramPreviewHydrationToken = 0;
+  let diagramTreeRevealSelection = false;
 
   function renderDiagram() {
     const wasActive = active;
+    const treeNavState = diagramViewMode === "tree"
+      ? captureTreeNavState(app, {
+          identity: "diagram-1",
+          paneSelector: ".diagram-tree-pane",
+          itemSelector: "[data-action='select-diagram-document']",
+          selectedSelector: "[data-diagram-tree-row].is-selected"
+        })
+      : null;
     active = true;
     if (!wasActive) syncDiagramLeftNavContextFromStorage();
     if (!wasActive) previewDiagramDocumentId = 0;
+    if (!wasActive && /^#\/diagram\/\d+(?:\?|$)/i.test(globalThis.window?.location?.hash || "")) {
+      diagramTreeRevealSelection = true;
+    }
     if (editingDocumentId && app.querySelector("[data-diagram-editor-host]")) return;
     const previewHydrationToken = ++diagramPreviewHydrationToken;
     const documents = diagramDocuments();
@@ -163,6 +192,7 @@ export function createDiagramFeature({
     writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId || "");
     if (editingDocumentId && !documentIds.has(editingDocumentId)) cancelEmbeddedEditor();
     const selectedDocument = documents.find(document => document.id === selectedDiagramDocumentId) || null;
+    if (diagramTreeRevealSelection) expandDiagramTreePath(selectedDocument);
 
     app.innerHTML = `
       <section class="diagram-screen ${diagramViewMode === "tree" ? "is-tree-view" : "is-card-view"}">
@@ -177,6 +207,14 @@ export function createDiagramFeature({
       bindDiagramTreeContextMenu();
       bindDiagramReadonlyViewer();
       scheduleDiagramPreviewHydration(previewHydrationToken, selectedDocument?.id || 0);
+      restoreTreeNavState(app, treeNavState, {
+        identity: "diagram-1",
+        paneSelector: ".diagram-tree-pane",
+        itemSelector: "[data-action='select-diagram-document']",
+        selectedId: selectedDiagramDocumentId,
+        revealSelected: diagramTreeRevealSelection
+      });
+      diagramTreeRevealSelection = false;
     } else {
       diagramTreeContextMenuController?.abort();
       diagramTreeContextMenuController = null;
@@ -275,6 +313,19 @@ export function createDiagramFeature({
       return `<div class="empty">No diagrams match the current filters. Select Filters to reset them, or select New Diagram to create one.</div>`;
     }
 
+    if (diagramTreeGroup !== "all") {
+      return `<div class="documentation-card-sections">
+        ${diagramCardGroups(documents).map(group => `
+          <section class="documentation-card-section">
+            <h2>${escapeHtml(group.label)}</h2>
+            <div class="grid documentation-grid diagram-grid">
+              ${group.documents.map(diagramCardHtml).join("")}
+            </div>
+          </section>
+        `).join("")}
+      </div>`;
+    }
+
     return `<div class="grid documentation-grid diagram-grid">
       ${documents.map(diagramCardHtml).join("")}
     </div>`;
@@ -293,7 +344,7 @@ export function createDiagramFeature({
     const selectedDocument = documents.find(document => document.id === selectedDiagramDocumentId) || null;
     return `
       <div class="documentation-tree-layout diagram-tree-layout ${diagramTreePaneHidden ? "is-tree-hidden" : ""}" style="--documentation-tree-pane-width:${diagramTreePaneWidth}px">
-        <aside class="panel documentation-tree-pane diagram-tree-pane" ${diagramTreePaneHidden ? "hidden" : ""}>
+        <aside class="panel documentation-tree-pane diagram-tree-pane" data-tree-nav-identity="diagram-1" ${diagramTreePaneHidden ? "hidden" : ""}>
           <div class="documentation-tree" role="tree" aria-label="Diagrams">
             ${documents.length ? diagramTreeNavHtml(documents) : `<div class="documentation-tree-empty">No diagrams match the current filters.</div>`}
           </div>
@@ -310,6 +361,78 @@ export function createDiagramFeature({
   }
 
   function diagramTreeNavHtml(documents) {
+    const rootDrop = `<div class="diagram-tree-root-drop" data-diagram-root-drop aria-hidden="true"></div>`;
+    if (diagramTreeGroup === "all") {
+      return rootDrop + diagramTreeDocumentsHtml(documents, 0);
+    }
+
+    const globalDocuments = documents.filter(document => !document.projectId);
+    const projectFolders = state.projects.map(project => {
+      const projectDocuments = documents.filter(document => Number(document.projectId || 0) === Number(project.id));
+      if (!projectDocuments.length) return "";
+
+      if (diagramTreeGroup === "project") {
+        return diagramTreeFolderHtml({
+          key: `project:${project.id}`,
+          label: `${project.code} - ${project.title}`,
+          depth: 0,
+          count: projectDocuments.length,
+          childrenHtml: diagramTreeDocumentsHtml(projectDocuments, 1)
+        });
+      }
+
+      const directDocuments = projectDocuments.filter(document => !diagramSprintForDocument(document));
+      const directFolder = directDocuments.length
+        ? diagramTreeFolderHtml({
+          key: `project:${project.id}:direct`,
+          label: "Project Diagrams",
+          depth: 1,
+          count: directDocuments.length,
+          childrenHtml: diagramTreeDocumentsHtml(directDocuments, 2)
+        })
+        : "";
+      const sprintFolders = state.sprints
+        .filter(sprint => Number(sprint.projectId || 0) === Number(project.id))
+        .map(sprint => {
+          const sprintDocuments = projectDocuments.filter(document => Number(document.sprintId || 0) === Number(sprint.id));
+          if (!sprintDocuments.length) return "";
+          return diagramTreeFolderHtml({
+            key: `sprint:${sprint.id}`,
+            label: `${sprint.code} - ${sprint.title}`,
+            depth: 1,
+            count: sprintDocuments.length,
+            childrenHtml: diagramTreeDocumentsHtml(sprintDocuments, 2)
+          });
+        })
+        .join("");
+
+      return diagramTreeFolderHtml({
+        key: `project:${project.id}`,
+        label: `${project.code} - ${project.title}`,
+        depth: 0,
+        count: projectDocuments.length,
+        childrenHtml: directFolder + sprintFolders
+      });
+    }).join("");
+    const globalFolder = globalDocuments.length
+      ? diagramTreeFolderHtml({
+        key: "global",
+        label: "Global",
+        depth: 0,
+        count: globalDocuments.length,
+        childrenHtml: diagramTreeDocumentsHtml(globalDocuments, 1)
+      })
+      : "";
+
+    return rootDrop + (globalFolder + projectFolders || `<div class="documentation-tree-empty">No diagrams match the current filters.</div>`);
+  }
+
+  function diagramTreeDocumentsHtml(documents, depth) {
+    const sortedDocuments = [...documents].sort(diagramDocumentCompare);
+    if (diagramTreeLayout === "flat") {
+      return sortedDocuments.map(document => diagramTreeRowHtml(document, depth, [], null)).join("");
+    }
+
     const byId = new Map(documents.map(document => [document.id, document]));
     const childrenByParent = new Map();
     documents.forEach(document => {
@@ -320,18 +443,14 @@ export function createDiagramFeature({
     childrenByParent.forEach(children => children.sort(diagramDocumentCompare));
 
     const renderChildren = (parentId, depth) => (childrenByParent.get(parentId) || [])
-      .map(document => diagramTreeRowHtml(document, depth, childrenByParent, renderChildren))
+      .map(document => diagramTreeRowHtml(document, depth, childrenByParent.get(document.id) || [], renderChildren))
       .join("");
 
-    return `
-      <div class="diagram-tree-root-drop" data-diagram-root-drop aria-hidden="true"></div>
-      ${renderChildren(0, 0)}
-    `;
+    return renderChildren(0, depth);
   }
 
-  function diagramTreeRowHtml(document, depth, childrenByParent, renderChildren) {
+  function diagramTreeRowHtml(document, depth, children, renderChildren) {
     const selected = document.id === selectedDiagramDocumentId;
-    const children = childrenByParent.get(document.id) || [];
     const hasChildren = children.length > 0;
     const collapsed = collapsedDiagramDocumentIds.has(document.id);
     const canMove = diagramCanEdit(document);
@@ -345,8 +464,79 @@ export function createDiagramFeature({
           ${document.isPrivate !== false ? `<span class="diagram-tree-private" title="Private" aria-label="Private">${diagramLockIconHtml()}</span>` : ""}
         </button>
       </div>
-      ${hasChildren && !collapsed ? renderChildren(document.id, depth + 1) : ""}
+      ${hasChildren && !collapsed && renderChildren ? renderChildren(document.id, depth + 1) : ""}
     `;
+  }
+
+  function diagramTreeFolderHtml({ key, label, depth, count, childrenHtml }) {
+    const collapsed = collapsedDiagramTreeFolderKeys.has(key);
+    const countText = count === 1 ? "1 diagram" : `${count} diagrams`;
+    return `
+      <div class="documentation-tree-row documentation-tree-folder-row" style="--tree-depth:${depth}" role="treeitem" aria-expanded="${!collapsed}">
+        <button class="documentation-tree-folder" type="button" data-action="toggle-diagram-tree-folder" data-tree-key="${escapeAttr(key)}">
+          <span class="documentation-tree-expander" aria-hidden="true">${collapsed ? "&#9656;" : "&#9662;"}</span>
+          <span class="documentation-tree-icon" aria-hidden="true">&#128193;</span>
+          <span class="documentation-tree-label">${escapeHtml(label)}</span>
+          <span class="documentation-tree-count">${escapeHtml(countText)}</span>
+        </button>
+      </div>
+      ${collapsed ? "" : childrenHtml}
+    `;
+  }
+
+  function diagramCardGroups(documents) {
+    const groups = new Map();
+    documents.forEach(document => {
+      const group = diagramCardGroup(document);
+      const existing = groups.get(group.key);
+      if (existing) existing.documents.push(document);
+      else groups.set(group.key, { ...group, documents: [document] });
+    });
+    return [...groups.values()];
+  }
+
+  function diagramCardGroup(document) {
+    if (!document.projectId) return { key: "global", label: "Global" };
+    const projectLabel = diagramProjectLabel(document.projectId);
+    if (diagramTreeGroup === "project") {
+      return { key: `project:${document.projectId}`, label: projectLabel };
+    }
+
+    const sprint = diagramSprintForDocument(document);
+    return sprint
+      ? { key: `sprint:${sprint.id}`, label: `${projectLabel} / ${diagramSprintLabel(sprint.id)}` }
+      : { key: `project:${document.projectId}:direct`, label: `${projectLabel} / Project Diagrams` };
+  }
+
+  function diagramSprintForDocument(document) {
+    return state.sprints.find(sprint =>
+      Number(sprint.id) === Number(document.sprintId || 0)
+      && Number(sprint.projectId || 0) === Number(document.projectId || 0)
+    ) || null;
+  }
+
+  function expandDiagramTreePath(document) {
+    if (!document) return;
+    if (diagramTreeGroup !== "all") {
+      if (!document.projectId) {
+        collapsedDiagramTreeFolderKeys.delete("global");
+      } else {
+        collapsedDiagramTreeFolderKeys.delete(`project:${document.projectId}`);
+        if (diagramTreeGroup === "project-sprint") {
+          const sprint = diagramSprintForDocument(document);
+          collapsedDiagramTreeFolderKeys.delete(sprint
+            ? `sprint:${sprint.id}`
+            : `project:${document.projectId}:direct`);
+        }
+      }
+    }
+
+    const byId = new Map(diagramAllDocuments().map(item => [item.id, item]));
+    let current = document;
+    while (current) {
+      collapsedDiagramDocumentIds.delete(current.id);
+      current = byId.get(current.parentBlogId);
+    }
   }
 
   function diagramTreePreviewShellHtml(document) {
@@ -489,10 +679,19 @@ export function createDiagramFeature({
     if (action === "select-diagram-card" || action === "select-diagram-document") {
       if (editingDocumentId) return true;
       selectedDiagramDocumentId = id;
+      diagramTreeRevealSelection = action === "select-diagram-card";
       previewDiagramDocumentId = 0;
       sharedDiagramDocumentId = 0;
       diagramViewMode = "tree";
       writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
+      renderDiagram();
+      return true;
+    }
+    if (action === "toggle-diagram-tree-folder") {
+      const key = String(button?.dataset?.treeKey || "");
+      if (!key) return true;
+      if (collapsedDiagramTreeFolderKeys.has(key)) collapsedDiagramTreeFolderKeys.delete(key);
+      else collapsedDiagramTreeFolderKeys.add(key);
       renderDiagram();
       return true;
     }
@@ -1026,6 +1225,14 @@ export function createDiagramFeature({
         diagramVisibility = diagramVisibilityModes.has(event.target.value) ? event.target.value : "both";
         writePreference(preferenceKeys.diagramVisibility, diagramVisibility);
         renderDiagram();
+      } else if (filter === "diagram-tree-group") {
+        diagramTreeGroup = diagramTreeGroups.has(event.target.value) ? event.target.value : "all";
+        writePreference(preferenceKeys.diagramTreeGroup, diagramTreeGroup);
+        renderDiagram();
+      } else if (filter === "diagram-tree-layout") {
+        diagramTreeLayout = diagramTreeLayouts.has(event.target.value) ? event.target.value : "hierarchy";
+        writePreference(preferenceKeys.diagramTreeLayout, diagramTreeLayout);
+        renderDiagram();
       } else if (filter === "diagram-sort") {
         diagramSort = diagramSortModes.has(event.target.value) ? event.target.value : "latest";
         writePreference(preferenceKeys.diagramSort, diagramSort);
@@ -1060,7 +1267,14 @@ export function createDiagramFeature({
     if (!body) return;
     const sprintItems = state.sprints
       .filter(sprint => !diagramProjectId || Number(sprint.projectId) === diagramProjectId)
-      .map(sprint => ({ value: sprint.id, text: `${sprint.code} - ${sprint.title}` }));
+      .map(sprint => {
+        const project = state.projects.find(item => Number(item.id) === Number(sprint.projectId));
+        const sprintLabel = `${sprint.code} - ${sprint.title}`;
+        return {
+          value: sprint.id,
+          text: diagramProjectId ? sprintLabel : `${project?.code || "Project"} - ${sprintLabel}`
+        };
+      });
     body.innerHTML = `
       <div class="tasks-filter-panel documentation-filter-fields">
         <div class="task-filter-row documentation-filter-row">
@@ -1069,11 +1283,35 @@ export function createDiagramFeature({
             <input data-filter="diagram-search" type="search" value="${escapeAttr(diagramSearch)}">
           </label>
           ${filterSelect("Project", "diagram-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), diagramProjectId || "", "All Projects")}
-          ${filterSelect("Sprint", "diagram-sprint", sprintItems, diagramSprintId === "all" ? "" : diagramSprintId, "All Sprints")}
+          ${filterSelect("Sprint", "diagram-sprint", [
+            { value: "none", text: "No Sprint" },
+            ...sprintItems
+          ], diagramSprintId === "all" ? "" : diagramSprintId, "All Sprints")}
           ${filterSelect("Visibility", "diagram-visibility", [
             { value: "private", text: "Private" },
             { value: "public", text: "Public" }
-          ], diagramVisibility === "both" ? "" : diagramVisibility, "Public and Private")}
+          ], diagramVisibility === "both" ? "" : diagramVisibility, "Both")}
+          <label>
+            <span>Group</span>
+            <select data-filter="diagram-tree-group">
+              ${diagramFilterOptionsHtml([
+                { value: "all", text: "All Diagrams" },
+                { value: "project", text: "Project Only" },
+                { value: "project-sprint", text: "Project and Sprint" }
+              ], diagramTreeGroup)}
+            </select>
+          </label>
+          ${diagramViewMode === "tree" ? `
+            <label>
+              <span>Layout</span>
+              <select data-filter="diagram-tree-layout">
+                ${diagramFilterOptionsHtml([
+                  { value: "hierarchy", text: "Hierarchy" },
+                  { value: "flat", text: "Flat" }
+                ], diagramTreeLayout)}
+              </select>
+            </label>
+          ` : ""}
           <label>
             <span>Sort</span>
             <select data-filter="diagram-sort">
@@ -1100,6 +1338,8 @@ export function createDiagramFeature({
     diagramProjectId = 0;
     diagramSprintId = "all";
     diagramVisibility = "both";
+    diagramTreeGroup = "all";
+    diagramTreeLayout = "hierarchy";
     diagramSort = "latest";
     diagramCreatorFilters = [];
     diagramLastEditorFilters = [];
@@ -1107,6 +1347,8 @@ export function createDiagramFeature({
     writePreference(preferenceKeys.diagramProject, diagramProjectId);
     writePreference(preferenceKeys.diagramSprint, diagramSprintId);
     writePreference(preferenceKeys.diagramVisibility, diagramVisibility);
+    writePreference(preferenceKeys.diagramTreeGroup, diagramTreeGroup);
+    writePreference(preferenceKeys.diagramTreeLayout, diagramTreeLayout);
     writePreference(preferenceKeys.diagramSort, diagramSort);
     writeJsonPreference(preferenceKeys.diagramCreatorFilters, diagramCreatorFilters);
     writeJsonPreference(preferenceKeys.diagramLastEditorFilters, diagramLastEditorFilters);
@@ -2602,6 +2844,7 @@ export function createDiagramFeature({
       sharedDiagramDocumentId = document.id;
       if (selectedDiagramDocumentId !== document.id || diagramViewMode !== "tree") {
         selectedDiagramDocumentId = document.id;
+        diagramTreeRevealSelection = true;
         previewDiagramDocumentId = 0;
         diagramViewMode = "tree";
         writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
@@ -2657,7 +2900,12 @@ function diagramCustomCompare(left, right) {
 
 function diagramMatchesFilters(document) {
   if (diagramProjectId && Number(document.projectId || 0) !== diagramProjectId) return false;
-  if (diagramSprintId !== "all" && Number(document.sprintId || 0) !== Number(diagramSprintId || 0)) return false;
+  if (diagramSprintId === "none" && document.sprintId) return false;
+  if (
+    diagramSprintId !== "all"
+    && diagramSprintId !== "none"
+    && Number(document.sprintId || 0) !== Number(diagramSprintId || 0)
+  ) return false;
   if (diagramVisibility === "private" && document.isPrivate === false) return false;
   if (diagramVisibility === "public" && document.isPrivate !== false) return false;
   if (diagramCreatorFilters.length && !diagramCreatorFilters.map(String).includes(String(document.createdByUserId || ""))) return false;

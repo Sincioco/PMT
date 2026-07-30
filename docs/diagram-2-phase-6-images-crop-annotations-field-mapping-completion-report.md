@@ -250,6 +250,8 @@ Both runs report:
 
 The 1,000-Entity cancellation fixture still terminates cleanly without committing state or history.
 
+The closure hardening pass also persists Compact's exact automatic-route points with a geometry signature. Compact therefore creates a routes-only history/save change when Entity positions are already correct but saved routes are absent or stale. A fresh read-only renderer accepts the snapshot only when the current Entity/relationship geometry still matches; ordinary edits fall back to D2's real-time router until Compact is run again.
+
 ## Lifecycle
 
 Validated cleanup covers:
@@ -265,7 +267,7 @@ Validated cleanup covers:
 - live SVG/maps/indexes; and
 - global debug references.
 
-The alternating top-navigation/RTE lifecycle test passes five repeated cycles plus its baseline cycle in both viewports. The dedicated RTE test also passes ten cancel cycles.
+The alternating top-navigation/RTE lifecycle test passes five repeated cycles plus its baseline cycle in both viewports. The closure test adds ten mixed RTE cycles (`Annotate 2.0 -> Cancel`, `Annotate 2.0 -> Save`, and `Edit Annotation 2.0 -> Save`) alternated with top-navigation Diagram 2 sessions. Every closed snapshot has the same listener, object URL, animation frame, timer, worker, observer, renderer, controller, host, global-reference, and focus state.
 
 ## Permanent Screenshots
 
@@ -280,8 +282,80 @@ All Phase 6 screenshots were visually inspected.
 | `docs/screenshots/diagram-2-phase-6/diagram2-phase6-rte-edit-field-mapping-1920x1080.png` | 1920 x 1080 RTE `Edit Annotation 2.0` mapping |
 | `docs/screenshots/diagram-2-phase-6/diagram2-phase6-readonly-mapping-highlight-1920x1080.png` | 1920 x 1080 read-only mapping highlight |
 | `docs/screenshots/diagram-2-phase-6/diagram2-phase6-large-localized-mapping-1920x1080.png` | 1920 x 1080 localized mapping in a 1,000-object Diagram |
+| `docs/screenshots/diagram-2-phase-6/closure/documentation-treenav-scroll-preserved-1366x768.png` | Documentation deep TreeNav selection with retained scroll and focus |
+| `docs/screenshots/diagram-2-phase-6/closure/diagram1-treenav-scroll-preserved-1366x768.png` | Diagram 1 deep TreeNav selection with retained scroll and focus |
+| `docs/screenshots/diagram-2-phase-6/closure/diagram2-treenav-scroll-preserved-1366x768.png` | Diagram 2 deep TreeNav selection with retained scroll, focus, and route |
+| `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d1-idle-1920x1080.png` | D1 idle mapping-table oracle |
+| `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d2-idle-1920x1080.png` | D2 idle mapping-table parity |
+| `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d1-ui-cell-arrows-1920x1080.png` | D1 UI-cell activation, yellow highlights, and blue arrows |
+| `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d2-ui-cell-arrows-1920x1080.png` | D2 UI-cell activation with matching geometry |
+| `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d1-database-cell-arrows-1920x1080.png` | D1 database-cell activation and exact field endpoint |
+| `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d2-database-cell-arrows-1920x1080.png` | D2 database-cell activation with matching endpoint |
 
 The RTE fixture loads the real PMT token, base, dialog, image-annotation, Diagram, and Diagram 2 style sheets from a clean same-origin HTML page. Its screenshots therefore represent the real editor styling without starting an unrelated full application instance.
+
+## Phase 6 Closure Pass
+
+### TreeNav continuity and filter parity
+
+Documentation, Diagram 1, and Diagram 2 replaced their TreeNav markup after a selection. The browser therefore discarded the scroll position and focused DOM node; Diagram 2 could also perform a second route-driven render after the first restoration. The actual scroll owners are now captured immediately before replacement and restored after the replacement exists.
+
+The shared `tree-nav-state.js` helper records the tree identity, `scrollTop`, `scrollLeft`, focused item, and selected item. Direct activation restores exact offsets and focus with `focus({ preventScroll: true })`; no centering is performed. External route activation expands/reveals a hidden path and scrolls only when the selected row is outside the visible pane. Expansion state, pane width/visibility, URL updates, and viewer updates remain owned by each feature.
+
+The D1 and D2 filter dialogs now expose the same Search, Project, Sprint (including `Both`, `No Sprint`, and project-qualified sprint labels), Visibility, Group, Layout, Sort, Creator, and Last Editor options as Documentation. The tree projection applies each option in hierarchy and flat layouts without letting an already selected document bypass an active filter. Browser fixtures use more than 80 nested items and cover two pointer activations, keyboard activation, and one legitimate external reveal at both required viewports.
+
+### D1 Field Mapping Table oracle
+
+The D1 table layout, generated SVG, interactive SVG, field bounds, field label point, and read-only interaction paths were traced as one executable oracle. D2 keeps keyed nodes but consumes the same canonical layout and attention geometry. The behavior matrix is:
+
+| Interaction | UI Field cell | Database Field cell |
+| --- | --- | --- |
+| Hover | Highlights the row, Field Rectangle, mapped Entity/field, and mapping trace; shows both temporary arrows without history or canonical mutation. | Same highlight/arrow behavior using the Database cell as the active accessible target. |
+| Single click | Pins the row/highlights and starts both arrows for three seconds without recentering. | Same pinned behavior without recentering. |
+| Double-click | Performs normal activation, then centers/focuses the Field Rectangle. | Performs normal activation, then centers/focuses the exact mapped field bounds, using the Entity fallback only when field geometry is unavailable. |
+| Enter | Activates/pins and starts both arrows while preserving keyboard focus. | Same. |
+| Space | Activates/pins and starts both arrows while preserving keyboard focus. | Same. |
+| Escape | Clears the pinned state, highlights, arrows, and timer. | Same. |
+| Click outside | Clears the pinned state, highlights, arrows, and timer. | Same. |
+
+The table comparison includes dimensions, header/body rectangles, row/cell coordinates and metadata, text content/positions/colors, fills, borders, dividers, clipping, opacity, cursor, focus target, and column/row sizing. The closure fixture reports zero normalized table mismatches.
+
+Mapping highlights and attention arrows are deliberately separate visual systems. The default mapping highlight remains yellow (`#facc15`, 9 diagram units in the fixture) and applies to the row, Field Rectangle, mapped Entity/field, and trace. The temporary arrows use the D1 focus-ring color (`rgb(93, 224, 213)` in the current theme), a 2 px non-scaling dashed line (`7 4`), round caps, 0.92 opacity, a solid arrowhead, and zoom-aware 12-unit head geometry.
+
+Each activation draws two arrows:
+
+1. The UI arrow starts six visual pixels after the measured UI label and terminates at the Field Rectangle edge in the arrow direction.
+2. The Database arrow starts six visual pixels after the measured Database label and terminates at `annotationEntityFieldLabelPoint(...)`, then field bounds, then the outer Entity edge only as genuine fallbacks.
+
+For the permanent fixture, the UI start is `(994.376, 535.67)` and its Field Rectangle edge tip is `(428.23, 318)`. The Database start is `(1172.95, 535.67)` and its exact mapped-field tip is `(1035.4, 176.35)`. The rendered line bases are `(439.431, 322.306)` and `(1039.69, 187.557)` respectively. The real browser lifetime is `3014.3 ms`, within the required `3000 +/- 150 ms` window. A new activation cancels/replaces the prior timer; expiration removes only arrow nodes; Escape, outside click, renderer destroy, and navigation clear the timer and transient nodes.
+
+Top-navigation read-only/edit, `Annotate 2.0`, `Edit Annotation 2.0`, and exported interactive SVG paths preserve cell-level behavior. Hover/click/double-click/keyboard activity changes zero canonical fields, creates zero history entries, causes zero full renders, rebuilds zero unrelated rows, and reroutes zero unrelated relationships. Temporary arrows/highlights are never serialized.
+
+### Remaining closure gaps
+
+- Marquee pointer movement now patches only the rectangle boundary. Hit-testing and selection changes run once at pointer-up, and a completed blank-canvas click clears the previous selection.
+- A real file-backed Playwright drop and a real image `ClipboardEvent` each upload once, add one canonical image, create one history entry, avoid a full render, and survive save/reopen. Text-only clipboard content remains untouched.
+- Permanent crop replaces the image source with the cropped PNG, normalizes the crop to the new full bounds, verifies old/new dimensions, releases the old renderer resource once, decodes the replacement once, preserves cache cardinality, clears local history per D1, and survives save/reopen.
+- The mixed ten-cycle lifecycle test covers cancel and six successful saves while alternating RTE/top-navigation hosts and starting a mapping timer each cycle.
+- Physical D1 to D2 to D1 and D2 to D1 to D2 RTE round trips preserve reversible crop, Field Rectangle, many-to-one mapping, table colors/row styles, Entity annotation children/arrows, and editable metadata. Transient attention arrows are absent from saved SVG.
+- D2 initial mount now consumes the saved zoom. Low detail simplifies Entity contents but preserves the same relationship endpoints, bends, manual routes, and Compact output used above the 25% detail threshold. Large diagrams avoid synchronous exact rerouting during real-time gestures by using one fast orthogonal route policy at every zoom. The explicit Compact action finalizes D1's exact route points in its worker and shows progress while it runs. The 29-Entity/78-relationship focused fixture has zero D1 path mismatches before/after detail promotion and after a serialized fresh read-mode render. Live document 31 selected from `pmt.WorkTasks` produces an unsaved routes-only change when no Entity moves; all 83 paths remain identical after Save, Close to read mode, and a full reload.
+
+Closure counters:
+
+```text
+TreeNav scroll regressions:              0
+D1/D2 table geometry mismatches:         0
+D1/D2 attention-arrow geometry errors:   0 outside tolerance
+Missing three-second blue arrows:        0
+Canonical mutations from hover/click:    0
+History entries from hover/click:        0
+Additional full renders from arrows:     0
+D1 Compact mismatches:                   0
+Low/high zoom relationship mismatches:   0
+Document 31 Compact path changes:        83 of 83
+Document 31 Save/read path mismatches:    0 of 83
+Document 31 reload path mismatches:       0 of 83
+```
 
 ## Files Changed
 
@@ -347,18 +421,18 @@ docs/screenshots/diagram-2-phase-6/*
 
 Final observed evidence:
 
-- `npm run check:js` - 187 JavaScript modules syntax-checked.
-- `npm run test:js` - 430/430 passed in 834,511.362 ms.
-- Focused controller/renderer/compatibility/Phase 6 run - 69/69 passed.
-- D1 image annotation, Diagram 2 read-only shell, and Phase 6 compatibility run - 176/176 passed.
-- Dedicated Compact parity - 27/27 passed with zero required mismatches.
-- Phase 6 browser workflow - top-navigation at 1366/1920 plus localized 1,000-object mapping at 1920 passed.
-- RTE browser workflow - 8/8 passed across 1366/1920, including save/reopen, mapping edit, cancel, ten-cycle cleanup, and permission enforcement.
-- Final affected browser rerun - 17 passed with the 1,000-object 1366-only case intentionally skipped; zero failures.
-- Full Diagram 2 navigation suite - 22/22 passed across 1366/1920 in 6.5 minutes.
-- Broader Diagram 2 navigation, beta-readiness, and Diagram 1 image-annotation browser matrix - 36/36 passed across the completed runs.
-- The 232-Entity/624-relationship browser gate retained one initial full render, zero routine full-render increase, and zero relationship reroutes for a style-only patch.
-- `dotnet build -p:OutputPath=bin\CodexPhase6\` - succeeded with zero errors; the ordinary output path was locked by the running PMT development process.
+- `npm run check:js` - 189 JavaScript modules syntax-checked.
+- Combined publishable-source `npm run test:js` evidence - 432/432 passed; the full-suite run completed in 188,451.596 ms.
+- Dedicated Compact parity - 28/28 passed, including no-movement route repair, history, and saved SVG roundtrip coverage.
+- Full Diagram 2 navigation suite - 24/24 passed across 1366/1920 in 2.4 minutes.
+- The heavy navigation gate showed Compact progress in 27.7 ms, completed Compact in 892.1 ms, changed all 78 routes, and found zero D1 path mismatches at overview detail, full detail, or in a fresh saved-state renderer.
+- Every measured navigation interaction remained below 128 ms: zoom, pan, Entity drag, edit-mode entry, and relationship-handle adjustment all stayed below the 500 ms UX ceiling.
+- Live authenticated Diagram 31 acceptance found 83/83 relationship paths identical after no-movement Compact, Save/Close into read-only mode, and a full browser reload.
+- The final affected browser matrix passed 32 tests in 2.6 minutes; two smaller-viewport cases were intentionally skipped and their 1920 equivalents passed.
+- The 232-Entity/624-relationship browser gate retained one initial full render, zero routine full-render increase, and zero relationship reroutes for a style-only patch. Marquee updates measured 0.3 ms p95 or better.
+- Phase 6 Field Mapping Table closure retained zero table-geometry mismatches and zero arrow-geometry errors outside tolerance.
+- `npm run check:release-notes` for the publishable source set confirmed current generated data for all 36 releases.
+- `dotnet build -p:OutputPath=bin\CodexPhase6Closure\` - succeeded with zero errors.
 - `git diff --check` - passed; Git reported only line-ending conversion notices.
 
 The About 3D flyby was not tested because Phase 6 did not change it.
@@ -367,7 +441,7 @@ The About 3D flyby was not tested because Phase 6 did not change it.
 
 The browser entry point, Diagram 2 CSS, both Diagram 2 hosts, changed renderer/controller modules, and their transitive Diagram compatibility dependencies use:
 
-`20260730-diagram2-phase6-v1`
+`20260730-diagram2-phase6-closure-v13`
 
 No application image asset changed. The new PNG files are documentation evidence only.
 

@@ -58,6 +58,10 @@ import {
   normalizeRichHtml
 } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-html-images.js";
+import {
+  captureTreeNavState,
+  restoreTreeNavState
+} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-closure-v13";
 
 const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -123,6 +127,7 @@ export function createDocumentationFeature({
   documentationTreePaneWidth = Math.min(560, Math.max(220, readNumberPreference(preferenceKeys.documentationTreePaneWidth, 320)));
   documentationTreePaneHidden = readBooleanPreference(preferenceKeys.documentationTreePaneHidden, false);
   let documentationTreeContextMenuController = null;
+  let documentationTreeRevealSelection = false;
   const documentationHeader = createIdleFilterHeader({
     app,
     screenSelector: ".documentation-screen",
@@ -136,6 +141,14 @@ export function createDocumentationFeature({
   });
 
   function renderDocumentation() {
+    const treeNavState = documentationViewMode === "tree"
+      ? captureTreeNavState(app, {
+          identity: "documentation",
+          paneSelector: ".documentation-tree-pane",
+          itemSelector: "[data-action='select-documentation-tree-blog']",
+          selectedSelector: "[data-documentation-tree-row].is-selected"
+        })
+      : null;
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
     normalizeDocumentationSprintFilter();
     normalizeDocumentationVisibilityFilter();
@@ -159,6 +172,14 @@ export function createDocumentationFeature({
       bindDocumentationTreeContextMenu();
       bindDocumentationInlineEditor();
       bindDocumentationBodyImageOpen(app);
+      restoreTreeNavState(app, treeNavState, {
+        identity: "documentation",
+        paneSelector: ".documentation-tree-pane",
+        itemSelector: "[data-action='select-documentation-tree-blog']",
+        selectedId: selectedTreeBlogId,
+        revealSelected: documentationTreeRevealSelection
+      });
+      documentationTreeRevealSelection = false;
     } else {
       documentationTreeContextMenuController?.abort();
       documentationTreeContextMenuController = null;
@@ -301,7 +322,7 @@ export function createDocumentationFeature({
     const hideTreePane = documentationTreePaneHidden || documentationFullScreenEditing;
     return `
       <div class="documentation-tree-layout ${hideTreePane ? "is-tree-hidden" : ""}" style="--documentation-tree-pane-width:${documentationTreePaneWidth}px">
-        <aside class="panel documentation-tree-pane" ${hideTreePane ? "hidden" : ""}>
+        <aside class="panel documentation-tree-pane" data-tree-nav-identity="documentation" ${hideTreePane ? "hidden" : ""}>
           <div class="documentation-tree" role="tree" aria-label="Documentation tree">
             ${documentationTreeNavHtml(visibleBlogs)}
           </div>
@@ -843,6 +864,7 @@ export function createDocumentationFeature({
     }
 
     selectedTreeBlogId = blog.id;
+    documentationTreeRevealSelection = options.syncFilters === true;
     editingTreeBlogId = 0;
     documentationFullScreenEditing = false;
     expandDocumentationTreePath(blog);

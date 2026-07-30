@@ -1,14 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   resizeDiagram2CropClip
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -116,7 +116,12 @@ export function bindDiagram2EditorInteractions(options = {}) {
     }
 
     if (active.kind === "marquee" && commit) {
-      controller.setSelection(active.selection);
+      if (active.bounds) {
+        const ids = renderer.objectIdsInBounds?.(active.bounds) || [];
+        controller.setSelection([...new Set(active.initial.concat(ids))]);
+      } else if (!active.initial.length) {
+        controller.setSelection([]);
+      }
     }
   };
 
@@ -141,7 +146,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
     if (event.button !== 0 && event.button !== 1) return;
     const handle = event.target.closest?.("[data-diagram2-resize-handle]");
     const cropHandle = event.target.closest?.("[data-diagram2-crop-handle]");
-    const mappingRow = event.target.closest?.("[data-diagram2-field-mapping-row]");
+    const mappingCell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
     const relationshipRouteHandle = event.target.closest?.("[data-diagram2-relationship-route-handle]");
     const relationshipNode = event.target.closest?.("[data-diagram2-relationship-id]");
     const relationshipId = String(relationshipNode?.dataset?.diagram2RelationshipId || "").trim();
@@ -153,14 +158,18 @@ export function bindDiagram2EditorInteractions(options = {}) {
       && lastObjectPointerDown.id === objectId
       && pointerTime - lastObjectPointerDown.time <= 500;
 
-    if (event.button === 0 && mappingRow && activeTool !== "pan") {
+    if (event.button === 0 && !mappingCell) renderer.clearFieldMappingSelection?.();
+
+    if (event.button === 0 && mappingCell && activeTool !== "pan") {
       event.preventDefault();
       event.stopPropagation();
-      const mappingId = String(mappingRow.dataset.diagram2FieldMappingId || "").trim();
+      const mappingId = String(mappingCell.dataset.diagram2FieldMappingId || "").trim();
       controller.selectFieldMapping?.(mappingId);
-      renderer.showFieldMappingHover?.(mappingId, {
-        tableId: mappingRow.dataset.diagram2FieldMappingTableId
+      renderer.pinFieldMapping?.(mappingId, {
+        tableId: mappingCell.dataset.diagram2FieldMappingTableId,
+        cellKind: mappingCell.dataset.diagram2FieldMappingCellKind
       });
+      mappingCell.focus?.({ preventScroll: true });
       options.onStateChange?.();
       return;
     }
@@ -258,15 +267,18 @@ export function bindDiagram2EditorInteractions(options = {}) {
   }, { signal });
 
   canvas.addEventListener("dblclick", event => {
-    const mappingRow = event.target.closest?.("[data-diagram2-field-mapping-row]");
-    if (mappingRow && controller.activeTool() !== "pan") {
+    const mappingCell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+    if (mappingCell && controller.activeTool() !== "pan") {
       event.preventDefault();
       event.stopPropagation();
-      const mappingId = String(mappingRow.dataset.diagram2FieldMappingId || "").trim();
-      controller.selectFieldMapping?.(mappingId, { focusTarget: true });
-      renderer.showFieldMappingHover?.(mappingId, {
-        tableId: mappingRow.dataset.diagram2FieldMappingTableId
+      const mappingId = String(mappingCell.dataset.diagram2FieldMappingId || "").trim();
+      const cellKind = mappingCell.dataset.diagram2FieldMappingCellKind;
+      controller.selectFieldMapping?.(mappingId);
+      renderer.pinFieldMapping?.(mappingId, {
+        tableId: mappingCell.dataset.diagram2FieldMappingTableId,
+        cellKind
       });
+      renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
       options.onStateChange?.();
       return;
     }
@@ -306,20 +318,21 @@ export function bindDiagram2EditorInteractions(options = {}) {
   }, { signal });
 
   canvas.addEventListener("pointerover", event => {
-    const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-    if (!row || !canvas.contains(row)) return;
-    const previousRow = event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]");
-    if (previousRow === row) return;
-    renderer.showFieldMappingHover?.(row.dataset.diagram2FieldMappingId, {
-      tableId: row.dataset.diagram2FieldMappingTableId
+    const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+    if (!cell || !canvas.contains(cell)) return;
+    const previousCell = event.relatedTarget?.closest?.("[data-diagram2-field-mapping-cell]");
+    if (previousCell === cell) return;
+    renderer.showFieldMappingHover?.(cell.dataset.diagram2FieldMappingId, {
+      tableId: cell.dataset.diagram2FieldMappingTableId,
+      cellKind: cell.dataset.diagram2FieldMappingCellKind
     });
   }, { signal });
 
   canvas.addEventListener("pointerout", event => {
-    const row = event.target.closest?.("[data-diagram2-field-mapping-row]");
-    if (!row || !canvas.contains(row)) return;
-    const nextRow = event.relatedTarget?.closest?.("[data-diagram2-field-mapping-row]");
-    if (nextRow === row) return;
+    const cell = event.target.closest?.("[data-diagram2-field-mapping-cell]");
+    if (!cell || !canvas.contains(cell)) return;
+    const nextCell = event.relatedTarget?.closest?.("[data-diagram2-field-mapping-cell]");
+    if (nextCell === cell) return;
     renderer.clearFieldMappingHover?.();
   }, { signal });
 
@@ -445,6 +458,12 @@ export function bindDiagram2EditorInteractions(options = {}) {
       options.onStateChange?.();
       return;
     }
+    if (event.key === "Escape" && renderer.clearFieldMappingSelection?.()) {
+      event.preventDefault();
+      controller.setSelection([]);
+      options.onStateChange?.();
+      return;
+    }
     if (editableEventTarget(event.target)) return;
     if (command && key === "s") {
       event.preventDefault();
@@ -494,15 +513,18 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
-    const focusedMappingRow = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-field-mapping-row]");
-    if (focusedMappingRow && canvas.contains(focusedMappingRow)
+    const focusedMappingCell = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-field-mapping-cell]");
+    if (focusedMappingCell && canvas.contains(focusedMappingCell)
       && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      const mappingId = String(focusedMappingRow.dataset.diagram2FieldMappingId || "").trim();
-      controller.selectFieldMapping?.(mappingId, { focusTarget: event.key === "Enter" });
-      renderer.showFieldMappingHover?.(mappingId, {
-        tableId: focusedMappingRow.dataset.diagram2FieldMappingTableId
+      const mappingId = String(focusedMappingCell.dataset.diagram2FieldMappingId || "").trim();
+      const cellKind = focusedMappingCell.dataset.diagram2FieldMappingCellKind;
+      controller.selectFieldMapping?.(mappingId);
+      renderer.pinFieldMapping?.(mappingId, {
+        tableId: focusedMappingCell.dataset.diagram2FieldMappingTableId,
+        cellKind
       });
+      if (event.key === "Enter") renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
       options.onStateChange?.();
       return;
     }
@@ -814,14 +836,13 @@ export function bindDiagram2EditorInteractions(options = {}) {
     const initial = (event.shiftKey || event.ctrlKey || event.metaKey)
       ? controller.selectedObjectIds()
       : [];
-    if (!initial.length) controller.setSelection([]);
     const abortController = new AbortController();
     gesture = {
       kind: "marquee",
       abortController,
       start,
       initial,
-      selection: initial.slice(),
+      bounds: null,
       previewFrame: 0,
       pendingPointer: null
     };
@@ -868,16 +889,13 @@ export function bindDiagram2EditorInteractions(options = {}) {
     if (!pointer) return;
     active.pendingPointer = null;
     const point = renderer.screenToWorld(pointer);
-    const ids = renderer.previewMarquee({
+    active.bounds = {
       x: active.start.x,
       y: active.start.y,
       x2: point.x,
       y2: point.y
-    });
-    const nextSelection = [...new Set(active.initial.concat(ids))];
-    if (sameDiagram2IdList(active.selection, nextSelection)) return;
-    active.selection = nextSelection;
-    controller.setSelection(active.selection);
+    };
+    renderer.previewMarquee(active.bounds, { hitTest: false });
   }
 
   function capturePointer(event) {
@@ -1085,7 +1103,7 @@ function clearRelationshipRoutePreview(active) {
 
 async function afterMutation(options) {
   options.onStateChange?.();
-  const diagnostics = await options.renderer.whenIdle();
+  const diagnostics = await (options.renderer.whenInteractive?.() || options.renderer.whenIdle());
   options.onDiagnostics?.(diagnostics);
   options.onStateChange?.();
 }
@@ -1110,13 +1128,6 @@ function editableEventTarget(target) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
-}
-
-function sameDiagram2IdList(leftInput = [], rightInput = []) {
-  const left = Array.isArray(leftInput) ? leftInput : [];
-  const right = Array.isArray(rightInput) ? rightInput : [];
-  if (left.length !== right.length) return false;
-  return left.every((id, index) => String(id || "") === String(right[index] || ""));
 }
 
 function positiveNumber(value, fallback = 1) {

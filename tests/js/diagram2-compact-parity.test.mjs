@@ -9,6 +9,7 @@ import {
   annotationOutputBounds,
   autoFormatAnnotationEntitiesOrgTree,
   autoFormatAnnotationStateEntitiesOrgTree,
+  buildAnnotationSvg,
   normalizeAnnotationState,
   parseAnnotationSvg,
   syncAnnotationEntityAnnotationArrows
@@ -40,8 +41,46 @@ test("shared D1 Compact state helper preserves the legacy D1 UI result", () => {
     preferredRootId: fixture.preferredRootId
   });
 
-  assert.deepEqual(sharedState, legacyState);
+  assert.deepEqual(withoutCompactRouteCache(sharedState), withoutCompactRouteCache(legacyState));
   assert.deepEqual(sharedResult, legacyState.__compactResult);
+});
+
+test("Diagram 2 Compact repairs saved routes when no Entity needs to move", async () => {
+  const fixture = graphFixture("compact-routes-only", 5, [
+    { source: 1, target: 0 },
+    { source: 2, target: 0 },
+    { source: 3, target: 1 },
+    { source: 4, target: 1 }
+  ]);
+  const compactState = normalizeAnnotationState(structuredClone(fixture.state));
+  autoFormatAnnotationStateEntitiesOrgTree(compactState, {
+    preferredRootId: fixture.preferredRootId
+  });
+  delete compactState.compactEntityRelationshipRoutes;
+  delete compactState.compactEntityRelationshipRouteKey;
+  const positionsBefore = entityPositionSnapshot(compactState);
+
+  const result = await runDiagram2CompactEngine({
+    state: structuredClone(compactState),
+    preferredRootId: fixture.preferredRootId,
+    selectionAfter: [fixture.preferredRootId]
+  });
+
+  assert.equal(result.status, "Completed");
+  assert.ok(result.plan?.nextState);
+  assert.deepEqual(entityPositionSnapshot(result.plan.nextState), positionsBefore);
+  assert.equal(result.plan.nextState.compactEntityRelationshipRoutes.length, 4);
+  assert.ok(result.plan.nextState.compactEntityRelationshipRouteKey);
+  assert.equal(result.diagnostics.exactRouteCount, 4);
+  const savedState = parseAnnotationSvg(buildAnnotationSvg(result.plan.nextState));
+  assert.deepEqual(
+    savedState.compactEntityRelationshipRoutes,
+    result.plan.nextState.compactEntityRelationshipRoutes
+  );
+  assert.equal(
+    savedState.compactEntityRelationshipRouteKey,
+    result.plan.nextState.compactEntityRelationshipRouteKey
+  );
 });
 
 test("Diagram 2 Compact enforces D1 selection, Entity-count, and locked-Entity gates", async () => {
@@ -320,6 +359,19 @@ function compactResultState(result, fallbackState) {
   return result?.plan?.nextState
     ? normalizeAnnotationState(result.plan.nextState)
     : normalizeAnnotationState(structuredClone(fallbackState));
+}
+
+function withoutCompactRouteCache(stateInput) {
+  const state = structuredClone(stateInput);
+  delete state.compactEntityRelationshipRoutes;
+  delete state.compactEntityRelationshipRouteKey;
+  return state;
+}
+
+function entityPositionSnapshot(stateInput) {
+  return normalizeAnnotationState(stateInput).objects
+    .filter(object => object?.type === "entity")
+    .map(object => ({ id: object.id, x: object.x, y: object.y }));
 }
 
 function compactGeometrySnapshot(stateInput, routeSurface) {

@@ -70,7 +70,7 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
 test("Diagram 2 renderer destroys pending 232-entity stress work without stale live maps", async ({ page }) => {
   await page.goto("/css/base.css");
   const result = await page.evaluate(async state => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -132,7 +132,7 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
 test("Diagram 2 Phase 3 stays incremental within 232-entity performance budgets", async ({ page }) => {
   await page.goto("/css/base.css");
   const result = await page.evaluate(async state => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "0";
@@ -252,7 +252,7 @@ test("Diagram 2 Phase 3 stays incremental within 232-entity performance budgets"
 });
 
 test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle artifacts", async ({ page }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const browserErrors = [];
   page.on("console", message => {
     if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
@@ -287,7 +287,20 @@ test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle 
 
   const baseline = await diagram2LifecycleSnapshot(page);
 
-  for (let index = 0; index < 5; index += 1) {
+  const rteActions = [
+    "cancel",
+    "save",
+    "edit-save",
+    "cancel",
+    "save",
+    "edit-save",
+    "cancel",
+    "save",
+    "edit-save",
+    "cancel"
+  ];
+  const closedSnapshots = [];
+  for (const [index, action] of rteActions.entries()) {
     await openNavigationScreen(page, "Diagram 2");
     await waitForDiagram2Ready(page);
     await page.getByRole("button", { name: "Edit Diagram" }).click();
@@ -297,15 +310,48 @@ test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle 
     await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
     await openNavigationScreen(page, "Diagram");
     await expect(page.locator("[data-diagram2-screen]")).toHaveCount(0);
-    expectDiagram2ClosedSnapshot(await diagram2LifecycleSnapshot(page), baseline);
+    const topNavigationClosed = await diagram2LifecycleSnapshot(page);
+    if (topNavigationClosed.pendingTimeoutCount !== baseline.pendingTimeoutCount) {
+      console.info("DIAGRAM2_TOP_NAV_LIFECYCLE_TIMEOUTS", JSON.stringify({
+        baseline: baseline.pendingTimeouts,
+        closed: topNavigationClosed.pendingTimeouts
+      }));
+    }
+    expectDiagram2ClosedSnapshot(topNavigationClosed, baseline);
 
-    await openDiagram2RteCycle(page, index);
+    await openDiagram2RteCycle(page, index, action);
     await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
-    await page.locator("[data-diagram2-rte-host]").getByRole("button", { name: "Cancel", exact: true }).click();
+    await primeDiagram2RteLifecycleMapping(page);
+    if (action === "cancel") {
+      await page.locator("[data-diagram2-rte-host]").getByRole("button", { name: "Cancel", exact: true }).click();
+    } else {
+      await page.locator("[data-diagram2-rte-host]").getByRole("button", { name: "Apply to RTE", exact: true }).click();
+    }
     await page.evaluate(() => window.__diagram2AlternatingRtePromise);
-    expectDiagram2ClosedSnapshot(await diagram2LifecycleSnapshot(page), baseline);
+    const closed = await diagram2LifecycleSnapshot(page);
+    if (closed.pendingTimeoutCount !== baseline.pendingTimeoutCount) {
+      console.info("DIAGRAM2_LIFECYCLE_TIMEOUTS", JSON.stringify({
+        baseline: baseline.pendingTimeouts,
+        closed: closed.pendingTimeouts
+      }));
+    }
+    expectDiagram2ClosedSnapshot(closed, baseline);
+    expect(closed.activeElementId).toBe("diagram2-rte-lifecycle-image");
+    closedSnapshots.push(closed);
   }
 
+  expect(await page.evaluate(() => window.__diagram2LifecycleApplyCount || 0)).toBe(6);
+  const countSignatures = closedSnapshots.map(snapshot => [
+    snapshot.windowListenerCount,
+    snapshot.activeObjectUrlCount,
+    snapshot.pendingAnimationFrameCount,
+    snapshot.pendingTimeoutCount,
+    snapshot.workerCount,
+    snapshot.resizeObserverCount,
+    snapshot.mutationObserverCount,
+    snapshot.intersectionObserverCount
+  ].join(":"));
+  expect(new Set(countSignatures).size).toBe(1);
   expect(browserErrors).toEqual([]);
 });
 
@@ -481,6 +527,9 @@ async function openNavigationScreen(page, view) {
 async function waitForDiagram2Ready(page) {
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  await expect.poll(() => page.evaluate(() =>
+    Number(window.__pmtDiagram2Renderer?.diagnostics?.().canonicalObjectCount || 0)
+  )).toBeGreaterThan(0);
   await page.evaluate(() => window.__pmtDiagram2Renderer?.whenIdle?.());
   return page.evaluate(() => ({
     descendantCount: document.querySelector("[data-diagram2-svg]")?.querySelectorAll("*").length || 0,
@@ -502,9 +551,18 @@ async function installDiagram2LifecycleInstrumentation(page) {
     const originalRevokeObjectUrl = URL.revokeObjectURL.bind(URL);
     const originalRequestAnimationFrame = window.requestAnimationFrame.bind(window);
     const originalCancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+    const originalSetTimeout = window.setTimeout.bind(window);
+    const originalClearTimeout = window.clearTimeout.bind(window);
     const windowListeners = [];
     const objectUrls = new Set();
     const animationFrames = new Set();
+    const timeouts = new Map();
+    const workers = new Set();
+    const observers = {
+      ResizeObserver: new Set(),
+      MutationObserver: new Set(),
+      IntersectionObserver: new Set()
+    };
 
     function captureValue(options) {
       return typeof options === "boolean" ? options : Boolean(options?.capture);
@@ -556,12 +614,72 @@ async function installDiagram2LifecycleInstrumentation(page) {
       animationFrames.delete(handle);
       return originalCancelAnimationFrame(handle);
     };
+    window.setTimeout = (callback, delay, ...args) => {
+      let handle = 0;
+      handle = originalSetTimeout((...callbackArgs) => {
+        timeouts.delete(handle);
+        callback(...callbackArgs);
+      }, delay, ...args);
+      timeouts.set(handle, {
+        delay: Number(delay || 0),
+        callback: String(callback || "").slice(0, 120)
+      });
+      return handle;
+    };
+    window.clearTimeout = handle => {
+      timeouts.delete(handle);
+      return originalClearTimeout(handle);
+    };
+
+    if (typeof window.Worker === "function") {
+      const NativeWorker = window.Worker;
+      window.Worker = class InstrumentedWorker extends NativeWorker {
+        constructor(...args) {
+          super(...args);
+          workers.add(this);
+        }
+
+        terminate() {
+          workers.delete(this);
+          return super.terminate();
+        }
+      };
+    }
+
+    for (const name of Object.keys(observers)) {
+      const NativeObserver = window[name];
+      if (typeof NativeObserver !== "function") continue;
+      const active = observers[name];
+      window[name] = class InstrumentedObserver extends NativeObserver {
+        constructor(...args) {
+          super(...args);
+          active.add(this);
+        }
+
+        observe(...args) {
+          active.add(this);
+          return super.observe(...args);
+        }
+
+        disconnect() {
+          active.delete(this);
+          return super.disconnect();
+        }
+      };
+    }
+
     window.__diagram2LifecycleInstrumentation = {
       snapshot() {
         return {
           windowListenerCount: windowListeners.length,
           activeObjectUrlCount: objectUrls.size,
-          pendingAnimationFrameCount: animationFrames.size
+          pendingAnimationFrameCount: animationFrames.size,
+          pendingTimeoutCount: timeouts.size,
+          pendingTimeouts: [...timeouts.values()],
+          workerCount: workers.size,
+          resizeObserverCount: observers.ResizeObserver.size,
+          mutationObserverCount: observers.MutationObserver.size,
+          intersectionObserverCount: observers.IntersectionObserver.size
         };
       }
     };
@@ -581,28 +699,86 @@ async function ensureDiagram2RteFixture(page) {
     }
     host.innerHTML = `
       <div class="rich-editor" contenteditable="true">
-        <p><img id="diagram2-rte-lifecycle-image" src="/uploads/original.svg" alt="Original" style="width: 160px;"></p>
+        <p><img id="diagram2-rte-lifecycle-image" src="/uploads/original.svg" alt="Original" style="width: 160px;" tabindex="0"></p>
       </div>
     `;
   });
 }
 
-async function openDiagram2RteCycle(page, cycle) {
-  await page.evaluate(async index => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+async function openDiagram2RteCycle(page, cycle, action = "cancel") {
+  await page.evaluate(async ({ index, cycleAction }) => {
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
     const image = document.querySelector("#diagram2-rte-lifecycle-image");
-    image.setAttribute("src", `/uploads/original.svg?cycle=${index}`);
+    const editing = cycleAction === "edit-save" && Boolean(window.__diagram2LifecycleSavedSvg);
+    const annotationUrl = editing
+      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(window.__diagram2LifecycleSavedSvg)}`
+      : "";
+    const source = editing ? annotationUrl : `/uploads/original.svg?cycle=${index}`;
+    image.setAttribute("src", source);
+    image.focus({ preventScroll: true });
     window.__diagram2AlternatingRtePromise = openDiagram2RteAnnotationHost({
       image,
       editor: document.querySelector("#diagram2-rte-lifecycle-fixture .rich-editor"),
-      source: `/uploads/original.svg?cycle=${index}`,
+      source,
+      annotationUrl,
+      annotated: editing,
       originalReference: "/uploads/original.svg",
-      originalUrl: `/uploads/original.svg?cycle=${index}`,
+      originalUrl: editing ? "" : source,
       originalFileName: "original.svg",
       canEdit: true,
-      apply: async () => {}
+      restoreFocus: () => image.focus({ preventScroll: true }),
+      apply: async annotation => {
+        window.__diagram2LifecycleSavedSvg = annotation.svg;
+        window.__diagram2LifecycleApplyCount = (window.__diagram2LifecycleApplyCount || 0) + 1;
+        const nextSource = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(annotation.svg)}`;
+        image.setAttribute("src", nextSource);
+        image.dataset.pmtAnnotationVersion = String(annotation.state.version || 1);
+      }
     });
-  }, cycle);
+  }, { index: cycle, cycleAction: action });
+}
+
+async function primeDiagram2RteLifecycleMapping(page) {
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const image = controller.currentState().objects
+      .find(object => object.type === "embedded-image" && object.isOriginalImage === true);
+    if (!controller.getObjectById("lifecycle-entity")) {
+      await controller.addEntity({
+        schema: "pmt",
+        name: "Lifecycle",
+        fields: [
+          { name: "LifecycleId", dataType: "INT", nullable: false, isPrimaryKey: true, isImportant: true }
+        ]
+      }, { x: 380, y: 40 }, { id: "lifecycle-entity" });
+      await controller.addFieldRectangle(
+        { x: 80, y: 90 },
+        { id: "lifecycle-field", name: "LifecycleId", width: 150, height: 48 }
+      );
+      await controller.setFieldRectangleMapping("lifecycle-field", {
+        referencedEntity: "pmt.Lifecycle",
+        referencedField: "LifecycleId",
+        relationshipType: "many-to-one"
+      });
+      await controller.addFieldMappingTable(image.id, {
+        id: "lifecycle-table",
+        x: 120,
+        y: 260
+      });
+    }
+    renderer.focusObjectIds(
+      ["lifecycle-field", "lifecycle-entity", "lifecycle-table"],
+      { scale: 0.9, reason: "lifecycle mapping timer" }
+    );
+    await renderer.whenIdle();
+    const mappingId = [...controller.fieldMappingIndexes().mappingsById.keys()][0];
+    renderer.pinFieldMapping(mappingId, {
+      tableId: "lifecycle-table",
+      cellKind: "ui"
+    });
+  });
+  await expect(page.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
 }
 
 async function diagram2LifecycleSnapshot(page) {
@@ -621,7 +797,8 @@ async function diagram2LifecycleSnapshot(page) {
     editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
     rteHostLive: Boolean(window.__pmtDiagram2RteHost),
     compatibilityLive: Boolean(window.__pmtDiagram2Compatibility),
-    selectionClipboardLive: Boolean(window.__pmtDiagram2SelectionClipboard)
+    selectionClipboardLive: Boolean(window.__pmtDiagram2SelectionClipboard),
+    activeElementId: document.activeElement?.id || ""
   }));
 }
 
@@ -644,6 +821,11 @@ function expectDiagram2ClosedSnapshot(snapshot, baseline) {
   expect(snapshot.windowListenerCount).toBe(baseline.windowListenerCount);
   expect(snapshot.activeObjectUrlCount).toBe(baseline.activeObjectUrlCount);
   expect(snapshot.pendingAnimationFrameCount).toBe(baseline.pendingAnimationFrameCount);
+  expect(snapshot.pendingTimeoutCount).toBe(baseline.pendingTimeoutCount);
+  expect(snapshot.workerCount).toBe(baseline.workerCount);
+  expect(snapshot.resizeObserverCount).toBe(baseline.resizeObserverCount);
+  expect(snapshot.mutationObserverCount).toBe(baseline.mutationObserverCount);
+  expect(snapshot.intersectionObserverCount).toBe(baseline.intersectionObserverCount);
 }
 
 function testState() {

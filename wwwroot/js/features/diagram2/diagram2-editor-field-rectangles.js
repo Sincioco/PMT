@@ -1,8 +1,8 @@
 import {
   normalizeAnnotationState,
   setAnnotationEntityFieldForeignKeyMapping
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
-import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-closure-v13";
 
 export function isDiagram2FieldRectangle(object) {
   return object?.type === "entity" && object.entityKind === "field-rectangle";

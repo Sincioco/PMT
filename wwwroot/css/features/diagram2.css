@@ -333,12 +333,24 @@ body.diagram2-edit-mode-active #app {
   fill: var(--diagram2-field-mapping-row-hover-fill);
 }
 
-.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row] {
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row].is-pinned [data-diagram2-field-mapping-cell-fill] {
+  fill: var(--diagram2-field-mapping-row-hover-fill);
+}
+
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-cell] {
   cursor: pointer;
   outline: none;
 }
 
-.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row]:focus-visible [data-diagram2-field-mapping-cell-fill] {
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-cell-fill] {
+  transition: fill 120ms ease;
+}
+
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-cell]:hover text {
+  font-weight: var(--font-weight-semibold);
+}
+
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-cell]:focus-visible [data-diagram2-field-mapping-cell-fill] {
   stroke: var(--color-focus-ring);
   stroke-width: 2;
 }

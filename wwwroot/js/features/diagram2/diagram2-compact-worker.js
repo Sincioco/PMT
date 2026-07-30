@@ -1,4 +1,4 @@
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-phase6-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260730-diagram2-phase6-closure-v13";
 
 let canceled = false;
 

@@ -7,11 +7,11 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "./components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
-} from "./components/diagram-field-mapping-interactions.js?v=20260730-diagram2-phase6-v1";
+} from "./components/diagram-field-mapping-interactions.js?v=20260730-diagram2-phase6-closure-v13";
 import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import {
   htmlWithoutUserMentionMarkup,
@@ -66,7 +66,7 @@ import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   diagramSharedDocumentContract,
   normalizeDiagramTemplateLibrary
-} from "./shared/diagram-contracts.js?v=20260730-diagram2-phase6-v1";
+} from "./shared/diagram-contracts.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createAboutAuthFlyby,
   createAboutFeature,
@@ -76,9 +76,9 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260730-diagram2-phase6-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260730-diagram2-phase6-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-v1";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260730-diagram2-phase6-closure-v13";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260730-diagram2-phase6-closure-v13";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,

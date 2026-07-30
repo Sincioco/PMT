@@ -2,7 +2,7 @@ import {
   diagram2FieldMappingIdentity,
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-closure-v13";
 
 export function createDiagram2FieldMappingIndexes(objectsInput = []) {
   const objects = Array.isArray(objectsInput) ? objectsInput : [];

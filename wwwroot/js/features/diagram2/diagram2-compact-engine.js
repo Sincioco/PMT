@@ -1,8 +1,8 @@
-import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-v1";
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2CompactDiagnostics,
   diagram2CompactPhases
-} from "./diagram2-route-costing.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-route-costing.js?v=20260730-diagram2-phase6-closure-v13";
 
 export async function runDiagram2CompactEngine(input = {}) {
   const startedAt = performanceNow();
@@ -72,6 +72,9 @@ export async function runDiagram2CompactEngine(input = {}) {
     };
   }
 
+  const relationshipRoutes = Array.isArray(plan.nextState.compactEntityRelationshipRoutes)
+    ? plan.nextState.compactEntityRelationshipRoutes
+    : [];
   progress(phaseCount - 1);
   return {
     status: "Completed",
@@ -79,12 +82,14 @@ export async function runDiagram2CompactEngine(input = {}) {
       ...plan,
       diagnostics: {
         ...(plan.diagnostics || {}),
+        exactRouteCount: relationshipRoutes.length,
         totalElapsedMs: performanceNow() - startedAt,
         finalStatus: "Completed"
       }
     },
     diagnostics: {
       ...(plan.diagnostics || {}),
+      exactRouteCount: relationshipRoutes.length,
       totalElapsedMs: performanceNow() - startedAt,
       finalStatus: "Completed"
     }

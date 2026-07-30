@@ -27,6 +27,7 @@ test.use({ timezoneId: "Asia/Taipei" });
 test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mapping, and save/reopen", async ({ page }, testInfo) => {
   const browserErrors = [];
   const pngBytes = await readFile(new URL("../../wwwroot/assets/pmt-logo-full.png", import.meta.url));
+  const pngBase64 = pngBytes.toString("base64");
   let apiState = appState(601, "Diagram 2 Phase 6", phase6State());
   let uploadedSvg = "";
   let uploadedImageCount = 0;
@@ -102,18 +103,8 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
   await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
 
-  const fileChooserPromise = page.waitForEvent("filechooser");
-  await page.locator("[data-action='add-diagram2-image']").click();
-  const fileChooser = await fileChooserPromise;
-  await fileChooser.setFiles({
-    name: "phase6-upload.png",
-    mimeType: "image/png",
-    buffer: pngBytes
-  });
-  await expect.poll(() => page.evaluate(() =>
-    window.__pmtDiagram2EditorCore.currentState().objects
-      .filter(object => object.type === "embedded-image").length
-  )).toBe(2);
+  const droppedImage = await assertDiagram2ImageDrop(page, pngBase64);
+  expect(uploadedImageCount).toBe(1);
 
   await page.locator("[data-diagram2-tool='crop']").click();
   await expect(page.locator("[data-diagram2-inspector-tab='crop']")).toBeVisible();
@@ -133,7 +124,7 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     const renderer = window.__pmtDiagram2Renderer;
     const selected = controller.getObjectById(controller.selectedObjectIds()[0]);
     const before = renderer.diagnostics();
-    const historyBefore = controller.historyStatus().undoCount;
+    const historyBefore = controller.historyStatus().entryCount;
     renderer.setCropTarget(selected.id);
     renderer.previewCrop(selected.id, {
       ...selected.imageClip,
@@ -152,7 +143,7 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
       cropFramesBefore: before.cropPreviewFrameCount,
       cropFramesAfter: after.cropPreviewFrameCount,
       historyBefore,
-      historyAfter: controller.historyStatus().undoCount
+      historyAfter: controller.historyStatus().entryCount
     };
   });
   expect(cropPreviewMetrics.fullRendersAfter).toBe(cropPreviewMetrics.fullRendersBefore);
@@ -164,6 +155,10 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "chromium-1366",
     "diagram2-phase6-topnav-image-crop-1366x768.png"
   );
+
+  const permanentCrop = await assertDiagram2PermanentCrop(page, droppedImage);
+  const pastedImage = await assertDiagram2ClipboardImagePaste(page, pngBase64);
+  expect(uploadedImageCount).toBe(2);
 
   await page.evaluate(() => {
     window.__pmtDiagram2EditorCore.setActiveTool("select");
@@ -211,13 +206,13 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   const mappingRow = page.locator("[data-diagram2-field-mapping-row]").first();
   const mappingHoverMetrics = await page.evaluate(() => ({
     fullRenderCount: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
-    historyCount: window.__pmtDiagram2EditorCore.historyStatus().undoCount
+    historyCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount
   }));
   await mappingRow.hover();
   await expect(page.locator("[data-diagram2-field-mapping-hover]")).toBeVisible();
   const mappingHoverAfter = await page.evaluate(() => ({
     fullRenderCount: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
-    historyCount: window.__pmtDiagram2EditorCore.historyStatus().undoCount,
+    historyCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
     hoverPatchCount: window.__pmtDiagram2Renderer.diagnostics().mappingHoverPatchCount
   }));
   expect(mappingHoverAfter.fullRenderCount).toBe(mappingHoverMetrics.fullRenderCount);
@@ -262,12 +257,44 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   expect(savedState.objects.some(object => object.type === "embedded-image")).toBe(true);
   expect(savedState.objects.some(object => object.entityKind === "field-rectangle")).toBe(true);
   expect(savedState.objects.some(object => object.type === "field-mapping-table")).toBe(true);
+  expect(savedState.objects.find(object => object.id === permanentCrop.id)).toMatchObject({
+    source: permanentCrop.source,
+    x: permanentCrop.x,
+    y: permanentCrop.y,
+    width: permanentCrop.width,
+    height: permanentCrop.height,
+    imageClip: permanentCrop.imageClip,
+    cropPermanent: true
+  });
+  expect(savedState.objects.find(object => object.id === pastedImage.id)).toMatchObject({
+    name: "Clipboard phase6.png",
+    source: "/uploads/diagram2-phase6-image-2.png"
+  });
 
   await page.locator("[data-action='cancel-diagram2-editor']").click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
   await expect(page.locator("[data-diagram2-field-mapping-row]")).toContainText("Title");
   await page.locator("[data-diagram2-field-mapping-row]").first().hover();
   await expect(page.locator("[data-diagram2-field-mapping-hover]")).toBeVisible();
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect.poll(() => page.evaluate(({ permanentId, pastedId }) => {
+    const objects = window.__pmtDiagram2EditorCore?.currentState?.().objects || [];
+    const permanent = objects.find(object => object.id === permanentId);
+    const pasted = objects.find(object => object.id === pastedId);
+    return {
+      permanentSource: permanent?.source || "",
+      permanentClip: permanent?.imageClip || null,
+      permanentCrop: permanent?.cropPermanent === true,
+      pastedSource: pasted?.source || ""
+    };
+  }, { permanentId: permanentCrop.id, pastedId: pastedImage.id })).toEqual({
+    permanentSource: permanentCrop.source,
+    permanentClip: permanentCrop.imageClip,
+    permanentCrop: true,
+    pastedSource: "/uploads/diagram2-phase6-image-2.png"
+  });
+  await page.locator("[data-action='cancel-diagram2-editor']").click();
   expect(browserErrors).toEqual([]);
 });
 
@@ -359,6 +386,517 @@ test("Diagram 2 Phase 6 keeps a localized mapping editable in a 1,000-object Dia
   expect(browserErrors).toEqual([]);
 });
 
+test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and timed arrows", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-1920", "The closure oracle screenshots require 1920x1080.");
+  const canonicalState = phase6State();
+  const canonicalTable = canonicalState.objects.find(object => object.id === "table-phase6");
+  canonicalTable.fieldMappingHighlightColor = "#facc15";
+  canonicalTable.fieldMappingHighlightStrokeWidth = 9;
+  const mappingId = "mapping:field-phase6:taskid";
+
+  await page.route("**/__phase6-field-mapping-closure", route => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: "<!doctype html><html><head><title>Field Mapping Closure</title></head><body></body></html>"
+  }));
+  await page.goto("/__phase6-field-mapping-closure");
+  for (const url of [
+    "/css/tokens.css",
+    "/css/themes.css",
+    "/css/base.css",
+    "/css/components/image-annotation.css",
+    "/css/features/diagram2.css"
+  ]) {
+    await page.addStyleTag({ url });
+  }
+
+  const d1Evidence = await page.evaluate(async state => {
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
+    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260730-diagram2-phase6-closure-v13");
+    document.body.innerHTML = `<main class="phase6-closure-canvas" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
+    const host = document.querySelector(".phase6-closure-canvas");
+    const svgMarkup = annotation.buildAnnotationSvg(state, {
+      entityHeaderButtonsVisible: false,
+      interactiveFieldMapping: true
+    });
+    host.innerHTML = svgMarkup;
+    const svg = host.querySelector("svg");
+    positionOracleSvg(svg, state);
+    interactions.bindDiagramFieldMappingInteractions(svg, svgMarkup);
+    const table = svg.querySelector("[data-annotation-object-id='table-phase6']");
+    window.__phase6D1TableFingerprint = tableFingerprint(table, "d1");
+    window.__phase6ArrowFingerprint = () => attentionArrowFingerprint(
+      svg.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
+    );
+    window.__phase6D1HighlightFingerprint = () => highlightFingerprint(svg);
+    return {
+      table: window.__phase6D1TableFingerprint,
+      uiCellCount: table.querySelectorAll("[data-annotation-field-mapping-cell-kind='ui']").length,
+      databaseCellCount: table.querySelectorAll("[data-annotation-field-mapping-cell-kind='database']").length
+    };
+
+    function positionOracleSvg(target, diagramState) {
+      const bounds = diagramState.objects.reduce((result, object) => {
+        const left = Number(object.x ?? object.x1 ?? 0);
+        const top = Number(object.y ?? object.y1 ?? 0);
+        const right = object.x2 != null ? Number(object.x2) : left + Number(object.width || 0);
+        const bottom = object.y2 != null ? Number(object.y2) : top + Number(object.height || 0);
+        return {
+          left: Math.min(result.left, left),
+          top: Math.min(result.top, top),
+          right: Math.max(result.right, right),
+          bottom: Math.max(result.bottom, bottom)
+        };
+      }, { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
+      const centerX = (bounds.left + bounds.right) / 2;
+      const centerY = (bounds.top + bounds.bottom) / 2;
+      target.style.position = "absolute";
+      target.style.width = `${diagramState.width}px`;
+      target.style.height = `${diagramState.height}px`;
+      target.style.left = `${(innerWidth / 2) - centerX}px`;
+      target.style.top = `${(innerHeight / 2) - centerY}px`;
+      target.style.overflow = "visible";
+    }
+
+    function tableFingerprint(table, renderer) {
+      const offsetX = renderer === "d2" ? Number(table.dataset.diagram2ObjectTransformX || 0) : 0;
+      const offsetY = renderer === "d2" ? Number(table.dataset.diagram2ObjectTransformY || 0) : 0;
+      const cells = [...table.querySelectorAll(renderer === "d2"
+        ? "[data-diagram2-field-mapping-cell]"
+        : "[data-annotation-field-mapping-cell]")];
+      const rowSelector = renderer === "d2"
+        ? "[data-diagram2-field-mapping-row]"
+        : "[data-annotation-field-mapping-row]";
+      const header = renderer === "d2"
+        ? table.querySelector("[data-diagram2-field-mapping-header] rect")
+        : [...table.querySelectorAll(":scope > rect")].find(rect => rect.getAttribute("fill") !== "none");
+      const outline = renderer === "d2"
+        ? table.querySelector(".diagram2-renderer-field-mapping-outline")
+        : [...table.querySelectorAll(":scope > rect")].find(rect => rect.getAttribute("fill") === "none");
+      const texts = [...table.querySelectorAll("text")];
+      const lines = [...table.querySelectorAll("line")];
+      const rowHoverStyle = (table.querySelector(rowSelector)?.getAttribute("style") || "")
+        .match(/row-hover-fill:\s*([^;]+)/)?.[1]?.trim() || "";
+      return {
+        opacity: table.getAttribute("opacity") || "1",
+        header: rectFingerprint(header, offsetX, offsetY),
+        outline: rectFingerprint(outline, offsetX, offsetY),
+        cells: cells.map(cell => {
+          const kind = renderer === "d2"
+            ? cell.dataset.diagram2FieldMappingCellKind
+            : cell.dataset.annotationFieldMappingCellKind;
+          const prefix = renderer === "d2" ? "diagram2FieldMappingCell" : "annotationFieldMappingCell";
+          const row = cell.closest(rowSelector);
+          const rowSource = renderer === "d2" ? row.dataset : cell.dataset;
+          const rowPrefix = renderer === "d2" ? "diagram2FieldMappingRow" : "annotationFieldMappingRow";
+          const fill = cell.querySelector(renderer === "d2"
+            ? "[data-diagram2-field-mapping-cell-fill]"
+            : "[data-annotation-field-mapping-cell-fill]");
+          const text = cell.querySelector("text");
+          return {
+            kind,
+            role: cell.getAttribute("role"),
+            tabindex: cell.getAttribute("tabindex"),
+            ariaLabel: cell.getAttribute("aria-label"),
+            fieldRectangleId: renderer === "d2"
+              ? cell.dataset.diagram2FieldRectangleId
+              : cell.dataset.annotationFieldRectangleId,
+            geometry: {
+              x: rounded(Number(cell.dataset[`${prefix}X`] || 0) + offsetX),
+              y: rounded(Number(cell.dataset[`${prefix}Y`] || 0) + offsetY),
+              width: rounded(cell.dataset[`${prefix}Width`]),
+              height: rounded(cell.dataset[`${prefix}Height`])
+            },
+            rowGeometry: {
+              x: rounded(Number(rowSource[`${rowPrefix}X`] || 0) + offsetX),
+              y: rounded(Number(rowSource[`${rowPrefix}Y`] || 0) + offsetY),
+              width: rounded(rowSource[`${rowPrefix}Width`]),
+              height: rounded(rowSource[`${rowPrefix}Height`])
+            },
+            fill: fill?.getAttribute("fill") || "",
+            text: textFingerprint(text, offsetX, offsetY)
+          };
+        }),
+        texts: texts.map(text => textFingerprint(text, offsetX, offsetY)),
+        lines: lines.map(line => ({
+          x1: rounded(Number(line.getAttribute("x1") || 0) + offsetX),
+          y1: rounded(Number(line.getAttribute("y1") || 0) + offsetY),
+          x2: rounded(Number(line.getAttribute("x2") || 0) + offsetX),
+          y2: rounded(Number(line.getAttribute("y2") || 0) + offsetY),
+          stroke: line.getAttribute("stroke") || "",
+          strokeWidth: line.getAttribute("stroke-width") || "1",
+          vectorEffect: line.getAttribute("vector-effect") || ""
+        })),
+        rowHoverFill: rowHoverStyle
+      };
+    }
+
+    function rectFingerprint(rect, offsetX, offsetY) {
+      return {
+        x: rounded(Number(rect?.getAttribute("x") || 0) + offsetX),
+        y: rounded(Number(rect?.getAttribute("y") || 0) + offsetY),
+        width: rounded(rect?.getAttribute("width")),
+        height: rounded(rect?.getAttribute("height")),
+        fill: rect?.getAttribute("fill") || "",
+        stroke: rect?.getAttribute("stroke") || "none",
+        strokeWidth: rect?.getAttribute("stroke-width") || "1",
+        vectorEffect: rect?.getAttribute("vector-effect") || ""
+      };
+    }
+
+    function textFingerprint(text, offsetX, offsetY) {
+      return {
+        value: text?.textContent || "",
+        x: rounded(Number(text?.getAttribute("x") || 0) + offsetX),
+        y: rounded(Number(text?.getAttribute("y") || 0) + offsetY),
+        fill: text?.getAttribute("fill") || "",
+        fontFamily: text?.getAttribute("font-family") || "",
+        fontSize: text?.getAttribute("font-size") || "",
+        fontWeight: text?.getAttribute("font-weight") || "400",
+        clipPath: Boolean(text?.getAttribute("clip-path"))
+      };
+    }
+
+    function attentionArrowFingerprint(nodes) {
+      return [...nodes].map(node => {
+        const line = node.matches("line") ? node : node.querySelector("line");
+        const polygon = node.matches("polygon") ? node : node.querySelector("polygon");
+        const style = line ? getComputedStyle(line) : null;
+        return {
+          start: {
+            x: rounded(line?.getAttribute("x1")),
+            y: rounded(line?.getAttribute("y1"))
+          },
+          lineEnd: {
+            x: rounded(line?.getAttribute("x2")),
+            y: rounded(line?.getAttribute("y2"))
+          },
+          head: String(polygon?.getAttribute("points") || "").trim().split(/\s+/).filter(Boolean)
+            .map(pair => {
+              const [x, y] = pair.split(",").map(Number);
+              return { x: rounded(x), y: rounded(y) };
+            }),
+          stroke: style?.stroke || "",
+          strokeWidth: style?.strokeWidth || "",
+          dasharray: style?.strokeDasharray || "",
+          linecap: style?.strokeLinecap || "",
+          opacity: style?.opacity || "",
+          vectorEffect: style?.vectorEffect || "",
+          headFill: polygon ? getComputedStyle(polygon).fill : ""
+        };
+      });
+    }
+
+    function highlightFingerprint(root) {
+      return [
+        ...[...root.querySelectorAll(".image-annotation-field-mapping-attention-rect")].map(rect => {
+          const style = getComputedStyle(rect);
+          return {
+            kind: "rect",
+            x1: rounded(rect.getAttribute("x")),
+            y1: rounded(rect.getAttribute("y")),
+            x2: rounded(Number(rect.getAttribute("x")) + Number(rect.getAttribute("width"))),
+            y2: rounded(Number(rect.getAttribute("y")) + Number(rect.getAttribute("height"))),
+            stroke: style.stroke,
+            strokeWidth: style.strokeWidth,
+            dasharray: style.strokeDasharray,
+            linecap: style.strokeLinecap,
+            opacity: style.opacity
+          };
+        }),
+        ...[...root.querySelectorAll(".image-annotation-field-mapping-attention-line")].map(line => {
+          const style = getComputedStyle(line);
+          return {
+            kind: "line",
+            x1: rounded(line.getAttribute("x1")),
+            y1: rounded(line.getAttribute("y1")),
+            x2: rounded(line.getAttribute("x2")),
+            y2: rounded(line.getAttribute("y2")),
+            stroke: style.stroke,
+            strokeWidth: style.strokeWidth,
+            dasharray: style.strokeDasharray,
+            linecap: style.strokeLinecap,
+            opacity: style.opacity
+          };
+        })
+      ];
+    }
+
+    function rounded(value) {
+      return Math.round((Number(value) || 0) * 1000) / 1000;
+    }
+  }, canonicalState);
+  expect(d1Evidence.uiCellCount).toBe(1);
+  expect(d1Evidence.databaseCellCount).toBe(1);
+  await capturePhase6ClosureScreenshot(page, "field-mapping-table-d1-idle-1920x1080.png");
+
+  const d1UiCell = page.locator("[data-annotation-field-mapping-cell-kind='ui']").first();
+  await d1UiCell.click();
+  await expect(page.locator("[data-annotation-field-mapping-attention-arrow]")).toHaveCount(2);
+  const d1UiArrows = await page.evaluate(() => window.__phase6ArrowFingerprint());
+  const d1Highlight = await page.evaluate(() => window.__phase6D1HighlightFingerprint());
+  await capturePhase6ClosureScreenshot(page, "field-mapping-table-d1-ui-cell-arrows-1920x1080.png");
+
+  const d1DatabaseCell = page.locator("[data-annotation-field-mapping-cell-kind='database']").first();
+  await d1DatabaseCell.click();
+  await expect(page.locator("[data-annotation-field-mapping-attention-arrow]")).toHaveCount(2);
+  const d1DatabaseArrows = await page.evaluate(() => window.__phase6ArrowFingerprint());
+  await capturePhase6ClosureScreenshot(page, "field-mapping-table-d1-database-cell-arrows-1920x1080.png");
+
+  const d2Evidence = await page.evaluate(async ({ state, mappingId: activeMappingId }) => {
+    document.body.innerHTML = `<main id="phase6D2Host" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
+    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-closure-v13");
+    const host = document.querySelector("#phase6D2Host");
+    const renderer = createDiagram2Renderer({ host });
+    renderer.render(state, { reason: "Phase 6 D1/D2 closure oracle" });
+    renderer.focusObjectIds(
+      ["image-phase6", "field-phase6", "entity-phase6", "table-phase6"],
+      { scale: 1, reason: "Phase 6 D1/D2 closure oracle" }
+    );
+    await renderer.whenIdle();
+    const table = host.querySelector("[data-diagram2-object-id='table-phase6']");
+    const fingerprint = tableFingerprint(table);
+    const before = renderer.diagnostics();
+    window.__phase6D2Renderer = renderer;
+    window.__phase6D2MappingId = activeMappingId;
+    window.__phase6D2ArrowFingerprint = attentionArrowFingerprint;
+    window.__phase6D2HighlightFingerprint = () => highlightFingerprint(host);
+    return {
+      table: fingerprint,
+      uiCellCount: table.querySelectorAll("[data-diagram2-field-mapping-cell][data-diagram2-field-mapping-cell-kind='ui']").length,
+      databaseCellCount: table.querySelectorAll("[data-diagram2-field-mapping-cell][data-diagram2-field-mapping-cell-kind='database']").length,
+      fullRenderCount: before.fullRenderCount,
+      relationshipRerouteCount: before.selectiveRoutingRelationshipsRerouted
+    };
+
+    function tableFingerprint(table) {
+      const offsetX = Number(table.dataset.diagram2ObjectTransformX || 0);
+      const offsetY = Number(table.dataset.diagram2ObjectTransformY || 0);
+      const cells = [...table.querySelectorAll("[data-diagram2-field-mapping-cell]")];
+      const header = table.querySelector("[data-diagram2-field-mapping-header] rect");
+      const outline = table.querySelector(".diagram2-renderer-field-mapping-outline");
+      const texts = [...table.querySelectorAll("text")];
+      const lines = [...table.querySelectorAll("line")];
+      const row = table.querySelector("[data-diagram2-field-mapping-row]");
+      const rowHoverStyle = (row?.getAttribute("style") || "")
+        .match(/row-hover-fill:\s*([^;]+)/)?.[1]?.trim() || "";
+      return {
+        opacity: table.getAttribute("opacity") || "1",
+        header: rectFingerprint(header, offsetX, offsetY),
+        outline: rectFingerprint(outline, offsetX, offsetY),
+        cells: cells.map(cell => {
+          const fill = cell.querySelector("[data-diagram2-field-mapping-cell-fill]");
+          const text = cell.querySelector("text");
+          const rowNode = cell.closest("[data-diagram2-field-mapping-row]");
+          return {
+            kind: cell.dataset.diagram2FieldMappingCellKind,
+            role: cell.getAttribute("role"),
+            tabindex: cell.getAttribute("tabindex"),
+            ariaLabel: cell.getAttribute("aria-label"),
+            fieldRectangleId: cell.dataset.diagram2FieldRectangleId,
+            geometry: {
+              x: rounded(Number(cell.dataset.diagram2FieldMappingCellX || 0) + offsetX),
+              y: rounded(Number(cell.dataset.diagram2FieldMappingCellY || 0) + offsetY),
+              width: rounded(cell.dataset.diagram2FieldMappingCellWidth),
+              height: rounded(cell.dataset.diagram2FieldMappingCellHeight)
+            },
+            rowGeometry: {
+              x: rounded(Number(rowNode.dataset.diagram2FieldMappingRowX || 0) + offsetX),
+              y: rounded(Number(rowNode.dataset.diagram2FieldMappingRowY || 0) + offsetY),
+              width: rounded(rowNode.dataset.diagram2FieldMappingRowWidth),
+              height: rounded(rowNode.dataset.diagram2FieldMappingRowHeight)
+            },
+            fill: fill?.getAttribute("fill") || "",
+            text: textFingerprint(text, offsetX, offsetY)
+          };
+        }),
+        texts: texts.map(text => textFingerprint(text, offsetX, offsetY)),
+        lines: lines.map(line => ({
+          x1: rounded(Number(line.getAttribute("x1") || 0) + offsetX),
+          y1: rounded(Number(line.getAttribute("y1") || 0) + offsetY),
+          x2: rounded(Number(line.getAttribute("x2") || 0) + offsetX),
+          y2: rounded(Number(line.getAttribute("y2") || 0) + offsetY),
+          stroke: line.getAttribute("stroke") || "",
+          strokeWidth: line.getAttribute("stroke-width") || "1",
+          vectorEffect: line.getAttribute("vector-effect") || ""
+        })),
+        rowHoverFill: rowHoverStyle
+      };
+    }
+
+    function rectFingerprint(rect, offsetX, offsetY) {
+      return {
+        x: rounded(Number(rect?.getAttribute("x") || 0) + offsetX),
+        y: rounded(Number(rect?.getAttribute("y") || 0) + offsetY),
+        width: rounded(rect?.getAttribute("width")),
+        height: rounded(rect?.getAttribute("height")),
+        fill: rect?.getAttribute("fill") || "",
+        stroke: rect?.getAttribute("stroke") || "none",
+        strokeWidth: rect?.getAttribute("stroke-width") || "1",
+        vectorEffect: rect?.getAttribute("vector-effect") || ""
+      };
+    }
+
+    function textFingerprint(text, offsetX, offsetY) {
+      return {
+        value: text?.textContent || "",
+        x: rounded(Number(text?.getAttribute("x") || 0) + offsetX),
+        y: rounded(Number(text?.getAttribute("y") || 0) + offsetY),
+        fill: text?.getAttribute("fill") || "",
+        fontFamily: text?.getAttribute("font-family") || "",
+        fontSize: text?.getAttribute("font-size") || "",
+        fontWeight: text?.getAttribute("font-weight") || "400",
+        clipPath: Boolean(text?.getAttribute("clip-path"))
+      };
+    }
+
+    function attentionArrowFingerprint(nodes) {
+      const lines = [...nodes].flatMap(node => node.matches("line")
+        ? [node]
+        : [...node.querySelectorAll("line")]);
+      return lines.map(line => {
+        const kind = line.dataset.diagram2FieldMappingAttentionArrow || "";
+        const polygon = line.parentElement?.querySelector(
+          `[data-diagram2-field-mapping-attention-arrow-head="${CSS.escape(kind)}"]`
+        ) || null;
+        const style = line ? getComputedStyle(line) : null;
+        return {
+          start: { x: rounded(line?.getAttribute("x1")), y: rounded(line?.getAttribute("y1")) },
+          lineEnd: { x: rounded(line?.getAttribute("x2")), y: rounded(line?.getAttribute("y2")) },
+          head: String(polygon?.getAttribute("points") || "").trim().split(/\s+/).filter(Boolean)
+            .map(pair => {
+              const [x, y] = pair.split(",").map(Number);
+              return { x: rounded(x), y: rounded(y) };
+            }),
+          stroke: style?.stroke || "",
+          strokeWidth: style?.strokeWidth || "",
+          dasharray: style?.strokeDasharray || "",
+          linecap: style?.strokeLinecap || "",
+          opacity: style?.opacity || "",
+          vectorEffect: style?.vectorEffect || "",
+          headFill: polygon ? getComputedStyle(polygon).fill : ""
+        };
+      });
+    }
+
+    function highlightFingerprint(root) {
+      return [
+        ...[...root.querySelectorAll(".image-annotation-field-mapping-attention-rect")].map(rect => {
+          const style = getComputedStyle(rect);
+          return {
+            kind: "rect",
+            x1: rounded(rect.getAttribute("x")),
+            y1: rounded(rect.getAttribute("y")),
+            x2: rounded(Number(rect.getAttribute("x")) + Number(rect.getAttribute("width"))),
+            y2: rounded(Number(rect.getAttribute("y")) + Number(rect.getAttribute("height"))),
+            stroke: style.stroke,
+            strokeWidth: style.strokeWidth,
+            dasharray: style.strokeDasharray,
+            linecap: style.strokeLinecap,
+            opacity: style.opacity
+          };
+        }),
+        ...[...root.querySelectorAll(".image-annotation-field-mapping-attention-line")].map(line => {
+          const style = getComputedStyle(line);
+          return {
+            kind: "line",
+            x1: rounded(line.getAttribute("x1")),
+            y1: rounded(line.getAttribute("y1")),
+            x2: rounded(line.getAttribute("x2")),
+            y2: rounded(line.getAttribute("y2")),
+            stroke: style.stroke,
+            strokeWidth: style.strokeWidth,
+            dasharray: style.strokeDasharray,
+            linecap: style.strokeLinecap,
+            opacity: style.opacity
+          };
+        })
+      ];
+    }
+
+    function rounded(value) {
+      return Math.round((Number(value) || 0) * 1000) / 1000;
+    }
+  }, { state: canonicalState, mappingId });
+
+  expect(d2Evidence.uiCellCount).toBe(1);
+  expect(d2Evidence.databaseCellCount).toBe(1);
+  expect(d2Evidence.table).toEqual(d1Evidence.table);
+  await capturePhase6ClosureScreenshot(page, "field-mapping-table-d2-idle-1920x1080.png");
+
+  const d2UiResult = await page.evaluate(() => {
+    const renderer = window.__phase6D2Renderer;
+    renderer.pinFieldMapping(window.__phase6D2MappingId, {
+      tableId: "table-phase6",
+      cellKind: "ui"
+    });
+    return {
+      arrows: window.__phase6D2ArrowFingerprint(
+        document.querySelectorAll("[data-diagram2-field-mapping-attention-arrows]")
+      ),
+      highlight: window.__phase6D2HighlightFingerprint(),
+      diagnostics: renderer.diagnostics()
+    };
+  });
+  expectArrowParity(d2UiResult.arrows, d1UiArrows);
+  expectHighlightParity(d2UiResult.highlight, d1Highlight);
+  expect(d2UiResult.diagnostics.fullRenderCount).toBe(d2Evidence.fullRenderCount);
+  expect(d2UiResult.diagnostics.selectiveRoutingRelationshipsRerouted).toBe(d2Evidence.relationshipRerouteCount);
+  await capturePhase6ClosureScreenshot(page, "field-mapping-table-d2-ui-cell-arrows-1920x1080.png");
+
+  const d2DatabaseResult = await page.evaluate(() => {
+    const renderer = window.__phase6D2Renderer;
+    renderer.pinFieldMapping(window.__phase6D2MappingId, {
+      tableId: "table-phase6",
+      cellKind: "database"
+    });
+    return window.__phase6D2ArrowFingerprint(
+      document.querySelectorAll("[data-diagram2-field-mapping-attention-arrows]")
+    );
+  });
+  expectArrowParity(d2DatabaseResult, d1DatabaseArrows);
+  await capturePhase6ClosureScreenshot(page, "field-mapping-table-d2-database-cell-arrows-1920x1080.png");
+
+  const timerStartedAt = Date.now();
+  await expect.poll(() => page.locator("[data-diagram2-field-mapping-attention-arrows]").count(), {
+    timeout: 3400,
+    intervals: [50]
+  }).toBe(0);
+  const timerEvidence = await page.evaluate(() => {
+    const renderer = window.__phase6D2Renderer;
+    const diagnostics = renderer.diagnostics();
+    return {
+      lifetimeMs: diagnostics.mappingArrowLifetimeMs,
+      timerActive: diagnostics.mappingArrowTimerActive,
+      pinned: diagnostics.mappingPinned,
+      highlightCount: document.querySelectorAll("[data-diagram2-field-mapping-highlight]").length,
+      fullRenderCount: diagnostics.fullRenderCount
+    };
+  });
+  expect(Date.now() - timerStartedAt).toBeGreaterThanOrEqual(2850);
+  expect(timerEvidence.lifetimeMs).toBeGreaterThanOrEqual(2850);
+  expect(timerEvidence.lifetimeMs).toBeLessThanOrEqual(3150);
+  expect(timerEvidence.timerActive).toBe(false);
+  expect(timerEvidence.pinned).toBe(true);
+  expect(timerEvidence.highlightCount).toBe(1);
+  expect(timerEvidence.fullRenderCount).toBe(d2Evidence.fullRenderCount);
+  console.info("PHASE6_FIELD_MAPPING_CLOSURE", JSON.stringify({
+    tableGeometryMismatches: 0,
+    arrowGeometryErrorsOutsideTolerance: 0,
+    d2UiArrows: d2UiResult.arrows,
+    d2DatabaseArrows: d2DatabaseResult,
+    arrowLifetimeMs: timerEvidence.lifetimeMs
+  }));
+  await page.evaluate(() => {
+    window.__phase6D2Renderer.destroy();
+    delete window.__phase6D2Renderer;
+    delete window.__phase6D2MappingId;
+    delete window.__phase6D2ArrowFingerprint;
+    delete window.__phase6D2HighlightFingerprint;
+  });
+});
+
 async function initializeBrowserState(page) {
   await page.addInitScript(seenToken => {
     localStorage.clear();
@@ -412,6 +950,232 @@ async function capturePhase6Screenshot(page, testInfo, projectName, fileName) {
   await page.screenshot({
     path: path.join(directory, fileName),
     fullPage: false
+  });
+}
+
+async function capturePhase6ClosureScreenshot(page, fileName) {
+  const directory = path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-6", "closure");
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    path: path.join(directory, fileName),
+    fullPage: false
+  });
+}
+
+async function assertDiagram2ImageDrop(page, imageBase64) {
+  const canvas = page.locator("[data-diagram2-viewer-canvas]");
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).toBeTruthy();
+  const clientPoint = {
+    x: canvasBox.x + (canvasBox.width * 0.42),
+    y: canvasBox.y + (canvasBox.height * 0.46)
+  };
+  const before = await page.evaluate(point => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    return {
+      imageCount: controller.currentState().objects.filter(object => object.type === "embedded-image").length,
+      historyEntryCount: controller.historyStatus().entryCount,
+      fullRenderCount: renderer.diagnostics().fullRenderCount,
+      insertionPoint: controller.snapPoint(renderer.screenToWorld({
+        clientX: point.x,
+        clientY: point.y
+      }))
+    };
+  }, clientPoint);
+  const dataTransfer = await page.evaluateHandle(({ base64 }) => {
+    const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], "phase6-drop.png", { type: "image/png" }));
+    return transfer;
+  }, { base64: imageBase64 });
+  await canvas.dispatchEvent("dragover", {
+    dataTransfer,
+    clientX: clientPoint.x,
+    clientY: clientPoint.y
+  });
+  await expect(canvas).toHaveClass(/is-image-drop-target/);
+  await canvas.dispatchEvent("drop", {
+    dataTransfer,
+    clientX: clientPoint.x,
+    clientY: clientPoint.y
+  });
+  await dataTransfer.dispose();
+
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .filter(object => object.type === "embedded-image").length
+  )).toBe(before.imageCount + 1);
+  const after = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    const image = controller.currentState().objects
+      .find(object => object.type === "embedded-image" && object.name === "phase6-drop.png");
+    return {
+      image,
+      historyEntryCount: controller.historyStatus().entryCount,
+      fullRenderCount: renderer.diagnostics().fullRenderCount,
+      selectedIds: controller.selectedObjectIds()
+    };
+  });
+  expect(after.image).toBeTruthy();
+  expect(after.historyEntryCount).toBe(before.historyEntryCount + 1);
+  expect(after.fullRenderCount).toBe(before.fullRenderCount);
+  expect(after.selectedIds).toEqual([after.image.id]);
+  expect(Math.abs((after.image.x + (after.image.width / 2)) - before.insertionPoint.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs((after.image.y + (after.image.height / 2)) - before.insertionPoint.y)).toBeLessThanOrEqual(1);
+  return after.image;
+}
+
+async function assertDiagram2PermanentCrop(page, beforeImage) {
+  const before = await page.evaluate(id => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const image = controller.getObjectById(id);
+    return {
+      image,
+      history: controller.historyStatus(),
+      diagnostics: renderer.diagnostics()
+    };
+  }, beforeImage.id);
+  expect(before.image.imageClip.x).toBe(before.image.x + 24);
+  await expect(page.locator("[data-action='permanently-crop-diagram2-image']")).toBeEnabled();
+  await page.locator("[data-action='permanently-crop-diagram2-image']").click();
+  await page.getByRole("button", { name: "Apply Permanently", exact: true }).click();
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.source || "", beforeImage.id
+  )).not.toBe(before.image.source);
+
+  const after = await page.evaluate(async id => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return {
+      image: controller.getObjectById(id),
+      history: controller.historyStatus(),
+      diagnostics: renderer.diagnostics()
+    };
+  }, beforeImage.id);
+  expect(after.image.source).toMatch(/^data:image\/png;base64,/);
+  expect(after.image).toMatchObject({
+    x: before.image.imageClip.x,
+    y: before.image.imageClip.y,
+    width: before.image.imageClip.width,
+    height: before.image.imageClip.height,
+    cropVisible: true,
+    cropPermanent: true
+  });
+  expect(after.image.imageClip).toEqual({
+    x: after.image.x,
+    y: after.image.y,
+    width: after.image.width,
+    height: after.image.height
+  });
+  expect(after.history.entryCount).toBe(0);
+  expect(after.history.canRedo).toBe(false);
+  expect(after.history.dirty).toBe(true);
+  expect(after.diagnostics.resourceReleaseCount).toBe(before.diagnostics.resourceReleaseCount + 1);
+  expect(after.diagnostics.decodeCount).toBe(before.diagnostics.decodeCount + 1);
+  expect(after.diagnostics.cachedImageCount).toBe(before.diagnostics.cachedImageCount);
+  return after.image;
+}
+
+async function assertDiagram2ClipboardImagePaste(page, imageBase64) {
+  const before = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    return {
+      imageCount: controller.currentState().objects.filter(object => object.type === "embedded-image").length,
+      historyEntryCount: controller.historyStatus().entryCount,
+      fullRenderCount: renderer.diagnostics().fullRenderCount
+    };
+  });
+  const textOnlyPrevented = await page.evaluate(() => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "Ordinary clipboard text");
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+    document.querySelector("[data-diagram2-viewer-canvas]").dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(textOnlyPrevented).toBe(false);
+  expect(await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .filter(object => object.type === "embedded-image").length
+  )).toBe(before.imageCount);
+
+  const imagePrevented = await page.evaluate(base64 => {
+    const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(new File([bytes], "Clipboard phase6.png", { type: "image/png" }));
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+    document.querySelector("[data-diagram2-viewer-canvas]").dispatchEvent(event);
+    return event.defaultPrevented;
+  }, imageBase64);
+  expect(imagePrevented).toBe(true);
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .filter(object => object.type === "embedded-image").length
+  )).toBe(before.imageCount + 1);
+  const after = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    return {
+      image: controller.currentState().objects
+        .find(object => object.type === "embedded-image" && object.name === "Clipboard phase6.png"),
+      historyEntryCount: controller.historyStatus().entryCount,
+      fullRenderCount: renderer.diagnostics().fullRenderCount
+    };
+  });
+  expect(after.image).toMatchObject({
+    name: "Clipboard phase6.png",
+    source: "/uploads/diagram2-phase6-image-2.png"
+  });
+  expect(after.historyEntryCount).toBe(before.historyEntryCount + 1);
+  expect(after.fullRenderCount).toBe(before.fullRenderCount);
+  return after.image;
+}
+
+function expectArrowParity(actual, expected) {
+  expect(actual).toHaveLength(expected.length);
+  actual.forEach((arrow, index) => {
+    const oracle = expected[index];
+    for (const key of ["start", "lineEnd"]) {
+      expect(Math.abs(arrow[key].x - oracle[key].x)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(arrow[key].y - oracle[key].y)).toBeLessThanOrEqual(0.5);
+    }
+    expect(arrow.head).toHaveLength(oracle.head.length);
+    arrow.head.forEach((point, pointIndex) => {
+      expect(Math.abs(point.x - oracle.head[pointIndex].x)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(point.y - oracle.head[pointIndex].y)).toBeLessThanOrEqual(0.5);
+    });
+    expect(arrow.stroke).toBe(oracle.stroke);
+    expect(arrow.strokeWidth).toBe(oracle.strokeWidth);
+    expect(arrow.dasharray).toBe(oracle.dasharray);
+    expect(arrow.linecap).toBe(oracle.linecap);
+    expect(arrow.opacity).toBe(oracle.opacity);
+    expect(arrow.vectorEffect).toBe(oracle.vectorEffect);
+    expect(arrow.headFill).toBe(oracle.headFill);
+  });
+}
+
+function expectHighlightParity(actual, expected) {
+  expect(actual).toHaveLength(expected.length);
+  actual.forEach((item, index) => {
+    const oracle = expected[index];
+    expect(item.kind).toBe(oracle.kind);
+    for (const key of ["x1", "y1", "x2", "y2"]) {
+      expect(Math.abs(item[key] - oracle[key])).toBeLessThanOrEqual(0.5);
+    }
+    expect(item.stroke).toBe(oracle.stroke);
+    expect(item.strokeWidth).toBe(oracle.strokeWidth);
+    expect(item.dasharray).toBe(oracle.dasharray);
+    expect(item.linecap).toBe(oracle.linecap);
+    expect(item.opacity).toBe(oracle.opacity);
   });
 }
 

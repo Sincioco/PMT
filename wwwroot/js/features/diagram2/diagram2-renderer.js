@@ -1,36 +1,41 @@
 import {
   annotationArrowGeometry,
   annotationEntityFieldBounds,
+  annotationEntityFieldLabelPoint,
   annotationEntityMetrics,
   annotationEntityFieldSupportsMapping,
   annotationEntityVisibleFields,
+  annotationFieldMappingAttentionGeometry,
   annotationFieldMappingTableLayout,
+  annotationCompactEntityRelationshipRouteStateKey,
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-v1";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageEffectiveClip
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingIndexDiagnostics,
   patchDiagram2FieldMappingIndexes,
   setDiagram2FieldMappingRouteIndex,
   diagram2MappingAttentionTargets
-} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   diagram2FieldMappingTableRowKey
-} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2ImageResourceManager
-} from "./diagram2-image-resources.js?v=20260730-diagram2-phase6-v1";
+} from "./diagram2-image-resources.js?v=20260730-diagram2-phase6-closure-v13";
 import {
   createDiagram2RelationshipRouteModel,
-  diagram2RelationshipRouteFromModel
-} from "./diagram2-routing.js?v=20260730-diagram2-phase6-v1";
+  diagram2RelationshipRouteKey,
+  diagram2RelationshipRouteFromModel,
+  normalizeDiagram2RelationshipGeometry
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-closure-v13";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -56,12 +61,9 @@ const diagram2DetailLevelLow = "low";
 const diagram2LowDetailEnterRowPixels = 6;
 const diagram2LowDetailExitRowPixels = 8;
 const diagram2LowDetailMinimumEntityCount = 80;
-const diagram2LowDetailMinimumTitleFontPixels = 7;
-const diagram2LowDetailMinimumTitleWidthPixels = 28;
-const diagram2LowDetailMinimumTitleHeightPixels = 12;
-const diagram2LowDetailMinimumKeyFontPixels = 9;
-const diagram2LowDetailMinimumKeyWidthPixels = 80;
-const diagram2LowDetailMinimumKeyHeightPixels = 32;
+const diagram2LowDetailMinimumRelationshipCount = 64;
+const diagram2RelationshipPromotionThreshold = 32;
+const diagram2RelationshipPromotionBatchSize = 6;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["images", "data-diagram2-image-plane"],
@@ -179,7 +181,7 @@ export function diagram2CanonicalRelationships(inputState) {
   const canonical = normalizeDiagram2CanonicalState(inputState);
   if (canonical.hideAllEntityRelationships === true) return [];
 
-  const entities = diagram2CanonicalEntities(canonical);
+  const entities = diagram2RelationshipEntities(canonical);
   const globalRelationshipStyle = canonical.relationshipStyle || {};
   const relationships = [];
   entities.forEach(source => {
@@ -249,6 +251,15 @@ export function diagram2ContentBounds(inputState) {
 
 export function diagram2FitViewportTransform(inputState, viewportInput, options = {}) {
   const state = normalizeDiagram2CanonicalState(inputState);
+  const contentBounds = diagram2ContentBounds(state);
+  return diagram2FitBoundsViewportTransform(contentBounds, viewportInput, {
+    ...options,
+    fallbackWidth: state.width,
+    fallbackHeight: state.height
+  });
+}
+
+function diagram2FitBoundsViewportTransform(contentBounds, viewportInput, options = {}) {
   const viewport = {
     width: Math.max(1, finiteNumber(viewportInput?.width, defaultDiagram2Width)),
     height: Math.max(1, finiteNumber(viewportInput?.height, defaultDiagram2Height))
@@ -256,12 +267,11 @@ export function diagram2FitViewportTransform(inputState, viewportInput, options 
   const padding = Math.max(0, finiteNumber(options?.padding, defaultViewportPadding));
   const inset = normalizeDiagram2ViewportInset(options?.inset || viewportInput?.inset);
   const scaleStep = Math.max(0, finiteNumber(options?.scaleStep, 0));
-  const contentBounds = diagram2ContentBounds(state);
   const fitBounds = contentBounds || {
     x: 0,
     y: 0,
-    width: positiveNumber(state?.width, defaultDiagram2Width),
-    height: positiveNumber(state?.height, defaultDiagram2Height)
+    width: positiveNumber(options.fallbackWidth, defaultDiagram2Width),
+    height: positiveNumber(options.fallbackHeight, defaultDiagram2Height)
   };
   const visibleWidth = Math.max(1, viewport.width - inset.left - inset.right);
   const visibleHeight = Math.max(1, viewport.height - inset.top - inset.bottom);
@@ -384,11 +394,15 @@ export function diagram2RelationshipPatchFlags(previousRelationship, nextRelatio
   };
 }
 
-export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null, viewportPadding = defaultViewportPadding, fitScaleStep = 0, viewportInset: initialViewportInset = null } = {}) {
+export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null, viewportPadding = defaultViewportPadding, fitScaleStep = 0, viewportInset: initialViewportInset = null, initialZoom = null } = {}) {
   if (!host) throw new Error("Diagram 2 renderer requires a host element.");
 
   const fitViewportPadding = Math.max(0, finiteNumber(viewportPadding, defaultViewportPadding));
   const fitViewportScaleStep = Math.max(0, finiteNumber(fitScaleStep, 0));
+  const initialZoomMode = initialZoom == null ? null : normalizeZoomMode(initialZoom);
+  const initialViewportScale = initialZoomMode && initialZoomMode !== "fit"
+    ? clampNumber(positiveNumber(initialZoomMode, 1), minimumViewportScale, maximumViewportScale)
+    : 1;
   const liveView = createDiagram2LiveView();
   const dirty = createDiagram2DirtyState();
   const routing = createDiagram2SelectiveRoutingState();
@@ -398,8 +412,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   const imageResources = createDiagram2ImageResourceManager({
     onChange: resource => patchDiagram2ImageResource(resource)
   });
-  const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
-  const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
+  const viewportTransform = { scale: initialViewportScale, translateX: 0, translateY: 0 };
+  const committedViewportTransform = { scale: initialViewportScale, translateX: 0, translateY: 0 };
   let viewportInset = normalizeDiagram2ViewportInset(initialViewportInset);
   let svg = null;
   let viewportPlane = null;
@@ -408,6 +422,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let fieldMappingIndexes = createDiagram2FieldMappingIndexes();
   let mappingIndexRebuildCount = 0;
   let mappingHoverState = null;
+  let mappingPinnedState = null;
+  let mappingArrowTimer = 0;
+  let mappingArrowStartedAt = 0;
+  let mappingArrowLifetimeMs = 0;
   let mappingHoverPatchCount = 0;
   let cropTargetId = "";
   let cropPreviewState = null;
@@ -415,7 +433,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let fullRenderCount = 0;
   let fullRenderReason = "";
   let frameSequence = 0;
-  let zoomMode = "fit";
+  let zoomMode = initialZoomMode || "fit";
   let relationshipRouteRevision = 0;
   let transactionDepth = 0;
   let pendingDiagramFlushFrame = 0;
@@ -428,6 +446,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let geometryPreviewUndoEntryCount = 0;
   let pendingViewportFrame = 0;
   let pendingViewportGesture = null;
+  let relationshipPromotionPatch = null;
+  let relationshipPromotionGeneration = 0;
   let destroyed = false;
   let lastViewportReason = "";
   let lastTransformDiagnostics = emptyTransformDiagnostics();
@@ -444,22 +464,47 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     gridSize: 20
   };
 
+  function syncCompactRelationshipRoutes(state, options = {}) {
+    routing.compactRelationshipRoutesById.clear();
+    routing.pendingCompactRelationshipRouteIds.clear();
+    if (state?.compactEntityRelationshipRouting !== true) return;
+    const storedKey = String(state.compactEntityRelationshipRouteKey || "").trim();
+    if (!storedKey || storedKey !== annotationCompactEntityRelationshipRouteStateKey(state)) return;
+    const relationshipIdsByKey = new Map(diagram2CanonicalRelationships(state)
+      .map(relationship => [diagram2RelationshipRouteKey(relationship), relationship.id]));
+    normalizeSuppliedRelationshipRoutes(
+      state.compactEntityRelationshipRoutes,
+      relationshipIdsByKey
+    )
+      .forEach((route, id) => {
+        routing.compactRelationshipRoutesById.set(id, route);
+        if (options.markPending === true) {
+          routing.pendingCompactRelationshipRouteIds.add(id);
+        }
+      });
+  }
+
   function render(inputState, options = {}) {
+    cancelRelationshipPromotion();
+    routing.compactRelationshipRoutesById.clear();
+    routing.pendingCompactRelationshipRouteIds.clear();
     const reason = String(options.reason || "initial").trim() || "initial";
     const frameId = `diagram2-renderer-${++frameSequence}`;
     const startTime = now(performanceApi);
     mark(performanceApi, `${frameId}:start`);
 
     canonicalState = normalizeDiagram2CanonicalState(inputState);
+    syncCompactRelationshipRoutes(canonicalState);
     rebuildCanonicalObjectIndexes();
     imageResources.sync(canonicalState.objects);
     rebuildFieldMappingIndexes();
     clearDirtyState(dirty);
     clearGeometryPreview({ restoreObjects: false, reason: "full render" });
-    clearFieldMappingHover();
+    clearFieldMappingSelection();
     clearCropPreview();
     const visibleObjects = canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState));
     const relationships = diagram2CanonicalRelationships(canonicalState);
+    primeInitialOverviewDetailLevel(visibleObjects, relationships);
     mark(performanceApi, `${frameId}:canonical`);
 
     ensureSvg();
@@ -590,8 +635,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const bounds = canonicalState.objects
       .filter(object => ids.has(object.id) && diagram2ObjectVisible(object, canonicalState))
       .reduce((nextBounds, object) => unionBounds(nextBounds, diagram2ObjectContentBounds(object)), null);
-    if (!bounds) return diagnostics();
+    return focusBounds(bounds, options);
+  }
 
+  function focusBounds(bounds, options = {}) {
+    if (!bounds) return diagnostics();
     const scale = positiveNumber(options.scale, viewportTransform.scale);
     const center = viewportCenterPoint();
     zoomMode = String(scale);
@@ -845,6 +893,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     }
 
     if (previousOrder !== nextOrder) dirty.zOrder = true;
+    syncCompactRelationshipRoutes(canonicalState, { markPending: true });
     return scheduleDiagramFlush(options.reason || "structure state");
   }
 
@@ -930,7 +979,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
   }
 
-  function previewMarquee(boundsInput) {
+  function previewMarquee(boundsInput, options = {}) {
     if (!planes.gesture) return [];
     const bounds = normalizedSelectionBounds(boundsInput);
     let marquee = planes.gesture.querySelector(":scope > rect[data-diagram2-marquee]");
@@ -951,7 +1000,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       width: bounds.width,
       height: bounds.height
     });
-    return objectIdsInBounds(bounds);
+    return options.hitTest === false ? [] : objectIdsInBounds(bounds);
   }
 
   function clearMarquee() {
@@ -1075,158 +1124,296 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function showFieldMappingHover(mappingIdInput, options = {}) {
-    const mappingId = String(mappingIdInput || "").trim();
-    const mapping = fieldMappingIndexes.mappingsById.get(mappingId);
-    const targets = diagram2MappingAttentionTargets(fieldMappingIndexes, mappingId);
-    if (!mapping || !targets || !planes.mappingHighlights) {
+    mappingHoverState = fieldMappingInteractionState(mappingIdInput, options);
+    if (!mappingHoverState) {
       clearFieldMappingHover();
       return null;
     }
-    clearFieldMappingHover();
-    const tableId = String(options.tableId || "").trim();
-    const rowSelector = tableId
-      ? `[data-diagram2-field-mapping-row][data-diagram2-field-mapping-id="${cssEscape(mappingId)}"][data-diagram2-field-mapping-table-id="${cssEscape(tableId)}"]`
-      : `[data-diagram2-field-mapping-row][data-diagram2-field-mapping-id="${cssEscape(mappingId)}"]`;
-    const row = viewportPlane.querySelector(rowSelector);
-    const table = liveView.objectDataById.get(row?.dataset?.diagram2FieldMappingTableId) || null;
-    const source = mapping.source;
-    const target = mapping.target;
-    if (!source) return null;
-
-    const color = table?.fieldMappingHighlightColor || "#facc15";
-    const width = clampNumber(positiveNumber(table?.fieldMappingHighlightStrokeWidth, 9), 1, 40);
-    const group = appendSvg(planes.mappingHighlights, "g", {
-      "data-diagram2-field-mapping-hover": mappingId,
-      class: "diagram2-renderer-field-mapping-hover",
-      "pointer-events": "none"
-    });
-    row?.classList.add("is-field-mapping-hover");
-    [source, target].filter(Boolean).forEach(object => {
-      const bounds = diagram2ObjectContentBounds(object);
-      appendSvg(group, "rect", {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
-        fill: "none",
-        stroke: color,
-        "stroke-width": width,
-        "stroke-linejoin": "round",
-        opacity: 0.9
-      });
-    });
-    const sourceRelationshipIds = routing.relationshipIdsByFieldAnchor.get(
-      relationshipFieldAnchorKey(source, source.fields?.[0])
-    ) || new Set();
-    const relationship = [...sourceRelationshipIds]
-      .map(id => liveView.relationshipDataById.get(id))
-      .find(candidate =>
-        candidate?.target?.id === target?.id
-        && String(candidate.targetField?.name || "").toLowerCase() === String(mapping.targetField || "").toLowerCase());
-    if (relationship) {
-      const route = routing.relationshipRoutesById.get(relationship.id)
-        || relationshipRoute(relationship, relationshipRouteOptions(null, canonicalState));
-      appendSvg(group, "path", {
-        d: route.path,
-        fill: "none",
-        stroke: color,
-        "stroke-width": width,
-        "stroke-linejoin": "round",
-        "stroke-linecap": "round",
-        opacity: 0.9
-      });
-    }
-    if (row && table) {
-      const rowX = table.x + finiteNumber(row.dataset.diagram2FieldMappingRowX, 0);
-      const rowY = table.y + finiteNumber(row.dataset.diagram2FieldMappingRowY, 0);
-      const rowWidth = positiveNumber(row.dataset.diagram2FieldMappingRowWidth, table.width);
-      const rowHeight = positiveNumber(row.dataset.diagram2FieldMappingRowHeight, 24);
-      appendSvg(group, "rect", {
-        x: rowX,
-        y: rowY,
-        width: rowWidth,
-        height: rowHeight,
-        fill: table.fieldMappingRowHoverFill || "#fff59d",
-        opacity: 0.5,
-        stroke: color,
-        "stroke-width": Math.max(1, width / 3)
-      });
-      const start = fieldMappingLabelAwareStart(row, table, rowX + rowWidth, rowY + (rowHeight / 2));
-      [source, target].filter(Boolean).forEach(object => {
-        const bounds = diagram2ObjectContentBounds(object);
-        const end = {
-          x: bounds.x + (bounds.width / 2),
-          y: bounds.y + (bounds.height / 2)
-        };
-        appendDiagram2AttentionArrow(group, start, end, color, Math.max(2, width / 3));
-      });
-    }
-    mappingHoverState = { mappingId, tableId: table?.id || "", sourceId: source.id, targetId: target?.id || "" };
-    mappingHoverPatchCount += 1;
+    renderFieldMappingHighlight();
+    activateFieldMappingArrows(mappingHoverState);
     return { ...mappingHoverState };
   }
 
-  function clearFieldMappingHover() {
-    planes.mappingHighlights?.querySelectorAll(":scope > g[data-diagram2-field-mapping-hover]")
-      .forEach(group => group.remove());
-    viewportPlane?.querySelectorAll?.("[data-diagram2-field-mapping-row].is-field-mapping-hover")
-      .forEach(row => row.classList.remove("is-field-mapping-hover"));
-    mappingHoverState = null;
-  }
-
-  function focusFieldMappingTarget(mappingIdInput) {
-    const targets = diagram2MappingAttentionTargets(
-      fieldMappingIndexes,
-      String(mappingIdInput || "").trim()
-    );
-    if (!targets?.targetId) return diagnostics();
-    return focusObjectIds([targets.targetId], { reason: "focus Field mapping target" });
-  }
-
-  function fieldMappingLabelAwareStart(row, table, fallbackX, fallbackY) {
-    const label = row.querySelector("text[data-diagram2-field-mapping-cell-kind='database']");
-    try {
-      const bounds = label?.getBBox?.();
-      if (bounds && bounds.width > 0) {
-        return {
-          x: table.x + bounds.x + bounds.width,
-          y: table.y + bounds.y + (bounds.height / 2)
-        };
-      }
-    } catch {
-      // SVG text measurement is optional in headless renderers.
+  function pinFieldMapping(mappingIdInput, options = {}) {
+    mappingPinnedState = fieldMappingInteractionState(mappingIdInput, options);
+    if (!mappingPinnedState) {
+      clearFieldMappingSelection();
+      return null;
     }
-    return { x: fallbackX, y: fallbackY };
+    mappingHoverState = mappingPinnedState;
+    renderFieldMappingHighlight();
+    activateFieldMappingArrows(mappingPinnedState);
+    return { ...mappingPinnedState };
   }
 
-  function appendDiagram2AttentionArrow(parent, start, end, color, strokeWidth) {
-    appendSvg(parent, "line", {
-      x1: start.x,
-      y1: start.y,
-      x2: end.x,
-      y2: end.y,
-      stroke: color,
-      "stroke-width": strokeWidth,
-      "stroke-linecap": "round"
+  function clearFieldMappingHover() {
+    mappingHoverState = null;
+    renderFieldMappingHighlight();
+    if (!mappingPinnedState) clearFieldMappingArrows();
+  }
+
+  function clearFieldMappingSelection() {
+    const hadSelection = Boolean(mappingHoverState || mappingPinnedState || mappingArrowTimer);
+    mappingHoverState = null;
+    mappingPinnedState = null;
+    renderFieldMappingHighlight();
+    clearFieldMappingArrows();
+    return hadSelection;
+  }
+
+  function focusFieldMappingTarget(mappingIdInput, options = {}) {
+    const mappingId = String(mappingIdInput || "").trim();
+    const mapping = fieldMappingIndexes.mappingsById.get(mappingId);
+    if (!mapping) return diagnostics();
+    const cellKind = options.cellKind === "ui" ? "ui" : "database";
+    const bounds = cellKind === "ui"
+      ? diagram2ObjectContentBounds(mapping.source)
+      : annotationEntityFieldBounds(mapping.target, mapping.targetField)
+        || diagram2ObjectContentBounds(mapping.target);
+    return focusBounds(bounds, {
+      reason: cellKind === "ui"
+        ? "focus Field mapping UI field"
+        : "focus Field mapping database field"
     });
-    const angle = Math.atan2(end.y - start.y, end.x - start.x);
-    const size = Math.max(8, strokeWidth * 3);
-    const first = {
-      x: end.x - (Math.cos(angle - Math.PI / 6) * size),
-      y: end.y - (Math.sin(angle - Math.PI / 6) * size)
+  }
+
+  function fieldMappingInteractionState(mappingIdInput, options = {}) {
+    const mappingId = String(mappingIdInput || "").trim();
+    const mapping = fieldMappingIndexes.mappingsById.get(mappingId);
+    const targets = diagram2MappingAttentionTargets(fieldMappingIndexes, mappingId);
+    if (!mapping || !targets || !planes.mappingHighlights) return null;
+    const tableId = String(options.tableId || "").trim();
+    const row = fieldMappingRow(mappingId, tableId);
+    const table = liveView.objectDataById.get(row?.dataset?.diagram2FieldMappingTableId || tableId) || null;
+    return {
+      mappingId,
+      tableId: table?.id || tableId,
+      cellKind: options.cellKind === "database" ? "database" : "ui",
+      sourceId: mapping.sourceId,
+      targetId: mapping.targetId
     };
-    const second = {
-      x: end.x - (Math.cos(angle + Math.PI / 6) * size),
-      y: end.y - (Math.sin(angle + Math.PI / 6) * size)
+  }
+
+  function fieldMappingRow(mappingId, tableId = "") {
+    const selector = tableId
+      ? `[data-diagram2-field-mapping-row][data-diagram2-field-mapping-id="${cssEscape(mappingId)}"][data-diagram2-field-mapping-table-id="${cssEscape(tableId)}"]`
+      : `[data-diagram2-field-mapping-row][data-diagram2-field-mapping-id="${cssEscape(mappingId)}"]`;
+    return viewportPlane?.querySelector(selector) || null;
+  }
+
+  function renderFieldMappingHighlight() {
+    planes.mappingHighlights?.querySelectorAll(":scope > g[data-diagram2-field-mapping-highlight]")
+      .forEach(group => group.remove());
+    viewportPlane?.querySelectorAll?.("[data-diagram2-field-mapping-row].is-field-mapping-hover, [data-diagram2-field-mapping-row].is-pinned")
+      .forEach(row => row.classList.remove("is-field-mapping-hover", "is-pinned"));
+
+    const interaction = mappingHoverState || mappingPinnedState;
+    if (!interaction || !planes.mappingHighlights) return;
+    const mapping = fieldMappingIndexes.mappingsById.get(interaction.mappingId);
+    if (!mapping?.source) return;
+    const row = fieldMappingRow(interaction.mappingId, interaction.tableId);
+    const table = liveView.objectDataById.get(row?.dataset?.diagram2FieldMappingTableId || interaction.tableId) || null;
+    const color = table?.fieldMappingHighlightColor || "#facc15";
+    const width = clampNumber(positiveNumber(table?.fieldMappingHighlightStrokeWidth, 9), 1, 40);
+    const group = appendSvg(planes.mappingHighlights, "g", {
+      "data-diagram2-field-mapping-highlight": interaction.mappingId,
+      "data-diagram2-field-mapping-hover": interaction.mappingId,
+      class: "diagram2-renderer-field-mapping-highlight image-annotation-field-mapping-attention-highlight",
+      style: `color:${color}`,
+      "pointer-events": "none"
+    });
+    row?.classList.add(interaction === mappingPinnedState ? "is-pinned" : "is-field-mapping-hover");
+
+    [mapping.source, mapping.target].filter(Boolean).forEach(object => {
+      const bounds = diagram2ObjectContentBounds(object);
+      const sourceWidth = object.outlineVisible === false ? 0 : positiveNumber(object.strokeWidth, 1);
+      const offset = (sourceWidth / 2) + (width / 2);
+      appendSvg(group, "rect", {
+        class: "image-annotation-field-mapping-attention-rect",
+        x: bounds.x - offset,
+        y: bounds.y - offset,
+        width: bounds.width + (offset * 2),
+        height: bounds.height + (offset * 2),
+        rx: Math.min(4, Math.max(0, Math.min(bounds.width, bounds.height) / 4)),
+        ry: Math.min(4, Math.max(0, Math.min(bounds.width, bounds.height) / 4)),
+        fill: "none",
+        stroke: color,
+        "stroke-width": width,
+        "pointer-events": "none"
+      });
+    });
+
+    const relationship = fieldMappingRelationship(mapping);
+    if (relationship) {
+      const route = routing.relationshipRoutesById.get(relationship.id)
+        || relationshipRoute(relationship, relationshipRouteOptions(null, canonicalState));
+      appendDiagram2FieldMappingHighlightTrace(
+        group,
+        route.points,
+        relationshipStyle(relationship).strokeWidth,
+        color,
+        width
+      );
+    }
+    mappingHoverPatchCount += 1;
+  }
+
+  function fieldMappingRelationship(mapping) {
+    const direct = liveView.relationshipDataById.get(mapping?.relationshipId);
+    if (direct) return direct;
+    const sourceField = mapping?.source?.fields?.find(field =>
+      normalizeIdentifier(field?.name) === normalizeIdentifier(mapping?.sourceField)
+    ) || mapping?.source?.fields?.[0];
+    const relationshipIds = routing.relationshipIdsByFieldAnchor.get(
+      relationshipFieldAnchorKey(mapping?.source, sourceField)
+    ) || new Set();
+    return [...relationshipIds]
+      .map(id => liveView.relationshipDataById.get(id))
+      .find(candidate =>
+        candidate?.target?.id === mapping?.target?.id
+        && normalizeIdentifier(candidate.targetField?.name) === normalizeIdentifier(mapping?.targetField)
+      ) || null;
+  }
+
+  function appendDiagram2FieldMappingHighlightTrace(parent, pointsInput, sourceStrokeWidth, color, width) {
+    const points = Array.isArray(pointsInput) ? pointsInput : [];
+    const offset = (positiveNumber(sourceStrokeWidth, 2) / 2) + (width / 2);
+    const trim = width * 0.45;
+    points.slice(0, -1).forEach((point, index) => {
+      const next = points[index + 1];
+      const dx = finiteNumber(next?.x, 0) - finiteNumber(point?.x, 0);
+      const dy = finiteNumber(next?.y, 0) - finiteNumber(point?.y, 0);
+      const length = Math.hypot(dx, dy);
+      if (length < 0.001) return;
+      const unitX = dx / length;
+      const unitY = dy / length;
+      const normalX = -dy / length;
+      const normalY = dx / length;
+      const segmentTrim = Math.min(trim, length / 3);
+      appendSvg(parent, "line", {
+        class: "image-annotation-field-mapping-attention-line",
+        x1: point.x + (normalX * offset) + (unitX * segmentTrim),
+        y1: point.y + (normalY * offset) + (unitY * segmentTrim),
+        x2: next.x + (normalX * offset) - (unitX * segmentTrim),
+        y2: next.y + (normalY * offset) - (unitY * segmentTrim),
+        stroke: color,
+        "stroke-width": width,
+        "stroke-dasharray": "4 5",
+        "stroke-linecap": "butt",
+        opacity: 0.98,
+        "pointer-events": "none"
+      });
+    });
+  }
+
+  function activateFieldMappingArrows(interaction) {
+    clearFieldMappingArrows();
+    if (!interaction || !planes.mappingHighlights) return;
+    const mapping = fieldMappingIndexes.mappingsById.get(interaction.mappingId);
+    const row = fieldMappingRow(interaction.mappingId, interaction.tableId);
+    const table = liveView.objectDataById.get(row?.dataset?.diagram2FieldMappingTableId || interaction.tableId) || null;
+    if (!mapping?.source || !row || !table) return;
+
+    const uiCell = row.querySelector("[data-diagram2-field-mapping-cell-kind='ui']");
+    const databaseCell = row.querySelector("[data-diagram2-field-mapping-cell-kind='database']");
+    const geometry = annotationFieldMappingAttentionGeometry({
+      uiLabelBounds: fieldMappingWorldLabelBounds(uiCell, table),
+      databaseLabelBounds: fieldMappingWorldLabelBounds(databaseCell, table),
+      uiCellBounds: fieldMappingWorldCellBounds(uiCell, table),
+      databaseCellBounds: fieldMappingWorldCellBounds(databaseCell, table),
+      fieldRectangleBounds: diagram2ObjectContentBounds(mapping.source),
+      databaseFieldPoint: annotationEntityFieldLabelPoint(mapping.target, mapping.targetField),
+      databaseFieldBounds: annotationEntityFieldBounds(mapping.target, mapping.targetField),
+      databaseEntityBounds: diagram2ObjectContentBounds(mapping.target),
+      zoom: committedViewportTransform.scale
+    });
+    const group = appendSvg(planes.mappingHighlights, "g", {
+      "data-diagram2-field-mapping-attention-arrows": interaction.mappingId,
+      class: "diagram2-renderer-field-mapping-attention-arrows image-annotation-field-mapping-attention-arrow",
+      "pointer-events": "none"
+    });
+    appendDiagram2AttentionArrow(group, geometry.ui, "ui");
+    appendDiagram2AttentionArrow(group, geometry.database, "database");
+    if (!group.hasChildNodes()) {
+      group.remove();
+      return;
+    }
+
+    mappingArrowStartedAt = now(performanceApi);
+    mappingArrowTimer = globalThis.setTimeout(() => {
+      mappingArrowTimer = 0;
+      mappingArrowLifetimeMs = now(performanceApi) - mappingArrowStartedAt;
+      mappingArrowStartedAt = 0;
+      planes.mappingHighlights?.querySelectorAll(":scope > g[data-diagram2-field-mapping-attention-arrows]")
+        .forEach(element => element.remove());
+      notifyDiagnostics();
+    }, 3000);
+  }
+
+  function clearFieldMappingArrows() {
+    if (mappingArrowTimer) {
+      globalThis.clearTimeout(mappingArrowTimer);
+      mappingArrowTimer = 0;
+    }
+    mappingArrowStartedAt = 0;
+    planes.mappingHighlights?.querySelectorAll(":scope > g[data-diagram2-field-mapping-attention-arrows]")
+      .forEach(group => group.remove());
+  }
+
+  function fieldMappingWorldLabelBounds(cell, table) {
+    try {
+      const bounds = cell?.querySelector?.("text")?.getBBox?.();
+      return bounds?.width > 0 ? {
+        x: finiteNumber(table.x, 0) + bounds.x,
+        y: finiteNumber(table.y, 0) + bounds.y,
+        width: bounds.width,
+        height: bounds.height
+      } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function fieldMappingWorldCellBounds(cell, table) {
+    if (!cell || !table) return null;
+    return {
+      x: finiteNumber(table.x, 0) + finiteNumber(cell.dataset.diagram2FieldMappingCellX, 0),
+      y: finiteNumber(table.y, 0) + finiteNumber(cell.dataset.diagram2FieldMappingCellY, 0),
+      width: positiveNumber(cell.dataset.diagram2FieldMappingCellWidth, 1),
+      height: positiveNumber(cell.dataset.diagram2FieldMappingCellHeight, 1)
     };
+  }
+
+  function appendDiagram2AttentionArrow(parent, geometry, kind) {
+    if (!geometry) return;
+    appendSvg(parent, "line", {
+      "data-diagram2-field-mapping-attention-arrow": kind,
+      class: "image-annotation-field-mapping-attention-arrow-line",
+      x1: geometry.start.x,
+      y1: geometry.start.y,
+      x2: geometry.lineEnd.x,
+      y2: geometry.lineEnd.y,
+      stroke: "var(--color-focus-ring)",
+      "stroke-width": 2,
+      "stroke-dasharray": "7 4",
+      "stroke-linecap": "round",
+      opacity: 0.92,
+      "vector-effect": "non-scaling-stroke",
+      "pointer-events": "none"
+    });
     appendSvg(parent, "polygon", {
-      points: `${formatNumber(end.x)},${formatNumber(end.y)} ${formatNumber(first.x)},${formatNumber(first.y)} ${formatNumber(second.x)},${formatNumber(second.y)}`,
-      fill: color
+      "data-diagram2-field-mapping-attention-arrow-head": kind,
+      class: "image-annotation-field-mapping-attention-arrow-head",
+      points: geometry.head.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" "),
+      fill: "var(--color-focus-ring)",
+      opacity: 0.92,
+      "pointer-events": "none"
     });
   }
 
   function beginGeometryPreview(options = {}) {
     if (!canonicalState || !svg) return diagnostics();
+    cancelRelationshipPromotion();
     clearGeometryPreview({ restoreObjects: true, reason: "preview replace" });
 
     const objectIds = geometryPreviewObjectIds(options);
@@ -1239,13 +1426,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (!originalObjectsById.size) return diagnostics();
 
     const relationshipIds = connectedRelationshipIds([...originalObjectsById.keys()]);
-    const relationships = diagram2CanonicalRelationships(canonicalState);
-    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
-    const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
-    const settledRoutesById = new Map(relationshipIds.map(id => {
-      const relationship = relationshipsById.get(id);
-      return [id, relationship ? relationshipRoute(relationship, routeOptions).path : ""];
-    }));
+    const settledRoutesById = new Map(relationshipIds.map(id => [
+      id,
+      routing.relationshipRoutesById.get(id)?.path
+        || liveView.relationshipNodesById.get(id)?.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d")
+        || ""
+    ]));
     activeGeometryPreview = {
       id: `diagram2-geometry-preview-${Date.now()}-${geometryPreviewFrameCount + 1}`,
       mode: String(options.mode || "move") === "resize" ? "resize" : "move",
@@ -1325,6 +1511,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function scheduleDiagramFlush(reason = "scheduled") {
     addDirtyReason(reason);
+    if (relationshipPromotionPatch
+      && (dirty.objectStructure.size
+        || dirty.objectGeometry.size
+        || dirty.relationshipGeometry.size
+        || dirty.worldBounds
+        || dirty.sectors)) {
+      cancelRelationshipPromotion();
+    }
     if (!dirtyStateHasChanges(dirty) || transactionDepth > 0) return diagnostics();
     if (pendingDiagramFlushFrame) return diagnostics();
 
@@ -1362,6 +1556,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const startTime = now(performanceApi);
     mark(performanceApi, `${frameId}:start`);
     const relationships = diagram2CanonicalRelationships(canonicalState);
+    syncCompactRelationshipRoutes(canonicalState, { markPending: true });
     rebuildRelationshipLookupIndexes(relationships);
     const dirtySnapshot = dirtyDiagnosticsSnapshot(dirty, relationships);
     const patchedObjectIds = new Set();
@@ -1422,6 +1617,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const overviewDetailResult = reconcileOverviewDetailLevel("dirty flush");
     objectPatchCount += overviewDetailResult.objectPatchCount;
     patchedNodeCount += overviewDetailResult.objectPatchCount + overviewDetailResult.relationshipPatchCount;
+    routing.pendingCompactRelationshipRouteIds.clear();
 
     const endTime = now(performanceApi);
     mark(performanceApi, `${frameId}:end`);
@@ -1469,7 +1665,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function whenIdle() {
-    if (!pendingDiagramFlushFrame && !pendingGeometryPreviewFrame && !pendingViewportFrame && !dirtyStateHasChanges(dirty)) {
+    if (!pendingDiagramFlushFrame
+      && !pendingGeometryPreviewFrame
+      && !pendingViewportFrame
+      && !relationshipPromotionPatch
+      && !dirtyStateHasChanges(dirty)) {
       return Promise.resolve(diagnostics());
     }
     return new Promise(resolve => {
@@ -1477,7 +1677,38 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
   }
 
+  function whenInteractive() {
+    if (!pendingDiagramFlushFrame
+      && !pendingGeometryPreviewFrame
+      && !pendingViewportFrame
+      && !dirtyStateHasChanges(dirty)) {
+      return Promise.resolve(diagnostics());
+    }
+    return new Promise(resolve => {
+      const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
+      const check = () => {
+        if (destroyed
+          || (!pendingDiagramFlushFrame
+            && !pendingGeometryPreviewFrame
+            && !pendingViewportFrame
+            && !dirtyStateHasChanges(dirty))) {
+          resolve(diagnostics());
+          return;
+        }
+        requestFrame(check);
+      };
+      requestFrame(check);
+    });
+  }
+
   function resolvePendingFlushes() {
+    if (!destroyed && (pendingDiagramFlushFrame
+      || pendingGeometryPreviewFrame
+      || pendingViewportFrame
+      || relationshipPromotionPatch
+      || dirtyStateHasChanges(dirty))) {
+      return;
+    }
     const resolvers = pendingFlushResolvers.splice(0);
     if (!resolvers.length) return;
     const snapshot = diagnostics();
@@ -1493,6 +1724,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       mappingCount: fieldMappingIndexes.mappingsById.size,
       mappingRowIndexCount: fieldMappingIndexes.tableRowKeysByMappingId.size,
       mappingHoverPatchCount,
+      mappingPinned: Boolean(mappingPinnedState),
+      mappingArrowTimerActive: mappingArrowTimer !== 0,
+      mappingArrowLifetimeMs,
       cropPreviewFrameCount,
       cropPreviewActive: Boolean(cropPreviewState),
       cropTargetId
@@ -1539,6 +1773,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       mappingCount: fieldMappingIndexes.mappingsById.size,
       mappingRowIndexCount: fieldMappingIndexes.tableRowKeysByMappingId.size,
       mappingHoverPatchCount,
+      mappingPinned: Boolean(mappingPinnedState),
+      mappingArrowTimerActive: mappingArrowTimer !== 0,
+      mappingArrowLifetimeMs,
       cropPreviewFrameCount,
       cropPreviewActive: Boolean(cropPreviewState),
       cropTargetId,
@@ -1602,8 +1839,18 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return svg;
   }
 
+  function relationshipRoutePoints(idInput) {
+    const id = String(idInput || "").trim();
+    const points = routing.relationshipRoutesById.get(id)?.points;
+    return (Array.isArray(points) ? points : []).map(point => ({
+      x: finiteNumber(point?.x, 0),
+      y: finiteNumber(point?.y, 0)
+    }));
+  }
+
   function destroy() {
     destroyed = true;
+    cancelRelationshipPromotion();
     cancelDiagram2Frame(pendingDiagramFlushFrame);
     cancelDiagram2Frame(pendingGeometryPreviewFrame);
     cancelDiagram2Frame(pendingViewportFrame);
@@ -1613,7 +1860,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     pendingViewportGesture = null;
     clearGeometryPreview({ restoreObjects: false, reason: "destroy" });
     clearMarquee();
-    clearFieldMappingHover();
+    clearFieldMappingSelection();
     clearCropPreview();
     imageResources.destroy();
     clearDirtyState(dirty);
@@ -1633,6 +1880,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     fieldMappingIndexes = createDiagram2FieldMappingIndexes();
     canonicalObjectIndexById.clear();
     mappingHoverState = null;
+    mappingPinnedState = null;
     cropTargetId = "";
     cropPreviewState = null;
     lastDiagnostics = emptyDiagnostics();
@@ -1872,19 +2120,19 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchMergedRelationshipRoutes(relationships, routeOptionsInput = null, options = {}) {
     const routeOptions = routeOptionsInput || relationshipRouteOptions(relationships, canonicalState);
     const useCachedRoutes = options.useCachedRoutes !== false;
+    const routeById = options.routeById instanceof Map ? options.routeById : null;
     const renderedRelationships = relationships
       .filter(relationship => liveView.mountedRelationshipIds.has(relationship.id))
       .map(relationship => {
-        const route = (useCachedRoutes ? routing.relationshipRoutesById.get(relationship.id) : null)
+        const route = routeById?.get(relationship.id)
+          || (useCachedRoutes ? routing.relationshipRoutesById.get(relationship.id) : null)
           || relationshipRoute(relationship, routeOptions);
         const detailLevel = liveView.relationshipDetailLevelsById.get(relationship.id)
           || relationshipDetailLevel(relationship);
         return {
           relationship,
           style: relationshipStyle(relationship),
-          geometry: detailLevel === diagram2DetailLevelLow
-            ? lowDetailRelationshipRoute(relationship, route)
-            : route
+          geometry: route
         };
       })
       .filter(item => item.geometry?.points?.length && item.geometry.path);
@@ -1967,7 +2215,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const nodeExisted = liveView.relationshipNodesById.has(relationship.id);
     const node = nodeExisted ? liveView.relationshipNodesById.get(relationship.id) : createRelationshipNode(relationship);
     const existing = nodeExisted && liveView.relationshipVersionsById.has(relationship.id);
-    const route = relationshipRoute(relationship, options.routeOptions || relationshipRouteOptions(null, canonicalState));
+    const detailLevel = options.detailLevel || relationshipDetailLevel(relationship);
+    const previousDetailLevel = liveView.relationshipDetailLevelsById.get(relationship.id) || diagram2DetailLevelDetailed;
+    const detailChanged = previousDetailLevel !== detailLevel;
+    const routeOptions = options.routeOptions
+      || (options.routeOverride ? null : relationshipRouteOptions(null, canonicalState));
+    const compactRoute = canonicalState?.compactEntityRelationshipRouting === true
+      ? routing.compactRelationshipRoutesById.get(relationship.id)
+      : null;
+    const route = compactRoute
+      || options.routeOverride
+      || relationshipRoute(relationship, routeOptions);
     const routeSignature = relationshipRouteCacheSignature(relationship, {
       canonicalState,
       routeBounds: route.bounds,
@@ -1977,13 +2235,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const styleSignature = relationshipStyleVersion(relationship);
     const previousRouteSignature = routing.relationshipRouteSignaturesById.get(relationship.id);
     const previousStyleSignature = routing.relationshipStyleSignaturesById.get(relationship.id);
-    const detailLevel = relationshipDetailLevel(relationship);
-    const previousDetailLevel = liveView.relationshipDetailLevelsById.get(relationship.id) || diagram2DetailLevelDetailed;
-    const detailChanged = previousDetailLevel !== detailLevel;
     const styleOnly = options.styleOnly === true;
     const hasCachedRoute = routing.relationshipRoutesById.has(relationship.id);
     const routeChanged = !hasCachedRoute
-      || (!styleOnly && (options.forceRoute === true || previousRouteSignature !== routeSignature));
+      || options.forceRoute === true
+      || ((!styleOnly || detailChanged) && previousRouteSignature !== routeSignature);
     const styleChanged = !existing || previousStyleSignature !== styleSignature || detailChanged;
     const metrics = createSelectiveRoutingMetrics(1);
     if (options.countRouting !== false) {
@@ -2115,9 +2371,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       planes.selection.appendChild(overlay);
     }
 
-    const renderRoute = options.detailLevel === diagram2DetailLevelLow
-      ? lowDetailRelationshipRoute(relationship, route)
-      : route;
+    const renderRoute = route;
     setSvgAttributes(overlay, {
       "data-diagram2-relationship-route-overlay-id": id,
       class: "diagram2-renderer-relationship-route-overlay",
@@ -2175,7 +2429,28 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchDirtyRelationships(relationships, relationshipIds, patchedRelationshipIds, options = {}) {
     const desiredIds = new Set(relationships.map(relationship => relationship.id));
     const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
-    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
+    const lowDetail = relationshipDetailLevel() === diagram2DetailLevelLow;
+    const requestedRelationships = [...relationshipIds]
+      .map(id => relationshipsById.get(id))
+      .filter(Boolean);
+    const manualOnly = canonicalState?.manualEntityRelationshipRoutes === true
+      && requestedRelationships.length > 0
+      && requestedRelationships.every(relationship =>
+        relationship.foreignKeySource?.routeOverride?.length > 1);
+    const deferDetailedRouting = !lowDetail
+      && !manualOnly
+      && options.styleOnly !== true
+      && options.mode === "geometry"
+      && relationships.length >= diagram2RelationshipPromotionThreshold;
+    const routeOptions = manualOnly || deferDetailedRouting
+      ? {
+          relationships,
+          allowOverlappingLines: canonicalState?.allowOverlappingEntityLines === true,
+          manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+          compactRouting: canonicalState?.compactEntityRelationshipRouting === true,
+          routeModel: null
+        }
+      : relationshipRouteOptions(relationships, canonicalState);
     const metrics = createSelectiveRoutingMetrics(relationships.length);
     metrics.spatialSectorsQueried += Number(options.sectorsQueried || 0);
     const startTime = now(performanceApi);
@@ -2192,7 +2467,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       if (patchedRelationshipIds.has(id)) return;
       const relationship = relationshipsById.get(id);
       if (!relationship) return;
-      const result = patchVisibleRelationship(relationship, { ...options, routeOptions });
+      if (options.mode === "geometry"
+        && !routing.pendingCompactRelationshipRouteIds.has(id)) {
+        routing.compactRelationshipRoutesById.delete(id);
+      }
+      const result = patchVisibleRelationship(relationship, deferDetailedRouting
+        ? {
+            ...options,
+            detailLevel: diagram2DetailLevelLow,
+            routeOverride: relationshipRoute(relationship, routeOptions)
+          }
+        : { ...options, routeOptions });
       mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
       patchedRelationshipIds.add(id);
       patched += result.patched;
@@ -2204,6 +2489,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     if (routed > 0) relationshipRouteRevision += routed;
     patchMergedRelationshipRoutes(relationships, routeOptions);
+    if (deferDetailedRouting && routed > 0) startRelationshipPromotion(options.mode || "dirty geometry");
     metrics.routingDuration += now(performanceApi) - startTime;
     return { patched, routed, diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics) };
   }
@@ -2379,6 +2665,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     routing.relationshipRouteSignaturesById.delete(relationshipId);
     routing.relationshipStyleSignaturesById.delete(relationshipId);
     routing.relationshipRoutesById.delete(relationshipId);
+    routing.compactRelationshipRoutesById.delete(relationshipId);
+    routing.pendingCompactRelationshipRouteIds.delete(relationshipId);
     viewportHalo.relationshipSectorIndex.remove(relationshipId);
   }
 
@@ -2468,7 +2756,6 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     const visibleObjects = canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState));
     const relationships = diagram2CanonicalRelationships(canonicalState);
-    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const plan = viewportHaloPlan(visibleObjects, relationships, reason);
     const sameSectorNoop = options.allowSameSectorNoop === true
       && plan.active
@@ -2567,7 +2854,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         const relationship = relationshipById.get(id);
         if (!relationship) return;
         const routeBounds = routing.relationshipBoundsById.get(id)
-          || relationshipRoute(relationship, routeOptions).bounds;
+          || relationshipRoute(relationship, {
+            relationships,
+            allowOverlappingLines: canonicalState?.allowOverlappingEntityLines === true,
+            manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
+            compactRouting: canonicalState?.compactEntityRelationshipRouting === true,
+            routeModel: null
+          }).bounds;
         if (boundsIntersect(routeBounds, sectorSet.bounds)) {
           targetRelationshipIds.add(id);
           if (!targetObjectIds.has(relationship.source?.id) && !targetObjectIds.has(relationship.target?.id)) {
@@ -2671,6 +2964,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const entering = relationships.filter(relationship => !currentIds.has(relationship.id));
     const retained = relationships.filter(relationship => currentIds.has(relationship.id));
     const leaving = [...currentIds].filter(id => !targetIds.has(id));
+    const missing = retained.filter(relationship => !liveView.relationshipNodesById.has(relationship.id));
+    if (!entering.length && !leaving.length && !missing.length) {
+      return {
+        patched: 0,
+        routed: 0,
+        entering: 0,
+        retained: retained.length,
+        leaving: 0,
+        diagnostics: selectiveRoutingDiagnosticsFromMetrics(createSelectiveRoutingMetrics(relationships.length))
+      };
+    }
     const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const metrics = createSelectiveRoutingMetrics(relationships.length);
     let patched = 0;
@@ -2685,17 +2989,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       const plane = relationshipPlaneFor(relationship);
       if (node?.parentNode !== plane) plane.appendChild(node);
     });
-    retained.forEach(relationship => {
-      const node = liveView.relationshipNodesById.get(relationship.id);
-      if (!node) {
-        const result = patchVisibleRelationship(relationship, { mode: "viewport halo", routeOptions });
-        mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
-        patched += result.patched;
-        routed += result.routed;
-        const created = liveView.relationshipNodesById.get(relationship.id);
-        const plane = relationshipPlaneFor(relationship);
-        if (created?.parentNode !== plane) plane.appendChild(created);
-      }
+    missing.forEach(relationship => {
+      const result = patchVisibleRelationship(relationship, { mode: "viewport halo", routeOptions });
+      mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
+      patched += result.patched;
+      routed += result.routed;
+      const created = liveView.relationshipNodesById.get(relationship.id);
+      const plane = relationshipPlaneFor(relationship);
+      if (created?.parentNode !== plane) plane.appendChild(created);
     });
     leaving.forEach(id => {
       unmountViewportHaloRelationshipNode(id);
@@ -2812,6 +3113,21 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return `selected=${selected};forced=${forced};preview=${previewIds}`;
   }
 
+  function primeInitialOverviewDetailLevel(visibleObjects, relationships) {
+    if (initialZoomMode == null || fullRenderCount > 0) return;
+    const entityCount = visibleObjects
+      .filter(object => object.type === "entity" && !diagram2IsFieldRectangle(object)).length;
+    if (!diagram2OverviewNeedsLowDetail(entityCount, relationships.length)) return;
+    overviewDetail.level = initialZoomMode === "fit"
+      ? diagram2DetailLevelLow
+      : nextOverviewDetailLevel(
+          diagram2DetailLevelDetailed,
+          projectedEntityFieldRowPixels(visibleObjects),
+          entityCount,
+          relationships.length
+        );
+  }
+
   function reconcileOverviewDetailLevel(reason = "viewport") {
     if (!canonicalState || !svg) {
       lastOverviewDetailDiagnostics = emptyOverviewDetailDiagnostics({ reason });
@@ -2827,11 +3143,19 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const entityCount = visibleObjects
       .filter(object => object.type === "entity" && !diagram2IsFieldRectangle(object)).length;
     const previousLevel = overviewDetail.level;
-    const nextLevel = nextOverviewDetailLevel(previousLevel, projectedRowPixels, entityCount);
+    const nextLevel = fullRenderCount === 0
+      && initialZoomMode === "fit"
+      && diagram2OverviewNeedsLowDetail(entityCount, relationships.length)
+      ? diagram2DetailLevelLow
+      : nextOverviewDetailLevel(previousLevel, projectedRowPixels, entityCount, relationships.length);
     overviewDetail.level = nextLevel;
 
     const objectPatchCount = patchOverviewDetailObjects(mountedObjects);
-    const relationshipPatchCount = patchOverviewDetailRelationships(mountedRelationships);
+    const relationshipPatchCount = patchOverviewDetailRelationships(mountedRelationships, {
+      reason,
+      previousLevel,
+      nextLevel
+    });
     const duration = Math.round(Math.max(0, now(performanceApi) - frameStart) * 100) / 100;
     lastOverviewDetailDiagnostics = overviewDetailDiagnostics({
       reason,
@@ -2860,12 +3184,22 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return patched;
   }
 
-  function patchOverviewDetailRelationships(relationships) {
+  function patchOverviewDetailRelationships(relationships, options = {}) {
+    const pendingRelationships = relationships.filter(relationship =>
+      liveView.relationshipDetailLevelsById.get(relationship.id) !== relationshipDetailLevel(relationship)
+    );
+    if (!pendingRelationships.length) return 0;
+    if (options.nextLevel === diagram2DetailLevelLow) cancelRelationshipPromotion();
+    if (options.nextLevel === diagram2DetailLevelDetailed
+      && pendingRelationships.length >= diagram2RelationshipPromotionThreshold
+      && startRelationshipPromotion(options.reason)) {
+      return 0;
+    }
+    if (relationshipPromotionPatch && options.nextLevel === diagram2DetailLevelDetailed) return 0;
+
     const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     let patched = 0;
-    relationships.forEach(relationship => {
-      const nextLevel = relationshipDetailLevel(relationship);
-      if (liveView.relationshipDetailLevelsById.get(relationship.id) === nextLevel) return;
+    pendingRelationships.forEach(relationship => {
       const result = patchVisibleRelationship(relationship, {
         mode: "overview detail",
         countRouting: false,
@@ -2876,6 +3210,112 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
     if (patched > 0) patchMergedRelationshipRoutes(relationships, routeOptions);
     return patched;
+  }
+
+  function startRelationshipPromotion(reason = "viewport") {
+    if (relationshipPromotionPatch) return true;
+    if (destroyed || !canonicalState) return false;
+    const generation = ++relationshipPromotionGeneration;
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    relationshipPromotionPatch = {
+      generation,
+      reason,
+      routeOptions: relationshipRouteOptions(relationships, canonicalState),
+      relationships,
+      index: 0,
+      patched: 0,
+      startedAt: now(performanceApi),
+      frame: 0
+    };
+    scheduleRelationshipPromotionPatch();
+  }
+
+  function scheduleRelationshipPromotionPatch() {
+    const promotion = relationshipPromotionPatch;
+    if (!promotion || promotion.frame || destroyed) return;
+    const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
+    promotion.frame = requestFrame(() => {
+      promotion.frame = 0;
+      patchRelationshipPromotionFrame();
+    });
+  }
+
+  function patchRelationshipPromotionFrame() {
+    const promotion = relationshipPromotionPatch;
+    if (!promotion || promotion.generation !== relationshipPromotionGeneration || destroyed) return;
+    if (overviewDetail.level !== diagram2DetailLevelDetailed || !canonicalState) {
+      cancelRelationshipPromotion();
+      resolvePendingFlushes();
+      return;
+    }
+
+    const frameEnd = Math.min(
+      promotion.relationships.length,
+      promotion.index + diagram2RelationshipPromotionBatchSize
+    );
+    while (promotion.index < frameEnd) {
+      const relationship = promotion.relationships[promotion.index];
+      promotion.index += 1;
+      if (!liveView.mountedRelationshipIds.has(relationship.id)) continue;
+      if (liveView.relationshipDetailLevelsById.get(relationship.id) === diagram2DetailLevelDetailed) continue;
+      const route = relationshipRoute(relationship, promotion.routeOptions);
+      const result = patchVisibleRelationship(relationship, {
+        mode: "overview detail promotion",
+        countRouting: false,
+        styleOnly: true,
+        routeOverride: route
+      });
+      promotion.patched += result.patched;
+    }
+
+    if (promotion.index < promotion.relationships.length) {
+      scheduleRelationshipPromotionPatch();
+      return;
+    }
+
+    completeRelationshipPromotionPatch(promotion);
+  }
+
+  function completeRelationshipPromotionPatch(promotion) {
+    if (promotion !== relationshipPromotionPatch) return;
+    relationshipPromotionPatch = null;
+    if (promotion.patched > 0) {
+      patchMergedRelationshipRoutes(promotion.relationships, {});
+    }
+
+    const visibleObjects = canonicalState.objects.filter(object => diagram2ObjectVisible(object, canonicalState));
+    lastOverviewDetailDiagnostics = overviewDetailDiagnostics({
+      reason: `${promotion.reason} detail promotion`,
+      previousLevel: diagram2DetailLevelDetailed,
+      level: diagram2DetailLevelDetailed,
+      projectedRowPixels: projectedEntityFieldRowPixels(visibleObjects),
+      entityCount: visibleObjects.filter(object =>
+        object.type === "entity" && !diagram2IsFieldRectangle(object)
+      ).length,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size,
+      objectLevelsById: liveView.objectDetailLevelsById,
+      relationshipLevelsById: liveView.relationshipDetailLevelsById,
+      objectPatchCount: 0,
+      relationshipPatchCount: promotion.patched,
+      duration: now(performanceApi) - promotion.startedAt
+    });
+    lastDiagnostics = {
+      ...lastDiagnostics,
+      ...lastOverviewDetailDiagnostics,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size,
+      svgDescendantCount: svg ? svg.querySelectorAll("*").length : 0
+    };
+    applyDiagnosticsAttributes();
+    notifyDiagnostics();
+    resolvePendingFlushes();
+  }
+
+  function cancelRelationshipPromotion() {
+    relationshipPromotionGeneration += 1;
+    cancelDiagram2Frame(relationshipPromotionPatch?.frame);
+    relationshipPromotionPatch = null;
   }
 
   function projectedEntityFieldRowPixels(objects) {
@@ -2895,8 +3335,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return Math.round(Math.max(0, median * committedViewportTransform.scale) * 100) / 100;
   }
 
-  function nextOverviewDetailLevel(previousLevel, projectedRowPixels, entityCount) {
-    if (entityCount < diagram2LowDetailMinimumEntityCount) return diagram2DetailLevelDetailed;
+  function nextOverviewDetailLevel(previousLevel, projectedRowPixels, entityCount, relationshipCount = 0) {
+    if (!diagram2OverviewNeedsLowDetail(entityCount, relationshipCount)) return diagram2DetailLevelDetailed;
     const rowPixels = Number(projectedRowPixels);
     if (!Number.isFinite(rowPixels)) return diagram2DetailLevelDetailed;
     if (previousLevel === diagram2DetailLevelLow) {
@@ -2907,6 +3347,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return rowPixels < diagram2LowDetailEnterRowPixels
       ? diagram2DetailLevelLow
       : diagram2DetailLevelDetailed;
+  }
+
+  function diagram2OverviewNeedsLowDetail(entityCount, relationshipCount) {
+    return entityCount >= diagram2LowDetailMinimumEntityCount
+      || relationshipCount >= diagram2LowDetailMinimumRelationshipCount;
   }
 
   function bringPreviewObjectsForward(objectIds) {
@@ -3051,26 +3496,40 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       objects: canonicalState.objects.map(object => previewObjectsById.get(object.id) || object)
     };
     const previewRelationships = diagram2CanonicalRelationships(previewState);
-    const routeOptions = relationshipRouteOptions(previewRelationships, previewState);
     const relationshipsById = new Map(previewRelationships.map(relationship => [relationship.id, relationship]));
+    const previewRoutesById = new Map(routing.relationshipRoutesById);
+    const previewRouteOptions = {
+      relationships: previewRelationships,
+      allowOverlappingLines: canonicalState?.allowOverlappingEntityLines === true,
+      manualRoutes: false,
+      compactRouting: canonicalState?.compactEntityRelationshipRouting === true,
+      routeModel: null
+    };
     let patched = 0;
 
-    patchMergedRelationshipRoutes(previewRelationships, routeOptions, { useCachedRoutes: false });
+    preview.relationshipIds.forEach(id => {
+      const relationship = relationshipsById.get(id);
+      if (!relationship) return;
+      previewRoutesById.set(id, relationshipRoute(relationship, previewRouteOptions));
+    });
+    patchMergedRelationshipRoutes(previewRelationships, {}, {
+      routeById: previewRoutesById
+    });
     preview.relationshipIds.forEach(id => {
       const relationship = relationshipsById.get(id);
       if (!relationship) return;
       const node = liveView.relationshipNodesById.get(id);
       if (!node) return;
-      const route = relationshipRoute(relationship, routeOptions);
+      const route = previewRoutesById.get(id);
       patchRelationshipNode(node, relationship, relationship, {
         route,
-        detailLevel: relationshipDetailLevel(relationship),
+        detailLevel: diagram2DetailLevelLow,
         selected: liveView.selectedIds.has(id),
         manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
         viewportScale: committedViewportTransform.scale
       });
       patchSelectedRelationshipOverlay(relationship, route, {
-        detailLevel: relationshipDetailLevel(relationship),
+        detailLevel: diagram2DetailLevelLow,
         selected: liveView.selectedIds.has(id),
         manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true,
         viewportScale: committedViewportTransform.scale
@@ -3084,15 +3543,16 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function restoreGeometryPreviewRelationships(preview) {
     if (!preview?.relationshipIds?.length || !canonicalState) return 0;
     const relationships = diagram2CanonicalRelationships(canonicalState);
-    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    const routeById = new Map(routing.relationshipRoutesById);
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     let patched = 0;
-    patchMergedRelationshipRoutes(relationships, routeOptions);
+    patchMergedRelationshipRoutes(relationships, {}, { routeById });
     preview.relationshipIds.forEach(id => {
       const relationship = relationshipsById.get(id);
       const node = liveView.relationshipNodesById.get(id);
       if (!relationship || !node) return;
-      const route = routing.relationshipRoutesById.get(id) || relationshipRoute(relationship, routeOptions);
+      const route = routeById.get(id) || relationshipRoute(relationship, routeOptions);
       patchRelationshipNode(node, relationship, relationship, {
         route,
         detailLevel: relationshipDetailLevel(relationship),
@@ -3432,11 +3892,30 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function fitViewportTransform(state, viewport) {
-    return diagram2FitViewportTransform(state, viewport, {
+    return diagram2FitBoundsViewportTransform(rendererContentBounds(state), viewport, {
       padding: fitViewportPadding,
       scaleStep: fitViewportScaleStep,
-      inset: viewportInset
+      inset: viewportInset,
+      fallbackWidth: state?.width,
+      fallbackHeight: state?.height
     });
+  }
+
+  function rendererContentBounds(state) {
+    const visibleObjects = (Array.isArray(state?.objects) ? state.objects : [])
+      .filter(object => diagram2ObjectVisible(object, state));
+    const relationships = diagram2CanonicalRelationships(state);
+    const routeOptions = relationshipRouteOptions(relationships, state);
+    let bounds = null;
+    visibleObjects.forEach(object => {
+      bounds = unionBounds(bounds, diagram2ObjectContentBounds(object));
+    });
+    relationships.forEach(relationship => {
+      const route = routing.relationshipRoutesById.get(relationship.id)
+        || relationshipRoute(relationship, routeOptions);
+      bounds = unionBounds(bounds, route.bounds);
+    });
+    return bounds;
   }
 
   function setViewportInset(insetInput = {}, options = {}) {
@@ -3624,6 +4103,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     scheduleDiagramFlush,
     flushDiagramChanges,
     whenIdle,
+    whenInteractive,
     beginGeometryPreview,
     previewGeometry,
     commitGeometryPreview,
@@ -3636,6 +4116,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     setStructureState,
     updateObject,
     patchObject: updateObject,
+    relationshipRoutePoints,
     setSelectedIds,
     setCanvasOptions,
     setViewportInset,
@@ -3646,7 +4127,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     previewCrop,
     clearCropPreview,
     showFieldMappingHover,
+    pinFieldMapping,
     clearFieldMappingHover,
+    clearFieldMappingSelection,
     focusFieldMappingTarget,
     viewportMatrix,
     screenToWorld,
@@ -3685,6 +4168,8 @@ function clearDiagram2RoutingState(routing) {
   routing.relationshipRouteSignaturesById.clear();
   routing.relationshipStyleSignaturesById.clear();
   routing.relationshipRoutesById.clear();
+  routing.compactRelationshipRoutesById.clear();
+  routing.pendingCompactRelationshipRouteIds.clear();
   routing.entityProtectedBoundsById.clear();
   routing.entityProtectedSectorIndex.clear();
   routing.relationshipRouteSectorIndex.clear();
@@ -3789,9 +4274,7 @@ function patchEntityObjectNode(node, object, detailLevel = diagram2DetailLevelDe
   if (title) title.textContent = `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`;
   const entityTitle = node.querySelector("[data-diagram2-entity-title]");
   if (entityTitle) {
-    entityTitle.textContent = detailLevel === diagram2DetailLevelLow
-      ? lowDetailEntityIdentifier(object)
-      : formatEntityIdentifier(object.entitySchema, object.entityName);
+    entityTitle.textContent = formatEntityIdentifier(object.entitySchema, object.entityName);
   }
   patchEntityObjectNodeStyles(node, local, detailLevel);
 }
@@ -3800,8 +4283,6 @@ function patchEntityObjectNodeStyles(node, object, detailLevel = diagram2DetailL
   const metrics = annotationEntityMetrics(object);
   const stroke = object.outlineVisible === false ? "none" : object.stroke || "#42526b";
   const textColor = object.textColor || "#172b4d";
-  const lowDetail = detailLevel === diagram2DetailLevelLow;
-  const lowDetailFontSize = lowDetailEntityFontSize(object);
   setSvgAttributes(node.querySelector("[data-diagram2-entity-body]"), {
     fill: object.fill || "#ffffff"
   });
@@ -3819,6 +4300,9 @@ function patchEntityObjectNodeStyles(node, object, detailLevel = diagram2DetailL
       "stroke-width": Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.55)
     });
   });
+  setSvgAttributes(node.querySelector("[data-diagram2-entity-low-field]"), {
+    stroke: textColor
+  });
   node.querySelectorAll("[data-diagram2-entity-text]").forEach(text => {
     const isTitle = text.hasAttribute("data-diagram2-entity-title");
     const isKey = text.hasAttribute("data-diagram2-entity-key");
@@ -3827,11 +4311,10 @@ function patchEntityObjectNodeStyles(node, object, detailLevel = diagram2DetailL
     setSvgAttributes(text, {
       fill: isTitle ? object.entityNameTextColor || textColor : textColor,
       "font-family": object.fontFamily || "Arial",
-      "font-size": lowDetail ? lowDetailFontSize
-        : isTitle ? metrics.fontSize * 1.05
-          : isKey || isNullability ? metrics.fontSize * 0.82
-            : isDataType ? metrics.fontSize * 0.86
-              : metrics.fontSize
+      "font-size": isTitle ? metrics.fontSize * 1.05
+        : isKey || isNullability ? metrics.fontSize * 0.82
+          : isDataType ? metrics.fontSize * 0.86
+            : metrics.fontSize
     });
   });
 }
@@ -4175,21 +4658,31 @@ function renderLowDetailEntityObject(node, object, options = {}) {
   const y = finiteNumber(object.y, 0);
   const width = positiveNumber(object.width, 1);
   const height = positiveNumber(object.height, 1);
+  const metrics = annotationEntityMetrics(object);
   const fields = annotationEntityVisibleFields(object);
   const stroke = object.outlineVisible === false ? "none" : object.stroke || "#2f5597";
   const fill = object.fill || "#ffffff";
   const headerFill = object.entityHeaderFill || "#dbeafe";
   const textColor = object.textColor || "#172b4d";
   const headerTextColor = object.entityNameTextColor || textColor;
-  const fontSize = lowDetailEntityFontSize(object);
-  const headerHeight = Math.min(height, Math.max(28, Math.min(height * 0.58, fontSize * 1.35)));
+  const headerHeight = Math.min(height, metrics.headerHeight);
+  const showKeyColumn = object.showKeyColumn !== false;
+  const keyColumnWidth = showKeyColumn ? Math.min(metrics.keyColumnWidth, width * 0.22) : 0;
+  const fieldX = x + keyColumnWidth;
+  const bodyHeight = Math.max(1, height - headerHeight);
+  const gridLineWidth = Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.55);
+  const firstNonPrimaryKeyIndex = fields.findIndex(field => !field.isPrimaryKey);
+  const leadingPrimaryKeyCount = firstNonPrimaryKeyIndex < 0 ? fields.length : firstNonPrimaryKeyIndex;
   const titleClipId = `${safeSvgId(object.id)}-diagram2-low-title`;
-  const textVisibility = lowDetailEntityTextVisibility(object, options.viewportScale);
-  const primaryKeyCount = fields.filter(field => field.isPrimaryKey).length;
-  const foreignKeyCount = fields.filter(field => field.isForeignKey).length;
+  const keyClipId = `${safeSvgId(object.id)}-diagram2-low-keys`;
+  const fieldClipId = `${safeSvgId(object.id)}-diagram2-low-fields`;
 
   const defs = appendSvg(node, "defs");
-  appendClipRect(defs, titleClipId, x + 8, y, Math.max(1, width - 16), headerHeight);
+  appendClipRect(defs, titleClipId, x + metrics.padding, y, Math.max(1, width - (metrics.padding * 2)), headerHeight);
+  if (showKeyColumn) {
+    appendClipRect(defs, keyClipId, x, y + headerHeight, Math.max(1, keyColumnWidth), bodyHeight);
+  }
+  appendClipRect(defs, fieldClipId, fieldX, y + headerHeight, Math.max(1, width - keyColumnWidth), bodyHeight);
   appendTitle(node, `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`);
   appendSvg(node, "rect", {
     class: "diagram2-renderer-entity-body",
@@ -4211,39 +4704,87 @@ function renderLowDetailEntityObject(node, object, options = {}) {
     fill: headerFill,
     stroke: "none"
   });
-  if (textVisibility.title) {
-    appendText(node, lowDetailEntityIdentifier(object), {
-      class: "diagram2-renderer-entity-title",
-      "data-diagram2-entity-title": "",
-      "data-diagram2-entity-text": "",
-      x: x + (width / 2),
-      y: y + (headerHeight / 2),
-      "text-anchor": "middle",
-      "dominant-baseline": "middle",
-      "clip-path": `url(#${titleClipId})`,
-      fill: headerTextColor,
-      "font-family": object.fontFamily || "Arial",
-      "font-size": fontSize,
-      "font-weight": 700
+  appendText(node, formatEntityIdentifier(object.entitySchema, object.entityName), {
+    class: "diagram2-renderer-entity-title",
+    "data-diagram2-entity-title": "",
+    "data-diagram2-entity-text": "",
+    x: x + (width / 2),
+    y: y + (headerHeight * 0.68),
+    "text-anchor": "middle",
+    "clip-path": `url(#${titleClipId})`,
+    fill: headerTextColor,
+    "font-family": object.fontFamily || "Arial",
+    "font-size": metrics.fontSize * 1.05,
+    "font-weight": 600
+  });
+
+  appendSvg(node, "line", {
+    "data-diagram2-entity-rule": "header",
+    x1: x,
+    y1: y + headerHeight,
+    x2: x + width,
+    y2: y + headerHeight,
+    stroke,
+    "stroke-width": gridLineWidth
+  });
+  if (showKeyColumn) {
+    appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "key-column",
+      x1: fieldX,
+      y1: y + headerHeight,
+      x2: fieldX,
+      y2: y + height,
+      stroke,
+      "stroke-width": gridLineWidth
+    });
+  }
+  if (leadingPrimaryKeyCount > 0 && leadingPrimaryKeyCount < fields.length) {
+    const dividerY = y + headerHeight + (leadingPrimaryKeyCount * metrics.rowHeight);
+    appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "primary-key",
+      x1: x,
+      y1: dividerY,
+      x2: x + width,
+      y2: dividerY,
+      stroke,
+      "stroke-width": gridLineWidth
     });
   }
 
-  if (textVisibility.keySummary && (primaryKeyCount > 0 || foreignKeyCount > 0)) {
-    const indicatorText = [primaryKeyCount ? `PK ${primaryKeyCount}` : "", foreignKeyCount ? `FK ${foreignKeyCount}` : ""]
-      .filter(Boolean)
-      .join(" / ");
-    appendText(node, indicatorText, {
-      class: "diagram2-renderer-entity-key diagram2-renderer-entity-compact-key",
-      "data-diagram2-entity-text": "",
-      "data-diagram2-entity-compact-key": "",
-      x: x + Math.max(10, Math.min(width - 10, width * 0.5)),
-      y: y + headerHeight + Math.max(12, Math.min(height - headerHeight - 10, fontSize * 0.72)),
-      "text-anchor": "middle",
-      "dominant-baseline": "middle",
-      fill: textColor,
-      "font-family": object.fontFamily || "Arial",
-      "font-size": Math.max(18, fontSize * 0.62),
-      "font-weight": 700
+  const microTextPath = [];
+  fields.forEach((field, index) => {
+    const textY = y + headerHeight + (index * metrics.rowHeight) + (metrics.rowHeight * 0.68);
+    const key = [field.isPrimaryKey ? "PK" : "", field.isForeignKey ? "FK" : ""].filter(Boolean).join("/");
+    const lineY = textY - (metrics.fontSize * 0.28);
+    if (showKeyColumn && key) {
+      const keyLength = Math.min(
+        Math.max(metrics.fontSize * 0.55, key.length * metrics.fontSize * 0.28),
+        Math.max(1, keyColumnWidth - (metrics.padding * 0.8))
+      );
+      const keyStart = x + ((keyColumnWidth - keyLength) / 2);
+      microTextPath.push(`M ${formatNumber(keyStart)} ${formatNumber(lineY)} h ${formatNumber(keyLength)}`);
+    }
+    const fieldName = formatAnnotationEntityIdentifier(field.name) || "Field";
+    const availableWidth = Math.max(1, width - keyColumnWidth - (metrics.padding * 2));
+    const fieldLength = Math.min(
+      availableWidth,
+      Math.max(metrics.fontSize * 1.5, fieldName.length * metrics.fontSize * 0.48)
+    );
+    microTextPath.push(
+      `M ${formatNumber(fieldX + metrics.padding)} ${formatNumber(lineY)} h ${formatNumber(fieldLength)}`
+    );
+  });
+  if (microTextPath.length) {
+    appendSvg(node, "path", {
+      class: "diagram2-renderer-entity-low-fields",
+      "data-diagram2-entity-low-field": "",
+      d: microTextPath.join(" "),
+      fill: "none",
+      stroke: textColor,
+      "stroke-width": Math.max(1, metrics.fontSize * 0.11),
+      "stroke-linecap": "round",
+      opacity: 0.68,
+      "pointer-events": "none"
     });
   }
 
@@ -4513,6 +5054,7 @@ function renderRichTextObject(node, object) {
 
 function renderFieldMappingTableObject(node, object) {
   appendTitle(node, object.name || "Field Mapping Table");
+  appendSvg(node, "defs", { "data-diagram2-field-mapping-defs": "" });
   appendSvg(node, "g", { "data-diagram2-field-mapping-header": "" });
   appendSvg(node, "g", { "data-diagram2-field-mapping-rows": "" });
   appendSvg(node, "g", { "data-diagram2-field-mapping-grid": "", "pointer-events": "none" });
@@ -4522,31 +5064,41 @@ function renderFieldMappingTableObject(node, object) {
 function patchFieldMappingTableObject(node, object) {
   const x = finiteNumber(object.x, 0);
   const y = finiteNumber(object.y, 0);
-  const width = positiveNumber(object.width, 1);
-  const height = positiveNumber(object.height, 1);
   const rows = Array.isArray(object.rows) ? object.rows : [];
   const layout = annotationFieldMappingTableLayout(object);
+  const width = layout.width;
+  const height = layout.height;
   const rowHeight = layout.rowHeight;
   const headerHeight = layout.headerHeight;
   const uiColumnWidth = layout.uiColumnWidth;
   const databaseColumnWidth = layout.databaseColumnWidth;
   const stroke = object.stroke || "#334155";
   const rowHoverFill = object.fieldMappingRowHoverFill || "#fff59d";
+  const clipId = `${safeSvgId(object.id)}-diagram2-field-mapping-table`;
   let title = node.querySelector(":scope > title");
   if (!title) {
     appendTitle(node, object.name || "Field Mapping Table");
     title = node.querySelector(":scope > title");
   }
   title.textContent = object.name || "Field Mapping Table";
+  let definitions = node.querySelector(":scope > defs[data-diagram2-field-mapping-defs]");
   let header = node.querySelector(":scope > g[data-diagram2-field-mapping-header]");
   let rowPlane = node.querySelector(":scope > g[data-diagram2-field-mapping-rows]");
   let grid = node.querySelector(":scope > g[data-diagram2-field-mapping-grid]");
-  if (!header || !rowPlane || !grid) {
+  if (!definitions || !header || !rowPlane || !grid) {
     node.replaceChildren();
     appendTitle(node, object.name || "Field Mapping Table");
+    definitions = appendSvg(node, "defs", { "data-diagram2-field-mapping-defs": "" });
     header = appendSvg(node, "g", { "data-diagram2-field-mapping-header": "" });
     rowPlane = appendSvg(node, "g", { "data-diagram2-field-mapping-rows": "" });
     grid = appendSvg(node, "g", { "data-diagram2-field-mapping-grid": "", "pointer-events": "none" });
+  }
+  const clipVersion = JSON.stringify([clipId, x, y, width, height]);
+  if (definitions.dataset.diagram2FieldMappingVersion !== clipVersion) {
+    definitions.dataset.diagram2FieldMappingVersion = clipVersion;
+    definitions.replaceChildren();
+    const clipPath = appendSvg(definitions, "clipPath", { id: clipId });
+    appendSvg(clipPath, "rect", { x, y, width, height });
   }
   const headerVersion = JSON.stringify([
     x, y, width, headerHeight, uiColumnWidth, layout.padding,
@@ -4561,11 +5113,17 @@ function patchFieldMappingTableObject(node, object) {
       y,
       width,
       height: headerHeight,
-      fill: object.headerFill || "#e2e8f0",
+      fill: object.headerFill || "#d9ecff",
       stroke: "none"
     });
-    appendText(header, "UI Field", fieldMappingTextAttributes(object, x + layout.padding, y + (headerHeight / 2), object.headerTextColor || "#172b4d"));
-    appendText(header, "Database Field", fieldMappingTextAttributes(object, x + uiColumnWidth + layout.padding, y + (headerHeight / 2), object.headerTextColor || "#172b4d"));
+    appendText(header, "UI Field", {
+      ...fieldMappingTextAttributes(object, x + layout.padding, y + (headerHeight * 0.66), object.headerTextColor || "#000000"),
+      "font-weight": 700
+    });
+    appendText(header, "Database Field", {
+      ...fieldMappingTextAttributes(object, x + uiColumnWidth + layout.padding, y + (headerHeight * 0.66), object.headerTextColor || "#000000"),
+      "font-weight": 700
+    });
   }
 
   const existingRows = new Map([...rowPlane.querySelectorAll(":scope > g[data-diagram2-field-mapping-row-key]")]
@@ -4589,9 +5147,6 @@ function patchFieldMappingTableObject(node, object) {
       "data-diagram2-field-mapping-row-y": top,
       "data-diagram2-field-mapping-row-width": width,
       "data-diagram2-field-mapping-row-height": rowHeight,
-      role: "button",
-      tabindex: 0,
-      "aria-label": `${row.uiField || "UI Field"} maps to ${row.databaseField || "Database Field"}`,
       style: `--diagram2-field-mapping-row-hover-fill: ${rowHoverFill}`
     });
     const rowVersion = JSON.stringify([
@@ -4602,16 +5157,60 @@ function patchFieldMappingTableObject(node, object) {
     if (rowGroup.dataset.diagram2FieldMappingVersion !== rowVersion) {
       rowGroup.dataset.diagram2FieldMappingVersion = rowVersion;
       rowGroup.replaceChildren();
-      appendSvg(rowGroup, "rect", {
+      const uiCell = appendSvg(rowGroup, "g", {
+        "data-diagram2-field-mapping-cell": "true",
+        "data-diagram2-field-mapping-cell-kind": "ui",
+        "data-diagram2-field-mapping-cell-key": `${rowKey}:ui`,
+        "data-diagram2-field-mapping-id": mappingId,
+        "data-diagram2-field-mapping-table-id": object.id,
+        "data-diagram2-field-rectangle-id": row.uiEntityId || "",
+        "data-diagram2-field-mapping-cell-x": x,
+        "data-diagram2-field-mapping-cell-y": top,
+        "data-diagram2-field-mapping-cell-width": uiColumnWidth,
+        "data-diagram2-field-mapping-cell-height": rowHeight,
+        role: "button",
+        tabindex: 0,
+        "aria-label": `Select UI field ${row.uiField || "UI Field"}`
+      });
+      appendSvg(uiCell, "rect", {
         "data-diagram2-field-mapping-cell-fill": "true",
         "data-diagram2-field-mapping-cell-kind": "ui",
         x,
         y: top,
         width: uiColumnWidth,
         height: rowHeight,
-        fill: object.uiFill || "#f8fafc"
+        fill: object.uiFill || "#ffffff"
       });
-      appendSvg(rowGroup, "rect", {
+      appendText(uiCell, row.uiField || "", {
+        ...fieldMappingTextAttributes(object, x + layout.padding, top + (rowHeight * 0.66), object.uiTextColor || "#172b4d"),
+        "data-diagram2-field-mapping-cell-kind": "ui",
+        "clip-path": `url(#${clipId})`
+      });
+      appendSvg(uiCell, "rect", {
+        x,
+        y: top,
+        width: uiColumnWidth,
+        height: rowHeight,
+        fill: "transparent",
+        "pointer-events": "all"
+      });
+
+      const databaseCell = appendSvg(rowGroup, "g", {
+        "data-diagram2-field-mapping-cell": "true",
+        "data-diagram2-field-mapping-cell-kind": "database",
+        "data-diagram2-field-mapping-cell-key": `${rowKey}:database`,
+        "data-diagram2-field-mapping-id": mappingId,
+        "data-diagram2-field-mapping-table-id": object.id,
+        "data-diagram2-field-rectangle-id": row.uiEntityId || "",
+        "data-diagram2-field-mapping-cell-x": x + uiColumnWidth,
+        "data-diagram2-field-mapping-cell-y": top,
+        "data-diagram2-field-mapping-cell-width": databaseColumnWidth,
+        "data-diagram2-field-mapping-cell-height": rowHeight,
+        role: "button",
+        tabindex: 0,
+        "aria-label": `Select database field ${row.databaseField || "Database Field"}`
+      });
+      appendSvg(databaseCell, "rect", {
         "data-diagram2-field-mapping-cell-fill": "true",
         "data-diagram2-field-mapping-cell-kind": "database",
         x: x + uiColumnWidth,
@@ -4620,13 +5219,18 @@ function patchFieldMappingTableObject(node, object) {
         height: rowHeight,
         fill: object.databaseFill || "#ffffff"
       });
-      appendText(rowGroup, row.uiField || "", {
-        ...fieldMappingTextAttributes(object, x + layout.padding, top + (rowHeight / 2), object.uiTextColor || "#172b4d"),
-        "data-diagram2-field-mapping-cell-kind": "ui"
+      appendText(databaseCell, row.databaseField || "", {
+        ...fieldMappingTextAttributes(object, x + uiColumnWidth + layout.padding, top + (rowHeight * 0.66), object.databaseTextColor || "#172b4d"),
+        "data-diagram2-field-mapping-cell-kind": "database",
+        "clip-path": `url(#${clipId})`
       });
-      appendText(rowGroup, row.databaseField || "", {
-        ...fieldMappingTextAttributes(object, x + uiColumnWidth + layout.padding, top + (rowHeight / 2), object.databaseTextColor || "#172b4d"),
-        "data-diagram2-field-mapping-cell-kind": "database"
+      appendSvg(databaseCell, "rect", {
+        x: x + uiColumnWidth,
+        y: top,
+        width: databaseColumnWidth,
+        height: rowHeight,
+        fill: "transparent",
+        "pointer-events": "all"
       });
     }
     desiredRows.push(rowGroup);
@@ -4710,9 +5314,7 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
   });
 
   const route = flags.route || relationshipRoute(relationship);
-  const renderRoute = flags.detailLevel === diagram2DetailLevelLow
-    ? lowDetailRelationshipRoute(relationship, route)
-    : route;
+  const renderRoute = route;
   const style = relationshipStyle(relationship);
   setSvgAttributes(node, {
     "data-diagram2-relationship-route-points": JSON.stringify((Array.isArray(renderRoute?.points) ? renderRoute.points : []).map(point => ({
@@ -4756,10 +5358,6 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     false,
     flags.viewportScale
   );
-}
-
-function lowDetailRelationshipRoute(relationship, routeInput) {
-  return routeInput || relationshipRoute(relationship);
 }
 
 function patchRelationshipSymbols(node, relationship, route, style) {
@@ -5122,9 +5720,7 @@ function relationshipPathFromPoints(pointsInput) {
 
 function relationshipRouteOptions(relationshipsInput, state) {
   const relationships = Array.isArray(relationshipsInput) ? relationshipsInput : [];
-  const useSharedRouteModel = relationships.length <= 32
-    || state?.manualEntityRelationshipRoutes === true
-    || state?.compactEntityRelationshipRouting === true;
+  const useSharedRouteModel = relationships.length <= diagram2RelationshipPromotionThreshold;
   return {
     relationships,
     allowOverlappingLines: state?.allowOverlappingEntityLines === true,
@@ -5420,39 +6016,11 @@ function relationshipStyle(relationship) {
   };
 }
 
-function lowDetailEntityFontSize(object) {
-  const height = positiveNumber(object?.height, 1);
-  const base = Math.max(positiveNumber(object?.fontSize, 12) * 4, 42);
-  return clampNumber(base, 20, Math.max(20, height * 0.46));
-}
-
-function lowDetailEntityIdentifier(object) {
-  const entityName = String(object?.entityName || "").trim();
-  const shortName = entityName.split(".").map(part => part.trim()).filter(Boolean).pop() || entityName;
-  return formatAnnotationEntityIdentifier(shortName) || "Entity";
-}
-
-function lowDetailEntityTextVisibility(object, scaleInput) {
-  const scale = positiveNumber(scaleInput, 1);
-  const fontPixels = lowDetailEntityFontSize(object) * scale;
-  const widthPixels = positiveNumber(object?.width, 1) * scale;
-  const heightPixels = positiveNumber(object?.height, 1) * scale;
-  return {
-    title: fontPixels >= diagram2LowDetailMinimumTitleFontPixels
-      && widthPixels >= diagram2LowDetailMinimumTitleWidthPixels
-      && heightPixels >= diagram2LowDetailMinimumTitleHeightPixels,
-    keySummary: fontPixels >= diagram2LowDetailMinimumKeyFontPixels
-      && widthPixels >= diagram2LowDetailMinimumKeyWidthPixels
-      && heightPixels >= diagram2LowDetailMinimumKeyHeightPixels
-  };
-}
-
 function fieldMappingTextAttributes(object, x, y, fill) {
   return {
     x,
     y,
     fill,
-    "dominant-baseline": "middle",
     "font-family": object.fontFamily || "Arial",
     "font-size": positiveNumber(object.fontSize, 14)
   };
@@ -5587,6 +6155,8 @@ function createDiagram2SelectiveRoutingState() {
     relationshipRouteSignaturesById: new Map(),
     relationshipStyleSignaturesById: new Map(),
     relationshipRoutesById: new Map(),
+    compactRelationshipRoutesById: new Map(),
+    pendingCompactRelationshipRouteIds: new Set(),
     entityProtectedBoundsById: new Map(),
     entityProtectedSectorIndex: createDiagram2FixedGridIndex(diagram2RoutingSectorSize),
     relationshipRouteSectorIndex: createDiagram2FixedGridIndex(diagram2RoutingSectorSize),
@@ -6212,6 +6782,17 @@ function relationshipStyleVersion(relationship) {
   return JSON.stringify(relationship.diagram2EffectiveStyle || relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null);
 }
 
+function normalizeSuppliedRelationshipRoutes(entriesInput = [], relationshipIdsByKey = null) {
+  const routes = new Map();
+  (Array.isArray(entriesInput) ? entriesInput : []).forEach(entry => {
+    const key = String(entry?.key || "").trim();
+    const id = String(relationshipIdsByKey?.get(key) || entry?.id || "").trim();
+    const route = normalizeDiagram2RelationshipGeometry(entry?.route || {});
+    if (id && route) routes.set(id, route);
+  });
+  return routes;
+}
+
 function uniqueDiagram2RendererStrings(values = []) {
   const seen = new Set();
   const result = [];
@@ -6227,6 +6808,11 @@ function uniqueDiagram2RendererStrings(values = []) {
 function diagram2CanonicalEntities(canonical) {
   return (Array.isArray(canonical?.objects) ? canonical.objects : [])
     .filter(object => object?.type === "entity" && diagram2ObjectVisible(object, canonical) && !diagram2IsFieldRectangle(object));
+}
+
+function diagram2RelationshipEntities(canonical) {
+  return (Array.isArray(canonical?.objects) ? canonical.objects : [])
+    .filter(object => object?.type === "entity" && diagram2ObjectVisible(object, canonical));
 }
 
 function diagram2IsFieldRectangle(object) {
