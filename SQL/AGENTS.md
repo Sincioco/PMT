@@ -4,9 +4,9 @@
 - Stored procedures remain the application data-access contract; keep names, parameters, and behavior aligned with ADO.NET callers.
 - Treat the result-set order of aggregate procedures, especially `[pmt].[GetAppState]`, as a versioned contract with `SqlPmtStore`.
 - Keep schema, procedure, core seed, LMS seed, HLS seed, and rebuild-orchestrator changes synchronized.
-- PMT Database Version 1.27 is the deployed BDO baseline as of July 28, 2026. The current source schema and rebuild scripts also represent Version 1.27.
+- PMT Database Version 1.27 is the deployed BDO baseline as of July 28, 2026. The current source schema and rebuild scripts represent Version 1.28 without changing the Version 1.27 table, procedure, or seed contract.
 - Do not add new pre-1.27 compatibility logic. Every future SQL, database-contract, or database-backed stability change must include an explicit forward migration from Version 1.27 or the immediately preceding deployed version under `SQL/Migrations/`; changing rebuild scripts alone is not enough.
-- The completed migrations and combined runners through Version 1.27 are historical artifacts under `Migrations/Migration History/`. There is no active forward migration until a Version 1.28 database change is introduced.
+- The completed migrations and combined runners through Version 1.27 are historical artifacts under `Migrations/Migration History/`. The active `PMT_1.27_to_1.28.sql` step and `PMT_1.27_to_1.28_All.sql` runner advance only the guarded release marker for the frontend-only Version 1.28 release.
 - If one deployment requires more than one versioned migration, keep the individual scripts as the canonical history and also provide one ordered `PMT_<from>_to_<to>_All.sql` SQLCMD runner so the operator runs a single file.
 - Store completed migration scripts and HTML runbooks in `SQL/Migrations/Migration History/`. Whenever a new deployed baseline is declared, move every artifact ending at or before that baseline there automatically; keep only the active forward migration chain and its combined runner in `SQL/Migrations/`.
 - Keep scripts explicit, rerunnable where currently supported, and understandable without extra tooling.

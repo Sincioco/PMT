@@ -12,7 +12,7 @@ import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
 } from "./components/diagram-field-mapping-interactions.js?v=20260731-diagram2-route-release-v15";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -75,7 +75,7 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260731-diagram2-route-release-v15";
 import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260731-diagram2-route-release-v15";
 import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15";
@@ -84,11 +84,11 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260726-diagram2-nav-icon-v1";
@@ -118,6 +118,7 @@ import {
   sprintName,
   taskById
 } from "./shared/selectors.js";
+import { createReorderDrag } from "./shared/reorder-drag.js?v=20260731-rte-checkbox-list-v1";
 import {
   severityPillHtml,
   severityTextHtml
@@ -148,6 +149,7 @@ const nativePickerSelector = [
 
 initializeDraggableDialogs();
 bindGlobalRichCheckboxSync();
+bindGlobalRichCheckboxListInteractions();
 bindGlobalRichCodeBlockActions();
 bindGlobalRichCollapsibleBlocks();
 initializeUserMentions({
@@ -172,7 +174,11 @@ const richLastColorCommandStoragePrefix = "pmt-rich-last-color-";
 const richCustomColorLimit = 10;
 const richTableMaxSize = 10;
 const richReadonlyCheckboxSaveDelayMs = 350;
+const richCheckboxListDefaultWidth = 420;
+const richCheckboxListMinWidth = 180;
 const richReadonlyCheckboxSaveTimers = new WeakMap();
+let activeRichCheckboxList = null;
+let richCheckboxListSequence = 0;
 let activeRichTextImageMenu = null;
 let activeRichTextImageSelection = null;
 
@@ -2591,6 +2597,7 @@ function bindRichTextButtons(root) {
       const confirmed = await askYesNo("Clear all formatting from this body and keep only plain text?", "Clear Formatting");
       if (!confirmed) return;
 
+      if (activeRichCheckboxList?.editor === editor) deactivateRichCheckboxList();
       editor.innerHTML = richPlainTextHtml(editor.innerText || editor.textContent || "");
       editor.focus();
     });
@@ -2661,8 +2668,21 @@ function bindRichTextButtons(root) {
       }
 
       if (command === "insertCheckbox") {
-        document.execCommand("insertHTML", false, richCheckboxHtml());
-        bindRichCheckboxes(editor);
+        const target = richCheckboxListEditTarget(editor, savedSelection);
+        const result = await askForRichCheckboxList(
+          target?.list
+            ? richCheckboxListData(target.list)
+            : target?.legacyItem
+              ? richCheckboxListDataFromLegacyItem(target.legacyItem)
+              : null,
+          { editing: Boolean(target) }
+        );
+        if (!result) return;
+
+        applyRichCheckboxListResult(editor, result, {
+          ...target,
+          selection: savedSelection
+        });
         return;
       }
 
@@ -2883,6 +2903,7 @@ function bindRichTextButtons(root) {
 
   root.querySelectorAll(".rich-editor").forEach(editor => {
     bindRichCheckboxes(editor);
+    hydrateRichCheckboxLists(editor);
     bindRichTableSelectionTracking(editor);
     bindRichCheckboxShortcut(editor);
 
@@ -3475,8 +3496,397 @@ function richTableHtml(rows, columns) {
   return `<table class="rich-table"><tbody>${bodyRows}</tbody></table><p><br></p>`;
 }
 
-function richCheckboxHtml() {
-  return `<label class="rich-check-item"><input type="checkbox"> <span>Checkbox item</span></label><p><br></p>`;
+function createRichCheckboxListId() {
+  richCheckboxListSequence += 1;
+  return `rich-check-list-${Date.now().toString(36)}-${richCheckboxListSequence.toString(36)}`;
+}
+
+function richCheckboxListHtml(config = {}) {
+  const autoWidth = config.autoWidth !== false;
+  const width = clampNumber(Number(config.width || richCheckboxListDefaultWidth), richCheckboxListMinWidth, 2000);
+  const listId = String(config.id || createRichCheckboxListId());
+  const items = Array.isArray(config.items) ? config.items : [];
+  const itemHtml = items.map(richCheckboxListItemHtml).join("");
+
+  return `<div class="rich-check-list" contenteditable="false" data-rich-check-list data-rich-check-list-id="${escapeAttr(listId)}" data-rich-check-width-mode="${autoWidth ? "auto" : "fixed"}" data-rich-check-width="${width}" style="width: ${autoWidth ? "100%" : `${width}px`};"><div class="rich-check-list-items">${itemHtml}</div></div>`;
+}
+
+function richCheckboxListItemHtml(item = {}) {
+  const labelHtml = normalizeRichCheckboxLabelHtml(item.html || escapeHtml(item.text || ""));
+  return `<div class="rich-check-item" data-rich-check-list-item><input type="checkbox"${item.checked ? " checked" : ""}><div class="rich-check-label">${labelHtml || "<br>"}</div></div>`;
+}
+
+function normalizeRichCheckboxLabelHtml(html) {
+  const container = document.createElement("div");
+  container.innerHTML = String(html || "");
+  container.querySelectorAll("script, style").forEach(node => node.remove());
+  container.querySelectorAll("input, button, textarea, select, table, img, video, iframe, svg, [data-pmt-ole], [data-rich-check-list]")
+    .forEach(node => node.replaceWith(document.createTextNode(node.textContent || "")));
+  container.querySelectorAll("[contenteditable], [data-rich-checkbox-shortcut-caret]")
+    .forEach(node => {
+      node.removeAttribute("contenteditable");
+      node.removeAttribute("data-rich-checkbox-shortcut-caret");
+    });
+  return container.innerHTML.trim();
+}
+
+function richCheckboxLabelText(html) {
+  const container = document.createElement("div");
+  container.innerHTML = String(html || "");
+  container.querySelectorAll("br").forEach(node => node.replaceWith("\n"));
+  container.querySelectorAll("p, div, li").forEach(node => node.append("\n"));
+  return (container.textContent || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function richCheckboxListData(list) {
+  const width = clampNumber(
+    Number(list?.dataset.richCheckWidth || parseFloat(list?.style.width) || richCheckboxListDefaultWidth),
+    richCheckboxListMinWidth,
+    2000
+  );
+  const items = [...(list?.querySelectorAll(":scope > .rich-check-list-items > .rich-check-item") || [])]
+    .map(item => ({
+      checked: item.querySelector("input[type='checkbox']")?.checked === true,
+      html: normalizeRichCheckboxLabelHtml(item.querySelector(".rich-check-label")?.innerHTML || "")
+    }));
+
+  return {
+    id: String(list?.dataset.richCheckListId || createRichCheckboxListId()),
+    autoWidth: list?.dataset.richCheckWidthMode !== "fixed",
+    width,
+    items
+  };
+}
+
+function richCheckboxListDataFromLegacyItem(item) {
+  const label = item?.querySelector(":scope > span") || item?.querySelector("span");
+  return {
+    id: createRichCheckboxListId(),
+    autoWidth: true,
+    width: richCheckboxListDefaultWidth,
+    items: [{
+      checked: item?.querySelector("input[type='checkbox']")?.checked === true,
+      html: normalizeRichCheckboxLabelHtml(label?.innerHTML || "Checkbox item")
+    }]
+  };
+}
+
+function richCheckboxListEditTarget(editor, range = null) {
+  const rangeNode = range?.commonAncestorContainer || range?.startContainer || null;
+  const rangeElement = rangeNode?.nodeType === Node.ELEMENT_NODE ? rangeNode : rangeNode?.parentElement;
+  const list = rangeElement?.closest?.("[data-rich-check-list]");
+  if (list && editor.contains(list)) return { list, legacyItem: null };
+
+  const legacyItem = rangeElement?.closest?.(".rich-check-item");
+  if (legacyItem && editor.contains(legacyItem) && !legacyItem.closest("[data-rich-check-list]")) {
+    return { list: null, legacyItem };
+  }
+
+  if (activeRichCheckboxList?.editor === editor && activeRichCheckboxList.list?.isConnected) {
+    return { list: activeRichCheckboxList.list, legacyItem: null };
+  }
+  return null;
+}
+
+function applyRichCheckboxListResult(editor, result, target = {}) {
+  const existing = target.list?.isConnected ? target.list : target.legacyItem?.isConnected ? target.legacyItem : null;
+  deactivateRichCheckboxList();
+
+  if (!result.items.length) {
+    if (existing) {
+      existing.remove();
+      editor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    return;
+  }
+
+  const html = richCheckboxListHtml(result);
+  let inserted = null;
+  if (existing) {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    inserted = template.content.firstElementChild;
+    existing.replaceWith(inserted);
+  } else {
+    editor.focus();
+    restoreEditorSelection(target.selection);
+    insertRichHtmlAtSelection(editor, `${html}<p><br></p>`);
+  }
+
+  hydrateRichCheckboxLists(editor);
+  bindRichCheckboxes(editor);
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
+
+  inserted ||= [...editor.querySelectorAll("[data-rich-check-list]")]
+    .find(list => list.dataset.richCheckListId === result.id);
+  if (inserted) activateRichCheckboxList(inserted);
+}
+
+function hydrateRichCheckboxLists(editor) {
+  const usedIds = new Set();
+  editor?.querySelectorAll?.("[data-rich-check-list]").forEach(list => {
+    list.setAttribute("contenteditable", "false");
+    const width = clampNumber(
+      Number(list.dataset.richCheckWidth || parseFloat(list.style.width) || richCheckboxListDefaultWidth),
+      richCheckboxListMinWidth,
+      2000
+    );
+    const autoWidth = list.dataset.richCheckWidthMode !== "fixed";
+    let listId = String(list.dataset.richCheckListId || "");
+    if (!listId || usedIds.has(listId)) listId = createRichCheckboxListId();
+    usedIds.add(listId);
+    list.dataset.richCheckListId = listId;
+    list.dataset.richCheckWidth = String(width);
+    list.dataset.richCheckWidthMode = autoWidth ? "auto" : "fixed";
+    list.style.width = autoWidth ? "100%" : `${width}px`;
+  });
+}
+
+function askForRichCheckboxList(initialConfig = null, options = {}) {
+  return new Promise(resolve => {
+    const config = initialConfig || {
+      id: createRichCheckboxListId(),
+      autoWidth: true,
+      width: richCheckboxListDefaultWidth,
+      items: [{ checked: false, html: "" }]
+    };
+    const items = config.items.map(item => ({
+      id: createRichCheckboxListId(),
+      checked: item.checked === true,
+      html: normalizeRichCheckboxLabelHtml(item.html || "")
+    }));
+    let autoWidth = config.autoWidth !== false;
+    let width = clampNumber(Number(config.width || richCheckboxListDefaultWidth), richCheckboxListMinWidth, 2000);
+    const modal = document.createElement("dialog");
+    modal.className = "dialog rich-checkbox-list-dialog";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>${options.editing ? "Edit Checkboxes" : "Checkboxes"}</h2>
+        </div>
+        <div class="dialog-body">
+          <div class="rich-checkbox-list-dialog-toolbar">
+            <label class="inline-check">
+              <input type="checkbox" data-rich-checkbox-auto-width${autoWidth ? " checked" : ""}>
+              <span>Use content area width (auto-width)</span>
+            </label>
+            <label class="rich-checkbox-list-width-field">
+              <span>Width</span>
+              <input type="number" min="${richCheckboxListMinWidth}" max="2000" step="10" value="${width}" data-rich-checkbox-width${autoWidth ? " disabled" : ""}>
+              <span>px</span>
+            </label>
+            <button type="button" class="secondary text-icon-button" data-action="add-rich-checkbox-row">${buttonContent("&#43;", "Add Item")}</button>
+          </div>
+          <div class="rich-checkbox-dialog-list" data-rich-checkbox-dialog-list></div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Save")}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
+    const rowList = modal.querySelector("[data-rich-checkbox-dialog-list]");
+    const widthControl = modal.querySelector("[data-rich-checkbox-width]");
+    const autoWidthControl = modal.querySelector("[data-rich-checkbox-auto-width]");
+
+    const renderRows = focusId => {
+      rowList.innerHTML = items.length
+        ? items.map((item, index) => richCheckboxDialogRowHtml(item, index, items.length)).join("")
+        : `<p class="rich-checkbox-list-empty">No checkbox items. Add an item or save to remove this checklist.</p>`;
+      if (focusId) {
+        setTimeout(() => rowList.querySelector(`[data-rich-checkbox-dialog-row='${focusId}'] [data-rich-checkbox-row-text]`)?.focus(), 0);
+      }
+    };
+
+    const reorder = createReorderDrag({
+      root: modal,
+      itemSelector: "[data-rich-checkbox-dialog-row]",
+      containerSelector: "[data-rich-checkbox-dialog-list]",
+      getItemKey: row => row.dataset.richCheckboxDialogRow,
+      handleSelector: "[data-rich-checkbox-drag-handle]",
+      onDrop: ({ orderedKeys }) => {
+        const byId = new Map(items.map(item => [item.id, item]));
+        const reordered = orderedKeys.map(id => byId.get(id)).filter(Boolean);
+        if (reordered.length !== items.length) return;
+        items.splice(0, items.length, ...reordered);
+        renderRows();
+      }
+    });
+    reorder.bind();
+
+    const finish = value => {
+      reorder.unbind();
+      if (modal.open) modal.close();
+      modal.remove();
+      resolve(value);
+    };
+
+    modal.addEventListener("input", event => {
+      const row = event.target.closest("[data-rich-checkbox-dialog-row]");
+      const item = items.find(entry => entry.id === row?.dataset.richCheckboxDialogRow);
+      if (!item) return;
+
+      if (event.target.matches("[data-rich-checkbox-row-text]")) {
+        item.html = escapeHtml(event.target.value);
+      } else if (event.target.matches("[data-rich-checkbox-row-checked]")) {
+        item.checked = event.target.checked;
+      }
+    });
+
+    modal.addEventListener("change", event => {
+      if (!event.target.matches("[data-rich-checkbox-auto-width]")) return;
+      autoWidth = event.target.checked;
+      widthControl.disabled = autoWidth;
+      if (!autoWidth) widthControl.focus();
+    });
+
+    modal.addEventListener("click", async event => {
+      const action = event.target.closest("[data-action]")?.dataset.action;
+      if (!action) return;
+
+      if (action === "add-rich-checkbox-row") {
+        const item = { id: createRichCheckboxListId(), checked: false, html: "" };
+        items.push(item);
+        renderRows(item.id);
+        return;
+      }
+
+      const row = event.target.closest("[data-rich-checkbox-dialog-row]");
+      const index = items.findIndex(item => item.id === row?.dataset.richCheckboxDialogRow);
+      if (index < 0) return;
+
+      if (action === "delete-rich-checkbox-row") {
+        items.splice(index, 1);
+        renderRows(items[Math.min(index, items.length - 1)]?.id);
+        return;
+      }
+      if (action === "move-rich-checkbox-row-up" && index > 0) {
+        [items[index - 1], items[index]] = [items[index], items[index - 1]];
+        renderRows(items[index - 1].id);
+        return;
+      }
+      if (action === "move-rich-checkbox-row-down" && index < items.length - 1) {
+        [items[index], items[index + 1]] = [items[index + 1], items[index]];
+        renderRows(items[index + 1].id);
+        return;
+      }
+      if (action === "edit-rich-checkbox-row") {
+        const html = await askForRichCheckboxLabel(items[index].html);
+        if (html === null) return;
+        items[index].html = html;
+        renderRows(items[index].id);
+      }
+    });
+
+    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const blankIndex = items.findIndex(item => !richCheckboxLabelText(item.html));
+      if (blankIndex >= 0) {
+        showToast("Enter a label for each checkbox.");
+        rowList.querySelectorAll("[data-rich-checkbox-row-text]")[blankIndex]?.focus();
+        return;
+      }
+
+      width = clampNumber(Number(widthControl.value || width), richCheckboxListMinWidth, 2000);
+      finish({
+        id: String(config.id || createRichCheckboxListId()),
+        autoWidth,
+        width,
+        items: items.map(item => ({ checked: item.checked, html: item.html }))
+      });
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+
+    renderRows();
+    modal.showModal();
+    setTimeout(() => rowList.querySelector("[data-rich-checkbox-row-text]")?.focus(), 0);
+  });
+}
+
+function richCheckboxDialogRowHtml(item, index, count) {
+  const rowNumber = index + 1;
+  return `
+    <div class="rich-checkbox-dialog-row" data-rich-checkbox-dialog-row="${escapeAttr(item.id)}">
+      <input type="checkbox" data-rich-checkbox-row-checked aria-label="Checkbox ${rowNumber} state"${item.checked ? " checked" : ""}>
+      <input type="text" data-rich-checkbox-row-text aria-label="Checkbox ${rowNumber} label" value="${escapeAttr(richCheckboxLabelText(item.html))}">
+      <button type="button" class="work-item-drag-handle rich-checkbox-row-drag-handle" data-drag-handle data-rich-checkbox-drag-handle title="Drag row ${rowNumber}" aria-label="Drag row ${rowNumber}"><span aria-hidden="true">&#8942;&#8942;</span></button>
+      <button type="button" class="icon-btn rich-checkbox-row-action" data-action="edit-rich-checkbox-row" title="Edit row ${rowNumber} with Rich Text" aria-label="Edit row ${rowNumber} with Rich Text">&#9998;</button>
+      <button type="button" class="icon-btn rich-checkbox-row-action" data-action="move-rich-checkbox-row-up" title="Move row ${rowNumber} up" aria-label="Move row ${rowNumber} up"${index === 0 ? " disabled" : ""}>&#8593;</button>
+      <button type="button" class="icon-btn rich-checkbox-row-action" data-action="move-rich-checkbox-row-down" title="Move row ${rowNumber} down" aria-label="Move row ${rowNumber} down"${index === count - 1 ? " disabled" : ""}>&#8595;</button>
+      <button type="button" class="icon-btn rich-checkbox-row-action" data-action="delete-rich-checkbox-row" title="Delete row ${rowNumber}" aria-label="Delete row ${rowNumber}">&#128465;</button>
+    </div>
+  `;
+}
+
+function askForRichCheckboxLabel(initialHtml = "") {
+  return new Promise(resolve => {
+    const modal = document.createElement("dialog");
+    modal.className = "dialog rich-checkbox-label-dialog";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Edit Checkbox Label</h2>
+        </div>
+        <div class="dialog-body">
+          ${richTextField("checkboxLabel", "Label", initialHtml)}
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Save")}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+    modal.querySelectorAll([
+      "[data-command='insertCheckbox']",
+      "[data-command='insertRichTable']",
+      "[data-command='insertSvg']",
+      "[data-command='insertDiagram']",
+      "[data-command='insertLinkedDiagram']",
+      "[data-command='insertHorizontalRule']",
+      "[data-command='insertCollapsible']",
+      "[data-command='insertCodeBlock']"
+    ].join(",")).forEach(button => button.remove());
+    initializeWindowedDialog(modal, { showResetButton: false });
+    bindRichTextButtons(modal);
+    const labelEditor = modal.querySelector("[data-rich='checkboxLabel']");
+
+    const finish = value => {
+      if (modal.open) modal.close();
+      modal.remove();
+      resolve(value);
+    };
+
+    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const html = normalizeRichCheckboxLabelHtml(labelEditor?.innerHTML || "");
+      if (!richCheckboxLabelText(html)) {
+        showToast("Checkbox label is required.");
+        labelEditor?.focus();
+        return;
+      }
+      finish(html);
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+
+    modal.showModal();
+    setTimeout(() => labelEditor?.focus(), 0);
+  });
 }
 
 function richCheckboxShortcutHtml(markerId, wrappers = [], styleText = "") {
@@ -3677,13 +4087,170 @@ function bindRichCheckboxes(root) {
   root.querySelectorAll(".rich-editor input[type='checkbox'], .rich-readonly input[type='checkbox'], .log-content input[type='checkbox'], .scrum-content input[type='checkbox']").forEach(syncRichCheckboxAttribute);
 }
 
+function bindGlobalRichCheckboxListInteractions() {
+  if (document.body.dataset.richCheckboxListBound === "true") return;
+
+  document.body.dataset.richCheckboxListBound = "true";
+  document.addEventListener("pointerover", event => {
+    const list = event.target.closest?.(".rich-editor [data-rich-check-list]");
+    if (list) activateRichCheckboxList(list);
+  });
+  document.addEventListener("focusin", event => {
+    const list = event.target.closest?.(".rich-editor [data-rich-check-list]");
+    if (list) activateRichCheckboxList(list);
+  });
+  document.addEventListener("pointerdown", event => {
+    const resizeHandle = event.target.closest?.("[data-rich-check-list-resize]");
+    if (resizeHandle) {
+      beginRichCheckboxListResize(event, resizeHandle);
+      return;
+    }
+
+    const list = event.target.closest?.(".rich-editor [data-rich-check-list]");
+    if (list) {
+      activateRichCheckboxList(list);
+    } else if (event.target.closest?.(".rich-editor")) {
+      deactivateRichCheckboxList();
+    }
+  });
+  document.addEventListener("click", async event => {
+    const editButton = event.target.closest?.("[data-rich-check-list-edit]");
+    if (editButton) {
+      event.preventDefault();
+      const list = activeRichCheckboxList?.list;
+      const editor = activeRichCheckboxList?.editor;
+      if (!list?.isConnected || !editor?.isConnected) return;
+
+      const result = await askForRichCheckboxList(richCheckboxListData(list), { editing: true });
+      if (result) {
+        applyRichCheckboxListResult(editor, result, { list });
+      } else if (list.isConnected) {
+        activateRichCheckboxList(list);
+      }
+      return;
+    }
+
+    if (event.target.closest?.("[data-rich-check-list-resize]")) event.preventDefault();
+  });
+  document.addEventListener("scroll", positionActiveRichCheckboxListControls, true);
+  window.addEventListener("resize", positionActiveRichCheckboxListControls);
+}
+
+function activateRichCheckboxList(list) {
+  const editor = list?.closest?.(".rich-editor");
+  if (!editor || editor.getAttribute("contenteditable") !== "true") return;
+  if (activeRichCheckboxList?.list === list) {
+    positionActiveRichCheckboxListControls();
+    return;
+  }
+
+  deactivateRichCheckboxList();
+  const host = editor.closest(".field") || editor.closest("[data-rich-editor-root]") || editor.parentElement;
+  if (!host) return;
+
+  host.classList.add("rich-check-list-control-host");
+  const controls = document.createElement("div");
+  controls.className = "rich-check-list-controls";
+  controls.setAttribute("data-rich-check-list-controls", "");
+  controls.innerHTML = `
+    <button type="button" class="icon-btn rich-check-list-edit" data-rich-check-list-edit title="Edit checkboxes" aria-label="Edit checkboxes">&#9998;</button>
+    <button type="button" class="rich-check-list-resize" data-rich-check-list-resize title="Resize checkboxes" aria-label="Resize checkboxes"></button>
+  `;
+  host.appendChild(controls);
+  activeRichCheckboxList = { list, editor, host, controls };
+  positionActiveRichCheckboxListControls();
+}
+
+function deactivateRichCheckboxList() {
+  if (!activeRichCheckboxList) return;
+
+  activeRichCheckboxList.controls?.remove();
+  activeRichCheckboxList.host?.classList.remove("rich-check-list-control-host");
+  activeRichCheckboxList = null;
+}
+
+function positionActiveRichCheckboxListControls() {
+  const active = activeRichCheckboxList;
+  if (!active?.list?.isConnected || !active?.host?.isConnected) {
+    deactivateRichCheckboxList();
+    return;
+  }
+
+  const listRect = active.list.getBoundingClientRect();
+  const hostRect = active.host.getBoundingClientRect();
+  active.controls.style.left = `${listRect.left - hostRect.left + active.host.scrollLeft}px`;
+  active.controls.style.top = `${listRect.top - hostRect.top + active.host.scrollTop}px`;
+  active.controls.style.width = `${listRect.width}px`;
+  active.controls.style.height = `${listRect.height}px`;
+}
+
+function beginRichCheckboxListResize(event, handle) {
+  const active = activeRichCheckboxList;
+  if (!active?.list?.isConnected || event.button !== 0) return;
+
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = active.list.getBoundingClientRect().width;
+  const editorRect = active.editor.getBoundingClientRect();
+  const listRect = active.list.getBoundingClientRect();
+  const maxWidth = Math.max(120, editorRect.right - listRect.left);
+  const minWidth = Math.min(richCheckboxListMinWidth, maxWidth);
+  const pointerId = event.pointerId;
+
+  const move = moveEvent => {
+    const width = Math.round(Math.min(maxWidth, Math.max(minWidth, startWidth + moveEvent.clientX - startX)));
+    active.list.dataset.richCheckWidthMode = "fixed";
+    active.list.dataset.richCheckWidth = String(width);
+    active.list.style.width = `${width}px`;
+    positionActiveRichCheckboxListControls();
+  };
+  const finish = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("pointercancel", finish);
+    try {
+      if (pointerId !== undefined && handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId);
+    } catch {
+      // Pointer capture can already be released by the browser.
+    }
+    active.editor.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  try {
+    if (pointerId !== undefined) handle.setPointerCapture?.(pointerId);
+  } catch {
+    // Pointer capture is optional; the window listeners still complete resizing.
+  }
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", finish, { once: true });
+  window.addEventListener("pointercancel", finish, { once: true });
+}
+
 function bindGlobalRichCheckboxSync() {
   if (document.body.dataset.richCheckboxSyncBound === "true") return;
 
   document.body.dataset.richCheckboxSyncBound = "true";
   document.addEventListener("click", event => {
+    const readOnlyItem = event.target.closest?.([
+      ".rich-readonly [data-rich-check-list] .rich-check-item",
+      ".log-content [data-rich-check-list] .rich-check-item",
+      ".scrum-content [data-rich-check-list] .rich-check-item"
+    ].join(","));
+    if (readOnlyItem && !event.target.closest?.("input, button, a")) {
+      const checkbox = readOnlyItem.querySelector("input[type='checkbox']");
+      if (checkbox && !checkbox.disabled) {
+        event.preventDefault();
+        checkbox.click();
+      }
+      return;
+    }
+
     const checkItem = event.target.closest?.(".rich-editor .rich-check-item");
     if (!checkItem || event.target.closest?.("input[type='checkbox']")) return;
+    if (checkItem.closest("[data-rich-check-list]")) {
+      activateRichCheckboxList(checkItem.closest("[data-rich-check-list]"));
+      return;
+    }
 
     event.preventDefault();
     placeRichCheckboxCaret(checkItem, event);
@@ -5136,8 +5703,11 @@ function openRichSourceDialog(editor) {
       showToast("One or more embedded images could not be uploaded. The source was not applied.");
       return;
     }
+    if (activeRichCheckboxList?.editor === editor) deactivateRichCheckboxList();
     editor.innerHTML = result.html;
     normalizeLinksInElement(editor);
+    hydrateRichCheckboxLists(editor);
+    bindRichCheckboxes(editor);
     hydrateRichDiagramOleBlocks(editor);
     modal.close();
   });

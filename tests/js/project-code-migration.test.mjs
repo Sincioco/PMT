@@ -13,6 +13,9 @@ const tutorialDocsMigration = read("../../SQL/Migrations/Migration History/PMT_1
 const tutorialDocsMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.25_to_1.26_All.sql");
 const day36Migration = read("../../SQL/Migrations/Migration History/PMT_1.26_to_1.27.sql");
 const day36MigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.26_to_1.27_All.sql");
+const version128Migration = read("../../SQL/Migrations/PMT_1.27_to_1.28.sql");
+const version128MigrationRunner = read("../../SQL/Migrations/PMT_1.27_to_1.28_All.sql");
+const version128Runbook = read("../../SQL/Migrations/2026-07-31 - PMT - BDO Version 1.28 Deployment.html");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
@@ -188,7 +191,6 @@ test("Version 1.26 seeds PMT tutorial Documentation for existing installs", () =
 });
 
 test("Version 1.27 adds public sharing, Suggestions, and the Field Mapping demo through the combined runner", () => {
-  assert.match(rebuildScript, /@value = N'1\.27'/);
   assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[Suggestions\]/);
   assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[PublicBlogLinks\]/);
   assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[UpsertSuggestion\]/);
@@ -322,6 +324,34 @@ test("active combined migration runners resolve every SQLCMD include", () => {
       assert.ok(existsSync(includeUrl), `${runner} cannot resolve ${include[1]}.`);
     }
   }
+});
+
+test("Version 1.28 migration advances only the guarded release marker", () => {
+  assert.match(version128Migration, /NOT IN \(N'1\.27', N'1\.28'\)/);
+  assert.match(version128Migration, /sp_updateextendedproperty[\s\S]*@value = N'1\.28'/);
+  assert.match(version128Migration, /PMT Database Version 1\.28 migration completed without schema or data changes/);
+  assert.doesNotMatch(version128Migration, /\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|PROCEDURE|INDEX|SCHEMA)\b/i);
+  assert.doesNotMatch(version128Migration, /\b(?:INSERT\s+INTO|DELETE\s+FROM|MERGE\s+INTO)\b/i);
+});
+
+test("Version 1.28 combined runner is the SQLCMD deployment entry point", () => {
+  assert.match(version128MigrationRunner, /:on error exit/);
+  assert.match(version128MigrationRunner, /:r "\.\\PMT_1\.27_to_1\.28\.sql"/);
+  assert.equal(version128MigrationRunner.split(":r ").length - 1, 1);
+  assert.match(rebuildScript, /recreates it at the current Version 1\.28/);
+  assert.equal((rebuildScript.match(/@value = N'1\.28'/g) || []).length, 2);
+});
+
+test("Version 1.28 runbook identifies the normalized tested migration files", () => {
+  for (const sql of [version128Migration, version128MigrationRunner]) {
+    const normalizedHash = createHash("sha256")
+      .update(sql.replace(/\r\n?/g, "\n"), "utf8")
+      .digest("hex")
+      .toUpperCase();
+    assert.match(version128Runbook, new RegExp(normalizedHash));
+  }
+  assert.match(version128Runbook, /PMT_1\.27_to_1\.28_All\.sql/);
+  assert.match(version128Runbook, /-b -I -i "\.\\PMT_1\.27_to_1\.28_All\.sql"/);
 });
 
 function read(relativePath) {

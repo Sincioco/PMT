@@ -78,6 +78,207 @@ test("private document owner can view, edit, and delete their document", async (
   ]);
 });
 
+test("RTE checkbox lists support dialog editing, ordering, sizing, and read-mode persistence", async ({ page }) => {
+  const calls = [];
+  const appState = await prepareDocumentationPage(page, 2, calls);
+  await loginToDocumentation(page, "Owner");
+
+  await documentCard(page, ownerPrivateTitle)
+    .locator("[data-action='edit-blog']")
+    .click({ force: true });
+
+  const fullScreenEditor = page.locator(".documentation-screen.is-full-screen-editor");
+  const editor = fullScreenEditor.locator("[data-rich='bodyHtml']");
+  await expect(fullScreenEditor).toBeVisible();
+  await editor.evaluate(node => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+
+  await fullScreenEditor.locator("[data-command='insertCheckbox']").click();
+  let listDialog = page.locator("dialog.rich-checkbox-list-dialog");
+  await expect(listDialog.getByRole("heading", { name: "Checkboxes" })).toBeVisible();
+
+  let rows = listDialog.locator("[data-rich-checkbox-dialog-row]");
+  await expect(rows).toHaveCount(1);
+  expect(await rows.first().evaluate(row => [...row.children].map(child =>
+    child.hasAttribute("data-rich-checkbox-row-checked") ? "state"
+      : child.hasAttribute("data-rich-checkbox-row-text") ? "text"
+        : child.hasAttribute("data-rich-checkbox-drag-handle") ? "drag"
+          : child.dataset.action || ""
+  ))).toEqual([
+    "state",
+    "text",
+    "drag",
+    "edit-rich-checkbox-row",
+    "move-rich-checkbox-row-up",
+    "move-rich-checkbox-row-down",
+    "delete-rich-checkbox-row"
+  ]);
+  await rows.nth(0).locator("[data-rich-checkbox-row-text]").fill(
+    "Confirm the deployment package includes every required file and the release notes are ready for review."
+  );
+  await rows.nth(0).locator("[data-rich-checkbox-row-checked]").check();
+
+  await listDialog.locator("[data-action='add-rich-checkbox-row']").click();
+  await rows.nth(1).locator("[data-rich-checkbox-row-text]").fill("Run the release validation suite.");
+  await listDialog.locator("[data-action='add-rich-checkbox-row']").click();
+  await rows.nth(2).locator("[data-rich-checkbox-row-text]").fill("Notify the project team.");
+
+  await rows.nth(0).locator("[data-action='move-rich-checkbox-row-down']").click();
+  expect(await rows.locator("[data-rich-checkbox-row-text]").evaluateAll(inputs => inputs.map(input => input.value))).toEqual([
+    "Run the release validation suite.",
+    "Confirm the deployment package includes every required file and the release notes are ready for review.",
+    "Notify the project team."
+  ]);
+
+  const dragHandle = rows.nth(2).locator("[data-rich-checkbox-drag-handle]");
+  const dragTarget = rows.nth(0);
+  const dragBox = await dragHandle.boundingBox();
+  const targetBox = await dragTarget.boundingBox();
+  expect(dragBox).toBeTruthy();
+  expect(targetBox).toBeTruthy();
+  await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 3, { steps: 6 });
+  await page.mouse.up();
+  expect(await rows.locator("[data-rich-checkbox-row-text]").evaluateAll(inputs => inputs.map(input => input.value))).toEqual([
+    "Notify the project team.",
+    "Run the release validation suite.",
+    "Confirm the deployment package includes every required file and the release notes are ready for review."
+  ]);
+  // Pointer reordering suppresses the synthetic post-drag click. Playwright's mouse
+  // gesture does not emit it, so consume that guard before testing explicit buttons.
+  await listDialog.getByRole("heading", { name: "Checkboxes" }).click();
+
+  await rows.nth(2).locator("[data-action='move-rich-checkbox-row-up']").click();
+  expect(await rows.locator("[data-rich-checkbox-row-text]").evaluateAll(inputs => inputs.map(input => input.value))).toEqual([
+    "Notify the project team.",
+    "Confirm the deployment package includes every required file and the release notes are ready for review.",
+    "Run the release validation suite."
+  ]);
+  await rows.nth(1).locator("[data-action='move-rich-checkbox-row-down']").click();
+  expect(await rows.locator("[data-rich-checkbox-row-text]").evaluateAll(inputs => inputs.map(input => input.value))).toEqual([
+    "Notify the project team.",
+    "Run the release validation suite.",
+    "Confirm the deployment package includes every required file and the release notes are ready for review."
+  ]);
+  await rows
+    .filter({ has: page.locator('[data-rich-checkbox-row-text][value="Run the release validation suite."]') })
+    .locator("[data-action='delete-rich-checkbox-row']")
+    .click();
+  expect(await rows.locator("[data-rich-checkbox-row-text]").evaluateAll(inputs => inputs.map(input => input.value))).toEqual([
+    "Notify the project team.",
+    "Confirm the deployment package includes every required file and the release notes are ready for review."
+  ]);
+
+  await rows.nth(1).locator("[data-action='edit-rich-checkbox-row']").click();
+  const labelDialog = page.locator("dialog.rich-checkbox-label-dialog");
+  const labelEditor = labelDialog.locator("[data-rich='checkboxLabel']");
+  await expect(labelDialog.getByRole("heading", { name: "Edit Checkbox Label" })).toBeVisible();
+  await labelEditor.evaluate(node => {
+    node.innerHTML = "<p>Confirm the deployment package includes every required file and the release notes are ready for review.</p><p>Owner: Release Manager</p>";
+    const text = node.querySelector("p").firstChild;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, "Confirm the deployment package".length);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await labelDialog.locator("[data-command='bold']").click();
+  await expect(labelEditor.locator("b, strong")).toHaveText("Confirm the deployment package");
+  await labelDialog.getByRole("button", { name: "Save" }).click();
+  await expect(labelDialog).toHaveCount(0);
+
+  await listDialog.locator("[data-rich-checkbox-auto-width]").uncheck();
+  await listDialog.locator("[data-rich-checkbox-width]").fill("240");
+  await listDialog.getByRole("button", { name: "Save" }).click();
+  await expect(listDialog).toHaveCount(0);
+
+  const checkboxList = editor.locator("[data-rich-check-list]");
+  await expect(checkboxList).toHaveCount(1);
+  await expect(checkboxList).toHaveAttribute("data-rich-check-width-mode", "fixed");
+  await expect(checkboxList.locator(".rich-check-item")).toHaveCount(2);
+  await expect(checkboxList.locator(".rich-check-label").nth(0)).toHaveText("Notify the project team.");
+  await expect(checkboxList.locator(".rich-check-label").nth(1)).toContainText("Owner: Release Manager");
+  await expect(checkboxList.locator(".rich-check-label b, .rich-check-label strong")).toHaveText("Confirm the deployment package");
+  await expect(checkboxList.locator("input[type='checkbox']").nth(1)).toBeChecked();
+
+  const wrapping = await checkboxList.locator(".rich-check-label").nth(1).evaluate(label => {
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    const lines = [...range.getClientRects()].filter(rect => rect.width > 1);
+    const checkbox = label.closest(".rich-check-item").querySelector("input").getBoundingClientRect();
+    return {
+      display: getComputedStyle(label.closest(".rich-check-item")).display,
+      lineCount: lines.length,
+      lineLefts: lines.map(rect => Math.round(rect.left)),
+      labelLeft: Math.round(label.getBoundingClientRect().left),
+      checkboxRight: Math.round(checkbox.right)
+    };
+  });
+  expect(wrapping.display).toBe("grid");
+  expect(wrapping.lineCount).toBeGreaterThan(1);
+  expect(Math.min(...wrapping.lineLefts)).toBeGreaterThan(wrapping.checkboxRight);
+  expect(wrapping.lineLefts.some(left => Math.abs(left - wrapping.labelLeft) <= 1)).toBe(true);
+
+  await checkboxList.hover();
+  const resizeHandle = fullScreenEditor.locator("[data-rich-check-list-resize]");
+  await expect(resizeHandle).toBeVisible();
+  const widthBeforeResize = await checkboxList.evaluate(node => node.getBoundingClientRect().width);
+  const resizeBox = await resizeHandle.boundingBox();
+  expect(resizeBox).toBeTruthy();
+  await page.mouse.move(resizeBox.x + resizeBox.width / 2, resizeBox.y + resizeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(resizeBox.x + resizeBox.width / 2 + 80, resizeBox.y + resizeBox.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => checkboxList.evaluate(node => node.getBoundingClientRect().width))
+    .toBeGreaterThan(widthBeforeResize + 50);
+
+  await fullScreenEditor.locator("[data-rich-check-list-edit]").click();
+  listDialog = page.locator("dialog.rich-checkbox-list-dialog");
+  await expect(listDialog.getByRole("heading", { name: "Edit Checkboxes" })).toBeVisible();
+  await expect(listDialog.locator("[data-rich-checkbox-width]")).not.toHaveValue("240");
+  await listDialog.getByRole("button", { name: "Cancel" }).click();
+
+  await checkboxList.locator(".rich-check-label").first().click();
+  await fullScreenEditor.locator("[data-command='insertCheckbox']").click();
+  listDialog = page.locator("dialog.rich-checkbox-list-dialog");
+  await expect(listDialog.getByRole("heading", { name: "Edit Checkboxes" })).toBeVisible();
+  await listDialog.locator("[data-rich-checkbox-auto-width]").check();
+  await listDialog.getByRole("button", { name: "Save" }).click();
+  await expect(checkboxList).toHaveAttribute("data-rich-check-width-mode", "auto");
+
+  await fullScreenEditor.locator("[data-action='save-documentation-inline-edit']").first().click();
+  await expect.poll(() => calls.filter(call => call.method === "PUT")).toHaveLength(1);
+  await page.getByRole("button", { name: "Cards", exact: true }).click();
+  await page.evaluate(() => {
+    window.location.hash = "#/documentation/102";
+  });
+
+  const readonlyDialog = page.locator("dialog.documentation-readonly-dialog");
+  const readonlyList = readonlyDialog.locator("[data-rich-check-list]");
+  await expect(readonlyDialog).toBeVisible();
+  await expect(readonlyList.locator(".rich-check-item")).toHaveCount(2);
+  await expect(readonlyDialog.locator("[data-rich-check-list-edit], [data-rich-check-list-resize]")).toHaveCount(0);
+
+  const readonlyCheckbox = readonlyList.locator("input[type='checkbox']").first();
+  await expect(readonlyCheckbox).not.toBeChecked();
+  await readonlyList.locator(".rich-check-label").first().click();
+  await expect(readonlyCheckbox).toBeChecked();
+  await expect.poll(() => calls.filter(call => call.method === "PUT")).toHaveLength(2);
+  const savedHtml = appState.blogs.find(item => item.id === 102).bodyHtml;
+  expect(savedHtml).toContain("data-rich-check-list");
+  expect(savedHtml).toContain('checked="checked"');
+  expect(savedHtml).not.toContain("data-rich-check-list-controls");
+  expect(savedHtml).not.toContain("is-active");
+});
+
 test("documentation item route follows read-only dialog close behavior", async ({ page }) => {
   const calls = [];
   await prepareDocumentationPage(page, 2, calls);
@@ -147,6 +348,7 @@ async function prepareDocumentationPage(page, currentUserId, calls) {
 
     await route.fulfill(jsonResponse({ error: "Unsupported test request" }, 405));
   });
+  return appState;
 }
 
 async function loginToDocumentation(page, nickname) {

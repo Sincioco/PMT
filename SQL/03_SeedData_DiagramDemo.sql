@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.27 public Diagram demo seeds.
+    PMT Version 1.28 public Diagram demo seeds.
 
     The Blog bodies reference editable bundled SVG assets under
     wwwroot/assets/docs without storing their large payloads in SQL. The seed is

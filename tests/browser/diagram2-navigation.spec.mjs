@@ -3817,6 +3817,10 @@ async function assertDiagram2RichTextEditorParity(page) {
   });
   await dialog.locator("[data-command='insertHorizontalRule']").click();
   await dialog.locator("[data-command='insertCheckbox']").click();
+  const checkboxDialog = page.locator("dialog.rich-checkbox-list-dialog");
+  await expect(checkboxDialog.getByRole("heading", { name: "Checkboxes" })).toBeVisible();
+  await checkboxDialog.locator("[data-rich-checkbox-row-text]").fill("Diagram 2 checklist item");
+  await checkboxDialog.getByRole("button", { name: "Save" }).click();
   await dialog.locator("[data-command='insertRichTable']").click();
   const tableDialog = page.locator("dialog.mini-dialog");
   await expect(tableDialog.getByRole("heading", { name: "Insert Table" })).toBeVisible();
@@ -3825,6 +3829,7 @@ async function assertDiagram2RichTextEditorParity(page) {
   await tableDialog.getByRole("button", { name: "Insert" }).click();
   await expect(editor.locator("table")).toHaveCount(1);
   await expect(editor.locator(".rich-check-item")).toHaveCount(1);
+  await expect(editor.locator("[data-rich-check-list]")).toHaveCount(1);
   await expect(editor.locator("hr")).toHaveCount(1);
 
   await dialog.locator("[data-rich-source]").click();

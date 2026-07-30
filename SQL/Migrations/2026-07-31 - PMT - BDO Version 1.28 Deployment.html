@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PMT BDO Version 1.28 Deployment</title>
+  <style>
+    body { max-width: 980px; margin: 32px auto; padding: 0 24px 48px; color: #202124; font: 16px/1.55 Arial, sans-serif; }
+    h1, h2 { color: #17365d; }
+    h1 { border-bottom: 3px solid #2f6fad; padding-bottom: 10px; }
+    code, pre { font-family: Consolas, monospace; }
+    pre { overflow-x: auto; padding: 14px; border: 1px solid #c7cdd4; background: #f6f8fa; }
+    .warning { padding: 12px 16px; border-left: 4px solid #b3261e; background: #fff4f2; }
+    .note { padding: 12px 16px; border-left: 4px solid #2f6fad; background: #f3f7fb; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border: 1px solid #c7cdd4; text-align: left; vertical-align: top; }
+    th { background: #eef2f6; }
+  </style>
+</head>
+<body>
+  <h1>PMT BDO Version 1.28 Deployment</h1>
+  <p><strong>Deployment baseline:</strong> PMT Database Version 1.27</p>
+  <p><strong>Target:</strong> PMT Database Version 1.28</p>
+
+  <div class="note">
+    Version 1.28 changes Diagram and rich-text editor browser behavior. It does not
+    add, remove, or rewrite tables, stored procedures, seed data, or user rows.
+    The migration advances only the guarded database release marker.
+  </div>
+
+  <h2>Files</h2>
+  <table>
+    <thead><tr><th>File</th><th>Purpose</th><th>SHA-256</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>PMT_1.27_to_1.28.sql</code></td>
+        <td>Canonical guarded version step.</td>
+        <td><code>5E6D52D865AA595CDD3C323ED46894050262B78B903CA533C44463AEC6D10C95</code></td>
+      </tr>
+      <tr>
+        <td><code>PMT_1.27_to_1.28_All.sql</code></td>
+        <td>Operator-facing SQLCMD runner. Run this file.</td>
+        <td><code>4F177F92492D3446B5D673FED12BFFA14C5A0FAF4E9E556C479631FF76912FB5</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>The hashes use UTF-8 text normalized to LF line endings, so ordinary Windows and Unix Git checkouts produce the same result.</p>
+  <pre>$ExpectedHashes = [ordered]@{
+    'PMT_1.27_to_1.28.sql' = '5E6D52D865AA595CDD3C323ED46894050262B78B903CA533C44463AEC6D10C95'
+    'PMT_1.27_to_1.28_All.sql' = '4F177F92492D3446B5D673FED12BFFA14C5A0FAF4E9E556C479631FF76912FB5'
+}
+
+foreach ($FileName in $ExpectedHashes.Keys) {
+    $Text = [IO.File]::ReadAllText((Join-Path $PWD $FileName)) -replace "`r`n", "`n" -replace "`r", "`n"
+    $Bytes = [Text.UTF8Encoding]::new($false).GetBytes($Text)
+    $Sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $ActualHash = ([BitConverter]::ToString($Sha256.ComputeHash($Bytes))).Replace('-', '')
+    }
+    finally {
+        $Sha256.Dispose()
+    }
+    if ($ActualHash -ne $ExpectedHashes[$FileName]) {
+        throw "Hash mismatch for $FileName. Stop the deployment."
+    }
+}</pre>
+
+  <h2>Before Deployment</h2>
+  <ol>
+    <li>Keep the application files and this migration folder from the same Git commit.</li>
+    <li>Confirm the installed database reports <code>PMT_DatabaseVersion = 1.27</code>.</li>
+    <li>Stop the IIS site or application pool and leave it stopped during migration and file replacement.</li>
+    <li>Back up the PMT database, published application, configuration, and upload folder as one rollback set.</li>
+    <li>Verify the SQL backup before continuing.</li>
+  </ol>
+
+  <h2>Run the Combined Migration</h2>
+  <p>Open PowerShell in <code>SQL\Migrations</code> and run:</p>
+  <pre>sqlcmd -S "&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;" -d PMT -E -b -I -i ".\PMT_1.27_to_1.28_All.sql"</pre>
+  <p>For SQL authentication, replace <code>-E</code> with the approved credential arguments. In SQL Server Management Studio, enable <strong>Query &gt; SQLCMD Mode</strong> and run the same combined file.</p>
+  <p>Expected completion messages:</p>
+  <pre>PMT Database Version 1.28 migration completed without schema or data changes.
+PMT combined database migration 1.27 to 1.28 completed.</pre>
+
+  <h2>Verify</h2>
+  <pre>USE [PMT];
+GO
+
+SELECT CONVERT(NVARCHAR(20), [value]) AS [PMT_DatabaseVersion]
+FROM sys.extended_properties
+WHERE [class] = 0
+  AND [name] = N'PMT_DatabaseVersion';
+GO
+
+DBCC CHECKDB(N'PMT') WITH NO_INFOMSGS;
+GO</pre>
+  <p>The version query must return <code>1.28</code>, and <code>DBCC CHECKDB</code> must report no errors. Compare the pre/post table row counts recorded with the backup; this migration must not change them.</p>
+
+  <h2>Deploy the Application</h2>
+  <ol>
+    <li>Deploy the matching Version 1.28 application files without overwriting production configuration or upload storage.</li>
+    <li>Start the IIS site or application pool.</li>
+    <li>Run the production-safe smoke checks for login, Documentation, Diagram, and Diagram 2.</li>
+    <li>Press <strong>Ctrl+F5</strong> once. The changed JavaScript and CSS URLs are cache-versioned.</li>
+  </ol>
+
+  <div class="warning">
+    Do not run rebuild or seed scripts against Production. If any migration or
+    verification step fails, keep the application stopped and restore the matched
+    database, application, configuration, and upload rollback set.
+  </div>
+
+  <p><strong>Build note:</strong> Version 1.28 contains no .NET source changes. A .NET recompile is not required for local browser testing; Ctrl+F5 is sufficient after the updated static files are present. Normal production publishing may still be used to create a complete deployment folder.</p>
+</body>
+</html>
