@@ -2,37 +2,59 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationFieldMappingImages
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
-  diagram2CropCornerPatch,
-  diagram2CropPatchFromInsets,
+  createDiagram2CropNumericAdjustmentScheduler,
+  diagram2CropOptionsPatch,
+  diagram2ImageHasReversibleCrop,
   diagram2ResetCropPatch
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   isDiagram2ImageFile,
   loadDiagram2ImageDimensions
-} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-images.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   openDiagram2EntityAnnotationEditor,
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;
   const controller = options.controller;
   const renderer = options.renderer;
+  let cropModeImageId = "";
+  let observedSelectionKey = selectionKey();
+  let observedTool = controller?.activeTool?.() || "select";
+  const cropNumericScheduler = createDiagram2CropNumericAdjustmentScheduler({
+    timers: options.timers,
+    begin: adjustment => {
+      renderer.beginCropOptionAdjustment?.(adjustment.imageId);
+    },
+    commit: adjustment => commitCropNumericAdjustment(adjustment),
+    cancel: adjustment => {
+      renderer.cancelCropOptionAdjustment?.(adjustment.imageId, {
+        keepTarget: controller?.activeTool?.() === "crop"
+      });
+    },
+    end: adjustment => {
+      renderer.endCropOptionAdjustment?.(adjustment.imageId, {
+        keepTarget: controller?.activeTool?.() === "crop"
+      });
+    }
+  });
 
   function bind(signal) {
+    const listenerOptions = signal ? { signal } : undefined;
     const input = root?.querySelector?.("[data-diagram2-image-input]");
     input?.addEventListener("change", event => {
       const files = [...(event.target.files || [])].filter(isDiagram2ImageFile);
       event.target.value = "";
       if (files.length) void addImageFiles(files);
-    }, { signal });
+    }, listenerOptions);
 
     const canvas = root?.querySelector?.("[data-diagram2-viewer-canvas]");
     canvas?.addEventListener("dragover", event => {
@@ -40,18 +62,34 @@ export function createDiagram2Phase6Host(options = {}) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
       canvas.classList.add("is-image-drop-target");
-    }, { signal });
+    }, listenerOptions);
     canvas?.addEventListener("dragleave", event => {
       if (event.relatedTarget && canvas.contains(event.relatedTarget)) return;
       canvas.classList.remove("is-image-drop-target");
-    }, { signal });
+    }, listenerOptions);
     canvas?.addEventListener("drop", event => {
       canvas.classList.remove("is-image-drop-target");
       const files = [...(event.dataTransfer?.files || [])].filter(isDiagram2ImageFile);
       if (!files.length) return;
       event.preventDefault();
       void addImageFiles(files, event);
-    }, { signal });
+    }, listenerOptions);
+
+    root?.addEventListener?.("input", handleCropNumericInput, listenerOptions);
+    root?.addEventListener?.("change", handleCropNumericFlush, listenerOptions);
+    root?.addEventListener?.("focusout", handleCropNumericFlush, listenerOptions);
+    root?.addEventListener?.("keydown", handleCropNumericKeydown, listenerOptions);
+
+    const stopControllerObservation = controller?.onChange?.(handleControllerChange) || (() => {});
+    const cleanup = () => {
+      stopControllerObservation();
+      cropNumericScheduler.destroy();
+      if (cropModeImageId) renderer.setSelectionChromeSuppressed?.(cropModeImageId, false);
+      cropModeImageId = "";
+      renderer.clearCropPreview?.();
+    };
+    if (signal) signal.addEventListener("abort", cleanup, { once: true });
+    return cleanup;
   }
 
   async function handleAction(action) {
@@ -60,10 +98,13 @@ export function createDiagram2Phase6Host(options = {}) {
       return true;
     }
     if (action === "reset-diagram2-crop") {
-      await resetCrop();
+      await finishCropAdjustment("reset crop");
+      const reset = await resetCrop();
+      if (reset) notify("Crop reset. Undo restores the previous crop.");
       return true;
     }
     if (action === "permanently-crop-diagram2-image") {
+      await finishCropAdjustment("permanent crop");
       await permanentlyCrop();
       return true;
     }
@@ -139,31 +180,84 @@ export function createDiagram2Phase6Host(options = {}) {
     return addImageFiles([file]);
   }
 
-  async function applyCropInsets(values) {
-    const image = selectedImage();
-    const patch = image ? diagram2CropPatchFromInsets(image, values) : null;
-    return updateCrop(image, patch, "Adjust image crop");
+  async function flushCropAdjustment(reason = "flush crop adjustment") {
+    return cropNumericScheduler.flush(reason);
   }
 
-  async function applyCropCorners(values) {
-    const image = selectedImage();
-    const patch = image ? diagram2CropCornerPatch(image, values) : null;
-    return updateCrop(image, patch, "Adjust crop corners");
+  async function finishCropAdjustment(reason = "finish crop adjustment") {
+    return cropNumericScheduler.flushAndEnd(reason);
   }
 
-  async function applyCropCornerRadius(value) {
+  async function cancelCropAdjustment(reason = "cancel crop adjustment") {
+    const canceled = cropNumericScheduler.cancel(reason);
+    if (canceled && reason !== "editor canceled") await afterMutation();
+    return canceled;
+  }
+
+  async function setTool(toolInput, toolOptions = {}) {
+    const tool = String(toolInput || "select").trim().toLowerCase();
+    if (tool === "crop") return activateCropTool();
+    await finishCropAdjustment(toolOptions.reason || "tool changed");
+    closeCropMode();
+    controller.setActiveTool(tool);
+    return true;
+  }
+
+  async function activateCropTool() {
+    if (!canMutate()) return false;
+    if (controller.activeTool() === "crop") {
+      await finishCropAdjustment("Crop mode closed");
+      closeCropMode();
+      controller.setActiveTool("select");
+      notify("Crop mode closed.");
+      focusWorkspace();
+      return true;
+    }
+
     const image = selectedImage();
-    if (!image) return false;
-    const radius = Math.max(0, Number(value) || 0);
-    return updateCrop(image, diagram2CropCornerPatch(image, {
-      topLeft: radius,
-      topRight: radius,
-      bottomRight: radius,
-      bottomLeft: radius
-    }), "Adjust crop radius");
+    if (!image) {
+      controller.setActiveTool("select");
+      notify("Select one image before cropping it.");
+      return false;
+    }
+    if (image.locked === true) {
+      controller.setActiveTool("select");
+      notify("Unlock the image before cropping it.");
+      return false;
+    }
+
+    if (!diagram2ImageHasReversibleCrop(image)) {
+      controller.setActiveTool("crop");
+      cropModeImageId = image.id;
+      renderer.setCropTarget?.(image.id);
+      renderer.setSelectionChromeSuppressed?.(image.id, true);
+      notify("Drag the image crop handles inward. The crop cannot extend outside the image.");
+      focusWorkspace();
+      return true;
+    }
+
+    controller.setActiveTool("select");
+    closeCropMode();
+    const choice = await openDiagram2CropOptionsDialog(root?.ownerDocument);
+    if (choice === "remove") {
+      const removed = await resetCrop();
+      if (removed) notify("Crop removed. The full source is visible again.");
+      focusWorkspace();
+      return removed;
+    }
+    if (choice !== "permanent") {
+      notify("Crop left unchanged.");
+      focusWorkspace();
+      return false;
+    }
+
+    const applied = await permanentlyCrop();
+    focusWorkspace();
+    return applied;
   }
 
   async function setCropVisibility(visible) {
+    await finishCropAdjustment("crop visibility changed");
     const image = selectedImage();
     if (!image) return false;
     const applied = await controller.setEmbeddedImageCropVisibility(image.id, visible);
@@ -172,22 +266,42 @@ export function createDiagram2Phase6Host(options = {}) {
   }
 
   async function resetCrop() {
+    await finishCropAdjustment("reset crop");
     const image = selectedImage();
-    return updateCrop(image, image ? diagram2ResetCropPatch(image) : null, "Reset image crop");
+    const reset = await updateCrop(image, image ? diagram2ResetCropPatch(image) : null, "Reset image crop");
+    if (reset && controller.activeTool() === "crop") {
+      closeCropMode();
+      controller.setActiveTool("select");
+    }
+    return reset;
   }
 
   async function permanentlyCrop() {
+    await finishCropAdjustment("permanent crop");
     const image = selectedImage();
     if (!image || !canMutate()) return false;
+    if (controller.activeTool() === "crop") {
+      closeCropMode();
+      controller.setActiveTool("select");
+    }
+    const temporarilyShown = image.cropVisible === false;
+    if (temporarilyShown) {
+      renderer.previewCrop?.(image.id, image.imageClip);
+      notify("The saved crop is shown so you can verify the pixels that will remain.");
+    }
     const confirmed = await confirmAction(
       "Permanently replace this image source with only the cropped pixels? This cannot be undone inside the annotation.",
       "Apply Crop Permanently?",
       "Apply Permanently"
     );
-    if (!confirmed) return false;
+    if (!confirmed) {
+      if (temporarilyShown) renderer.clearCropPreview?.();
+      notify("Crop left unchanged.");
+      return false;
+    }
     const applied = await controller.permanentlyCropEmbeddedImage(image.id);
     if (applied) {
-      renderer.setCropTarget?.(image.id);
+      renderer.clearCropPreview?.();
       await afterMutation();
       notify("Crop permanently applied.");
     }
@@ -285,17 +399,123 @@ export function createDiagram2Phase6Host(options = {}) {
     return options.canMutate?.() !== false && controller?.statusSnapshot?.().canEdit !== false;
   }
 
-  async function updateCrop(image, patch, label) {
+  async function updateCrop(image, patch, label, updateOptions = {}) {
     if (!image || !patch || !canMutate()) return false;
     const applied = await controller.updateEmbeddedImageCrop(image.id, patch, {
       label,
-      reason: label.toLowerCase()
+      reason: updateOptions.reason || label.toLowerCase(),
+      selectionAfter: updateOptions.selectionAfter
     });
     if (applied) {
-      renderer.setCropTarget?.(image.id);
+      if (updateOptions.cropOptionAdjustment === true) {
+        renderer.commitCropOptionAdjustment?.(image.id, {
+          keepTarget: updateOptions.keepTarget !== false
+        });
+      } else if (updateOptions.keepTarget !== false) {
+        renderer.setCropTarget?.(image.id);
+      }
       await afterMutation();
     }
     return applied;
+  }
+
+  async function commitCropNumericAdjustment(adjustment) {
+    const image = controller?.getObjectById?.(adjustment.imageId);
+    const patch = image ? diagram2CropOptionsPatch(image, adjustment.values) : null;
+    return updateCrop(image, patch, "Adjust image crop", {
+      cropOptionAdjustment: true,
+      keepTarget: selectionKey() === adjustment.imageId,
+      selectionAfter: controller?.selectedObjectIds?.() || [],
+      reason: "crop numeric adjustment"
+    });
+  }
+
+  function handleCropNumericInput(event) {
+    const control = cropNumericControl(event.target);
+    const image = selectedImage();
+    if (!control || !image || image.locked === true || !canMutate()) return;
+    if (control.matches("[data-diagram2-crop-corner-radius]")) {
+      root.querySelectorAll("[data-diagram2-crop-corner]").forEach(corner => {
+        corner.value = control.value;
+      });
+    }
+    cropNumericScheduler.schedule({
+      imageId: image.id,
+      values: cropNumericControlValues()
+    });
+  }
+
+  function handleCropNumericFlush(event) {
+    if (!cropNumericControl(event.target)) return;
+    void flushCropAdjustment(event.type === "change" ? "change" : "blur");
+  }
+
+  function handleCropNumericKeydown(event) {
+    if (!cropNumericControl(event.target)) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void flushCropAdjustment("Enter");
+      return;
+    }
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    void cancelCropAdjustment("Escape");
+  }
+
+  function handleControllerChange(event) {
+    const nextSelectionKey = (event?.status?.selectedObjectIds || []).join("|");
+    const nextTool = event?.status?.activeTool || controller?.activeTool?.() || "select";
+    const schedulerImageId = cropNumericScheduler.diagnostics().activeImageId;
+    const selectionChanged = nextSelectionKey !== observedSelectionKey;
+    const toolChanged = nextTool !== observedTool;
+    observedSelectionKey = nextSelectionKey;
+    observedTool = nextTool;
+
+    if (selectionChanged && schedulerImageId && nextSelectionKey !== schedulerImageId) {
+      void finishCropAdjustment("selection changed");
+    }
+    if (selectionChanged && cropModeImageId && nextSelectionKey !== cropModeImageId) {
+      closeCropMode();
+      if (nextTool === "crop") controller.setActiveTool("select");
+    }
+    if (toolChanged && nextTool !== "crop") {
+      if (schedulerImageId) void finishCropAdjustment("tool changed");
+      closeCropMode();
+    }
+  }
+
+  function cropNumericControl(target) {
+    return target?.closest?.(
+      "[data-diagram2-crop-inset], [data-diagram2-crop-corner], [data-diagram2-crop-corner-radius]"
+    ) || null;
+  }
+
+  function cropNumericControlValues() {
+    return {
+      insets: Object.fromEntries(
+        [...root.querySelectorAll("[data-diagram2-crop-inset]")]
+          .map(control => [control.dataset.diagram2CropInset, finiteControlNumber(control.value)])
+      ),
+      corners: Object.fromEntries(
+        [...root.querySelectorAll("[data-diagram2-crop-corner]")]
+          .map(control => [control.dataset.diagram2CropCorner, finiteControlNumber(control.value)])
+      )
+    };
+  }
+
+  function selectionKey() {
+    return (controller?.selectedObjectIds?.() || []).join("|");
+  }
+
+  function closeCropMode() {
+    if (cropModeImageId) renderer.setSelectionChromeSuppressed?.(cropModeImageId, false);
+    cropModeImageId = "";
+    renderer.clearCropPreview?.();
+  }
+
+  function focusWorkspace() {
+    root?.querySelector?.("[data-diagram2-workspace]")?.focus?.({ preventScroll: true });
   }
 
   async function afterMutation() {
@@ -316,9 +536,12 @@ export function createDiagram2Phase6Host(options = {}) {
     handleAction,
     addImageFiles,
     pasteImageEvent,
-    applyCropInsets,
-    applyCropCorners,
-    applyCropCornerRadius,
+    activateCropTool,
+    setTool,
+    flushCropAdjustment,
+    finishCropAdjustment,
+    cancelCropAdjustment,
+    cropAdjustmentDiagnostics: () => cropNumericScheduler.diagnostics(),
     setCropVisibility,
     resetCrop,
     permanentlyCrop,
@@ -335,4 +558,53 @@ function diagram2DragHasImage(dataTransfer) {
   if (files.some(isDiagram2ImageFile)) return true;
   return [...(dataTransfer?.items || [])]
     .some(item => item.kind === "file" && String(item.type || "").toLowerCase().startsWith("image/"));
+}
+
+function finiteControlNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function openDiagram2CropOptionsDialog(documentRef = globalThis.document) {
+  return new Promise(resolve => {
+    if (!documentRef?.createElement) {
+      resolve("");
+      return;
+    }
+    const dialog = documentRef.createElement("dialog");
+    dialog.className = "dialog mini-dialog image-annotation-crop-options-dialog";
+    dialog.setAttribute("aria-labelledby", "diagram2CropOptionsTitle");
+    dialog.innerHTML = `
+      <div class="dialog-head">
+        <h2 id="diagram2CropOptionsTitle">Crop Options</h2>
+      </div>
+      <div class="dialog-body">
+        <p>This image already has a crop. You can remove the crop or permanently replace the source with only the cropped area.</p>
+        <p class="image-annotation-crop-warning">Applying the crop permanently cannot be undone.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-diagram2-crop-choice=""><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
+        <button type="button" class="secondary text-icon-button" data-diagram2-crop-choice="remove"><span class="button-icon" aria-hidden="true">&#8634;</span><span>Remove Crop</span></button>
+        <button type="button" class="danger text-icon-button" data-diagram2-crop-choice="permanent"><span class="button-icon" aria-hidden="true">&#9888;</span><span>Apply Crop Permanently</span></button>
+      </div>
+    `;
+    documentRef.body.appendChild(dialog);
+    let finished = false;
+    const finish = value => {
+      if (finished) return;
+      finished = true;
+      if (dialog.open) dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    dialog.querySelectorAll("[data-diagram2-crop-choice]").forEach(button => {
+      button.addEventListener("click", () => finish(button.dataset.diagram2CropChoice || ""));
+    });
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish("");
+    });
+    dialog.showModal();
+    dialog.querySelector("[data-diagram2-crop-choice='']")?.focus();
+  });
 }

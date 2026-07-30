@@ -2,19 +2,19 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { appUrl } from "../../shared/app-urls.js";
-import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-closure-v13";
+import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-closure-v13";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -35,7 +35,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -44,7 +44,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -348,6 +348,10 @@ function bindDiagram2RteHostEvents(options = {}) {
     confirm: options.confirm,
     notify
   });
+  globalThis.__pmtDiagram2Phase6Host = phase6Host;
+  signal.addEventListener("abort", () => {
+    if (globalThis.__pmtDiagram2Phase6Host === phase6Host) globalThis.__pmtDiagram2Phase6Host = null;
+  }, { once: true });
   phase6Host.bind(signal);
   bindDiagram2EditorColorPickers(dialog, {
     applyColor: (name, color) => applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, color),
@@ -362,9 +366,6 @@ function bindDiagram2RteHostEvents(options = {}) {
     applyRelationshipOption: (name, value) => applyDiagram2RteRelationshipOption(dialog, controller, renderer, name, value),
     applyRelationshipStyle: (name, value) => applyDiagram2RteSelectedRelationshipStyle(dialog, controller, renderer, name, value),
     applyRelationshipType: value => applyDiagram2RteSelectedRelationshipType(dialog, controller, renderer, value),
-    applyCropInsets: values => phase6Host.applyCropInsets(values),
-    applyCropCorners: values => phase6Host.applyCropCorners(values),
-    applyCropCornerRadius: value => phase6Host.applyCropCornerRadius(value),
     setCropVisibility: value => phase6Host.setCropVisibility(value),
     renameFieldRectangle: value => phase6Host.renameFieldRectangle(value),
     setFieldRectangleConnectionSide: value => phase6Host.setFieldRectangleConnectionSide(value),
@@ -382,6 +383,11 @@ function bindDiagram2RteHostEvents(options = {}) {
     onResize: () => syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false })
   });
 
+  dialog.addEventListener("pointerdown", event => {
+    if (!event.target.closest("[data-action='cancel-diagram2-editor']")) return;
+    void phase6Host.cancelCropAdjustment("editor canceled");
+  }, { signal });
+
   dialog.addEventListener("click", async event => {
     const actionElement = event.target.closest("[data-action]");
     if (!actionElement) return;
@@ -391,28 +397,29 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "save-diagram2-document") {
-      void options.save().catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied."));
+      void phase6Host.finishCropAdjustment("save")
+        .then(() => options.save())
+        .catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied."));
       return;
     }
     if (await phase6Host.handleAction(action)) return;
     if (action === "set-diagram2-tool") {
       const tool = actionElement.dataset.tool || actionElement.dataset.diagram2Tool || "select";
-      if (tool === "entity") {
+      if (tool === "crop") {
+        void phase6Host.activateCropTool();
+      } else if (tool === "entity") {
+        await phase6Host.setTool("select", { reason: "tool changed" });
         void addDiagram2RteEntityFromDialog(dialog, controller, renderer);
       } else if (isDiagram2CoreDrawingTool(tool)) {
+        await phase6Host.setTool("select", { reason: "tool changed" });
         void addDiagram2RteToolbarObject(tool, dialog, controller, renderer);
       } else if (tool === "format-painter") {
-        if (controller.activeTool() === "format-painter") controller.cancelFormatPainter();
+        const wasActive = controller.activeTool() === "format-painter";
+        await phase6Host.setTool("select", { reason: "tool changed" });
+        if (wasActive) controller.cancelFormatPainter();
         else controller.beginFormatPainter();
       } else {
-        controller.setActiveTool(tool);
-        if (tool === "crop") {
-          const selectedImage = controller.getObjectsByIds(controller.selectedObjectIds())
-            .find(object => object?.type === "embedded-image");
-          renderer.setCropTarget?.(selectedImage?.id || "");
-        } else {
-          renderer.clearCropPreview?.();
-        }
+        await phase6Host.setTool(tool, { reason: "tool changed" });
       }
       return;
     }
@@ -556,6 +563,7 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "set-diagram2-inspector-tab") {
+      await phase6Host.flushCropAdjustment("inspector tab changed");
       setDiagram2InspectorActiveTab(
         dialog.querySelector("[data-diagram2-editor-shell]"),
         actionElement.dataset.diagram2InspectorTab
@@ -725,7 +733,10 @@ function bindDiagram2RteHostEvents(options = {}) {
     isActive: () => dialog.open && image.isConnected && editor.isConnected,
     canMutate: () => controller.statusSnapshot().canEdit === true,
     onStateChange: () => updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller)),
-    onSave: () => options.save().catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied.")),
+    onSetTool: (tool, toolOptions) => phase6Host.setTool(tool, toolOptions),
+    onSave: () => phase6Host.finishCropAdjustment("save")
+      .then(() => options.save())
+      .catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied.")),
     onUndo: () => runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.undo()),
     onRedo: () => runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.redo()),
     onAddObject: type => type === "entity"

@@ -107,6 +107,7 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   expect(uploadedImageCount).toBe(1);
 
   await page.locator("[data-diagram2-tool='crop']").click();
+  await createDiagram2ReversibleCropCommand(page, droppedImage.id);
   await expect(page.locator("[data-diagram2-inspector-tab='crop']")).toBeVisible();
   await page.locator("[data-diagram2-inspector-tab='crop']").click();
   const cropLeft = page.locator("[data-diagram2-crop-inset='left']");
@@ -298,6 +299,500 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   expect(browserErrors).toEqual([]);
 });
 
+test("Diagram 2 Crop Radius debounces focused input without requiring Tab", async ({ page }, testInfo) => {
+  const state = phase6State();
+  const apiState = appState(603, "Diagram 2 Crop Debounce", state);
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+
+  await loginAndOpenDiagram2(page, 603);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(() => {
+    window.__pmtDiagram2EditorCore.setSelection(["image-phase6"]);
+  });
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await createDiagram2ReversibleCrop(page, "image-phase6");
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+
+  const radius = page.locator("[data-diagram2-crop-corner-radius]");
+  const selection = page.locator("[data-diagram2-selection-id='image-phase6']");
+  const cropOverlay = page.locator("[data-diagram2-crop-overlay]");
+  await expect(radius).toBeVisible();
+  await expect(selection).toBeVisible();
+  await expect(cropOverlay).toBeHidden();
+  await radius.focus();
+
+  const before = await page.evaluate(() => ({
+    historyEntryCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    fullRenderCount: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    decodeCount: window.__pmtDiagram2Renderer.diagnostics().decodeCount,
+    renderer: window.__pmtDiagram2Renderer.diagnostics(),
+    scheduler: window.__pmtDiagram2Phase6Host.cropAdjustmentDiagnostics()
+  }));
+  await radius.evaluate(control => {
+    for (let value = 1; value <= 20; value += 1) {
+      control.stepUp();
+      control.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+
+  await expect(radius).toHaveValue("20");
+  await expect(selection).toBeHidden();
+  await expect(cropOverlay).toBeVisible();
+  await page.waitForTimeout(350);
+  const pending = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const image = controller.getObjectById("image-phase6");
+    return {
+      radius: image.cropCornerRadius || 0,
+      historyEntryCount: controller.historyStatus().entryCount
+    };
+  });
+  expect(pending.radius).toBe(0);
+  expect(pending.historyEntryCount).toBe(before.historyEntryCount);
+
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.cropCornerRadius || 0
+  )).toBe(20);
+  const committed = await page.evaluate(() => ({
+    historyEntryCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    fullRenderCount: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    decodeCount: window.__pmtDiagram2Renderer.diagnostics().decodeCount,
+    renderer: window.__pmtDiagram2Renderer.diagnostics(),
+    scheduler: window.__pmtDiagram2Phase6Host.cropAdjustmentDiagnostics()
+  }));
+  expect(committed.historyEntryCount).toBe(before.historyEntryCount + 1);
+  expect(committed.fullRenderCount).toBe(before.fullRenderCount);
+  expect(committed.decodeCount).toBe(before.decodeCount);
+  expect(committed.scheduler.inputEventCount - before.scheduler.inputEventCount).toBe(20);
+  expect(committed.scheduler.debounceFiringCount - before.scheduler.debounceFiringCount).toBe(1);
+  expect(committed.scheduler.commitCount - before.scheduler.commitCount).toBe(1);
+  expect(committed.renderer.cropOptionImagePatchCount - before.renderer.cropOptionImagePatchCount).toBe(1);
+  expect(committed.renderer.cropOptionOverlayPatchCount - before.renderer.cropOptionOverlayPatchCount).toBe(1);
+  expect(committed.renderer.objectsPatchedInLastFlush).toBe(1);
+  expect(committed.renderer.relationshipsRoutedInLastFlush).toBe(0);
+  expect(committed.renderer.selectiveRoutingRelationshipsRerouted).toBe(0);
+  await expect(radius).toBeFocused();
+  await expect(selection).toBeHidden();
+  await expect(cropOverlay).toBeVisible();
+  if (testInfo.project.name === "chromium-1920") {
+    await capturePhase6ClosureScreenshot(
+      page,
+      "crop/crop-d2-radius-selection-hidden-1920x1080.png"
+    );
+  }
+  await expect(selection).toBeVisible({ timeout: 3500 });
+  const settled = await page.evaluate(() => ({
+    renderer: window.__pmtDiagram2Renderer.diagnostics(),
+    scheduler: window.__pmtDiagram2Phase6Host.cropAdjustmentDiagnostics()
+  }));
+  expect(settled.scheduler.timerCleanupCount - before.scheduler.timerCleanupCount).toBe(2);
+  expect(settled.scheduler.pendingTimerCount).toBe(0);
+  expect(settled.renderer.selectionChromeSuppressedIds).toEqual([]);
+  console.info("DIAGRAM2_CROP_DEBOUNCE_METRICS", JSON.stringify({
+    inputEvents: committed.scheduler.inputEventCount - before.scheduler.inputEventCount,
+    debounceFirings: committed.scheduler.debounceFiringCount - before.scheduler.debounceFiringCount,
+    historyCommands: committed.historyEntryCount - before.historyEntryCount,
+    imagePatches: committed.renderer.cropOptionImagePatchCount - before.renderer.cropOptionImagePatchCount,
+    cropOverlayPatches: committed.renderer.cropOptionOverlayPatchCount - before.renderer.cropOptionOverlayPatchCount,
+    unrelatedObjectPatches: Math.max(0, committed.renderer.objectsPatchedInLastFlush - 1),
+    relationshipReroutes: committed.renderer.relationshipsRoutedInLastFlush,
+    fullRenders: committed.fullRenderCount - before.fullRenderCount,
+    repeatedDecodes: committed.decodeCount - before.decodeCount,
+    timerCleanups: settled.scheduler.timerCleanupCount - before.scheduler.timerCleanupCount,
+    pendingTimers: settled.scheduler.pendingTimerCount
+  }));
+});
+
+test("Diagram 2 Crop numeric controls flush, cancel, normalize, and Undo as one burst", async ({ page }) => {
+  const state = phase6State();
+  const image = state.objects.find(object => object.id === "image-phase6");
+  image.imageClip = {
+    x: image.x + 20,
+    y: image.y + 16,
+    width: image.width - 44,
+    height: image.height - 36
+  };
+  const apiState = appState(604, "Diagram 2 Crop Transitions", state);
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+
+  await loginAndOpenDiagram2(page, 604);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["image-phase6"]));
+  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+
+  const radius = page.locator("[data-diagram2-crop-corner-radius]");
+  const topLeft = page.locator("[data-diagram2-crop-corner='topLeft']");
+  const leftInset = page.locator("[data-diagram2-crop-inset='left']");
+  const selection = page.locator("[data-diagram2-selection-id='image-phase6']");
+  const initial = await page.evaluate(() => ({
+    history: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    fullRenders: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    decodes: window.__pmtDiagram2Renderer.diagnostics().decodeCount
+  }));
+
+  await radius.fill("30");
+  await radius.press("Tab");
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.cropCornerRadius
+  )).toBe(30);
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.historyStatus().entryCount
+  )).toBe(initial.history + 1);
+
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.undo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  await expect(radius).toHaveValue("0");
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.redo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  await expect(radius).toHaveValue("30");
+
+  const beforeCancelHistory = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.historyStatus().entryCount
+  );
+  await radius.fill("45");
+  await expect(selection).toBeHidden();
+  await radius.press("Escape");
+  await expect(radius).toHaveValue("30");
+  await expect(selection).toBeVisible();
+  expect(await page.evaluate(() => ({
+    radius: window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.cropCornerRadius,
+    history: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    pendingTimers: window.__pmtDiagram2Phase6Host.cropAdjustmentDiagnostics().pendingTimerCount
+  }))).toEqual({
+    radius: 30,
+    history: beforeCancelHistory,
+    pendingTimers: 0
+  });
+
+  await leftInset.fill("28");
+  await expect.poll(() => page.evaluate(() => {
+    const current = window.__pmtDiagram2EditorCore.getObjectById("image-phase6");
+    return current?.imageClip?.x - current?.x;
+  })).toBe(28);
+  await expect(selection).toBeHidden();
+  await expect(page.locator("[data-diagram2-crop-overlay]")).toBeVisible();
+
+  await topLeft.fill("12");
+  await expect.poll(() => page.evaluate(() => {
+    const current = window.__pmtDiagram2EditorCore.getObjectById("image-phase6");
+    return {
+      uniform: current?.cropCornerRadius,
+      corners: current?.cropCornerRadii
+    };
+  })).toEqual({
+    uniform: 30,
+    corners: {
+      topLeft: 12,
+      topRight: 30,
+      bottomRight: 30,
+      bottomLeft: 30
+    }
+  });
+
+  await topLeft.fill("30");
+  await expect.poll(() => page.evaluate(() => {
+    const current = window.__pmtDiagram2EditorCore.getObjectById("image-phase6");
+    return {
+      uniform: current?.cropCornerRadius,
+      hasCorners: current?.cropCornerRadii != null
+    };
+  })).toEqual({
+    uniform: 30,
+    hasCorners: false
+  });
+
+  await radius.fill("34");
+  await page.locator("[data-diagram2-inspector-tab='format']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.cropCornerRadius
+  )).toBe(34);
+  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+
+  await radius.fill("35");
+  await page.locator("[data-diagram2-tool='select']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.cropCornerRadius
+  )).toBe(35);
+  await expect(selection).toBeVisible();
+  await expect(page.locator("[data-diagram2-crop-overlay]")).toBeHidden();
+  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+
+  await radius.fill("36");
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["entity-phase6"]));
+  await expect.poll(() => page.evaluate(() => ({
+    radius: window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.cropCornerRadius,
+    selected: window.__pmtDiagram2EditorCore.selectedObjectIds()
+  }))).toEqual({
+    radius: 36,
+    selected: ["entity-phase6"]
+  });
+  await expect(page.locator("[data-diagram2-crop-overlay]")).toBeHidden();
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["image-phase6"]));
+
+  const finalMetrics = await page.evaluate(() => ({
+    fullRenders: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    decodes: window.__pmtDiagram2Renderer.diagnostics().decodeCount,
+    pendingTimers: window.__pmtDiagram2Phase6Host.cropAdjustmentDiagnostics().pendingTimerCount
+  }));
+  expect(finalMetrics.fullRenders).toBe(initial.fullRenders);
+  expect(finalMetrics.decodes).toBe(initial.decodes);
+  expect(finalMetrics.pendingTimers).toBe(0);
+});
+
+test("Diagram 2 matches the shared Diagram 1 Crop fixture and saves it", async ({ page }, testInfo) => {
+  let apiState = appState(605, "Diagram 2 Crop Parity", cropParityState());
+  let uploadedSvg = "";
+  let savedPayload = null;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadedSvg = extractMultipartSvg(route.request().postDataBuffer());
+    return route.fulfill(jsonResponse({ url: "/uploads/diagram2-crop-parity-saved.svg" }));
+  });
+  await page.route("**/uploads/diagram2-crop-parity-saved.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: uploadedSvg || buildAnnotationSvg(cropParityState())
+  }));
+  await page.route("**/api/blogs/605", route => {
+    savedPayload = route.request().postDataJSON();
+    apiState = {
+      ...apiState,
+      blogs: apiState.blogs.map(blog => blog.id === 605
+        ? { ...blog, ...savedPayload, rowVersion: "crop-parity-row-2" }
+        : blog)
+    };
+    return route.fulfill(jsonResponse(apiState.blogs[0]));
+  });
+
+  await loginAndOpenDiagram2(page, 605);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.locator("[data-diagram2-editor-shell] [data-filter='diagram2-zoom']").selectOption("0.9");
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2Renderer?.viewportMatrix?.().scale
+  )).toBe(0.9);
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["crop-parity-image"]));
+  const selection = page.locator("[data-diagram2-selection-id='crop-parity-image']");
+  const overlay = page.locator("[data-diagram2-crop-overlay]");
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await expect(selection).toBeHidden();
+  await expect(overlay).toBeVisible();
+  if (testInfo.project.name === "chromium-1366") {
+    await capturePhase6ClosureScreenshot(page, "crop/crop-d2-entry-1366x768.png");
+  }
+
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await controller.updateEmbeddedImageCrop("crop-parity-image", {
+      imageClip: { x: 68, y: 108, width: 644, height: 404 },
+      cropVisible: true
+    }, {
+      label: "Crop image",
+      reason: "Crop parity fixture"
+    });
+    renderer.setCropTarget("crop-parity-image");
+    await renderer.whenIdle();
+  });
+  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+  const before = await page.evaluate(() => ({
+    history: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    fullRenders: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    decodes: window.__pmtDiagram2Renderer.diagnostics().decodeCount
+  }));
+  await page.evaluate(values => {
+    for (const [edge, value] of Object.entries(values)) {
+      const control = document.querySelector(`[data-diagram2-crop-inset='${edge}']`);
+      control.value = String(value);
+      control.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }, {
+    left: 18,
+    right: 24,
+    top: 12,
+    bottom: 18
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const image = window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image");
+    return image.imageClip;
+  })).toEqual({
+    x: 78,
+    y: 112,
+    width: 618,
+    height: 390
+  });
+  if (testInfo.project.name === "chromium-1920") {
+    await capturePhase6ClosureScreenshot(page, "crop/crop-d2-insets-1920x1080.png");
+  }
+
+  const radius = page.locator("[data-diagram2-crop-corner-radius]");
+  await radius.fill("28");
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image")?.cropCornerRadius
+  )).toBe(28);
+  await expect(radius).toBeFocused();
+  await expect(selection).toBeHidden();
+  await expect(overlay).toBeVisible();
+  if (testInfo.project.name === "chromium-1920") {
+    await capturePhase6ClosureScreenshot(page, "crop/crop-d2-radius-selection-hidden-1920x1080.png");
+  }
+
+  await page.locator("[data-diagram2-crop-corner='topLeft']").fill("12");
+  await expect.poll(() => page.evaluate(() => {
+    const image = window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image");
+    return {
+      radius: image.cropCornerRadius,
+      corners: image.cropCornerRadii
+    };
+  })).toEqual({
+    radius: 28,
+    corners: {
+      topLeft: 12,
+      topRight: 28,
+      bottomRight: 28,
+      bottomLeft: 28
+    }
+  });
+  if (testInfo.project.name === "chromium-1920") {
+    await capturePhase6ClosureScreenshot(page, "crop/crop-d2-independent-corners-1920x1080.png");
+  }
+
+  const adjusted = await page.evaluate(() => ({
+    history: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
+    fullRenders: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
+    decodes: window.__pmtDiagram2Renderer.diagnostics().decodeCount
+  }));
+  expect(adjusted.history).toBe(before.history + 3);
+  expect(adjusted.fullRenders).toBe(before.fullRenders);
+  expect(adjusted.decodes).toBe(before.decodes);
+
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.undo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  await expect(radius).toHaveValue("28");
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.redo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  await expect(page.locator("[data-diagram2-crop-corner='topLeft']")).toHaveValue("12");
+
+  await page.locator("[data-action='reset-diagram2-crop']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image")?.imageClip
+  )).toEqual({ x: 60, y: 100, width: 660, height: 420 });
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.undo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+  await expect(page.locator("[data-diagram2-crop-corner='topLeft']")).toHaveValue("12");
+
+  const cropVisible = page.locator("[data-diagram2-crop-visible]");
+  await cropVisible.uncheck();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image")?.cropVisible
+  )).toBe(false);
+  await page.locator("[data-action='permanently-crop-diagram2-image']").click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).last().click();
+  expect(await page.evaluate(() => {
+    const image = window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image");
+    return {
+      visible: image.cropVisible,
+      source: image.source,
+      clip: image.imageClip
+    };
+  })).toEqual({
+    visible: false,
+    source: mockScreenshotDataUrl(),
+    clip: { x: 78, y: 112, width: 618, height: 390 }
+  });
+  await cropVisible.check();
+
+  await page.locator("[data-action='save-diagram2-document']").click();
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Saved");
+  expect(savedPayload).not.toBeNull();
+  const savedState = parseAnnotationSvg(uploadedSvg);
+  const savedImage = savedState.objects.find(object => object.id === "crop-parity-image");
+  expect(savedImage.imageClip).toEqual({ x: 78, y: 112, width: 618, height: 390 });
+  expect(savedImage.cropCornerRadii).toEqual({
+    topLeft: 12,
+    topRight: 28,
+    bottomRight: 28,
+    bottomLeft: 28
+  });
+
+  await page.locator("[data-action='cancel-diagram2-editor']").click();
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["crop-parity-image"]));
+  const reopened = await page.evaluate(() => {
+    const image = window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image");
+    return {
+      clip: image.imageClip,
+      corners: image.cropCornerRadii
+    };
+  });
+  expect(reopened).toEqual({
+    clip: { x: 78, y: 112, width: 618, height: 390 },
+    corners: {
+      topLeft: 12,
+      topRight: 28,
+      bottomRight: 28,
+      bottomLeft: 28
+    }
+  });
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).last().click();
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await page.getByRole("button", { name: "Remove Crop", exact: true }).click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image")?.imageClip
+  )).toEqual({ x: 60, y: 100, width: 660, height: 420 });
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.undo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  expect(await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image")?.imageClip
+  )).toEqual({ x: 78, y: 112, width: 618, height: 390 });
+  console.info("DIAGRAM2_CROP_PARITY_MISMATCHES", JSON.stringify({
+    effectiveCropBounds: 0,
+    effectiveCornerRadii: 0,
+    selectionSuppression: 0,
+    undoRedoFinalState: 0,
+    saveReopen: 0,
+    unexpectedFullRenders: 0,
+    repeatedDecodes: 0
+  }));
+  await page.locator("[data-action='cancel-diagram2-editor']").click();
+});
+
 test("Diagram 2 Phase 6 keeps a localized mapping editable in a 1,000-object Diagram", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium-1920", "The large localized screenshot is required at 1920x1080.");
   const browserErrors = [];
@@ -411,8 +906,8 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
   }
 
   const d1Evidence = await page.evaluate(async state => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13");
-    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260730-diagram2-phase6-closure-v13");
+    const annotation = await import("/js/components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14");
     document.body.innerHTML = `<main class="phase6-closure-canvas" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
     const host = document.querySelector(".phase6-closure-canvas");
     const svgMarkup = annotation.buildAnnotationSvg(state, {
@@ -645,8 +1140,8 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
 
   const d2Evidence = await page.evaluate(async ({ state, mappingId: activeMappingId }) => {
     document.body.innerHTML = `<main id="phase6D2Host" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
-    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-closure-v13");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
+    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-crop-closure-v14");
     const host = document.querySelector("#phase6D2Host");
     const renderer = createDiagram2Renderer({ host });
     renderer.render(state, { reason: "Phase 6 D1/D2 closure oracle" });
@@ -1028,6 +1523,45 @@ async function assertDiagram2ImageDrop(page, imageBase64) {
   return after.image;
 }
 
+async function createDiagram2ReversibleCrop(page, imageId) {
+  const handle = page.locator(
+    `[data-diagram2-crop-handle='nw'][data-diagram2-crop-object-id='${imageId}']`
+  );
+  await expect(handle).toBeVisible();
+  const box = await handle.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width / 2) + 36, box.y + (box.height / 2) + 28, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(id => {
+    const image = window.__pmtDiagram2EditorCore?.getObjectById?.(id);
+    return image?.imageClip?.x > image?.x && image?.imageClip?.y > image?.y;
+  }, imageId)).toBe(true);
+}
+
+async function createDiagram2ReversibleCropCommand(page, imageId) {
+  await page.evaluate(async id => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const image = controller.getObjectById(id);
+    await controller.updateEmbeddedImageCrop(id, {
+      imageClip: {
+        x: image.x + 16,
+        y: image.y + 12,
+        width: image.width - 36,
+        height: image.height - 28
+      },
+      cropVisible: true
+    }, {
+      label: "Crop image",
+      reason: "Phase 6 browser fixture"
+    });
+    renderer.setCropTarget(id);
+    await renderer.whenIdle();
+  }, imageId);
+}
+
 async function assertDiagram2PermanentCrop(page, beforeImage) {
   const before = await page.evaluate(id => {
     const controller = window.__pmtDiagram2EditorCore;
@@ -1227,6 +1761,25 @@ function phase6State() {
     width: 1600,
     height: 900,
     objects: [...objects, table]
+  });
+}
+
+function cropParityState() {
+  return normalizeAnnotationState({
+    version: 1,
+    width: 1600,
+    height: 900,
+    gridVisible: false,
+    objects: [createDiagram2EmbeddedImage({
+      id: "crop-parity-image",
+      name: "Crop parity image",
+      source: mockScreenshotDataUrl(),
+      x: 60,
+      y: 100,
+      width: 660,
+      height: 420,
+      isOriginalImage: true
+    })]
   });
 }
 

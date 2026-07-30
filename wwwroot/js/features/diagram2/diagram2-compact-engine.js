@@ -1,8 +1,8 @@
-import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-closure-v13";
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2CompactDiagnostics,
   diagram2CompactPhases
-} from "./diagram2-route-costing.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-route-costing.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 export async function runDiagram2CompactEngine(input = {}) {
   const startedAt = performanceNow();

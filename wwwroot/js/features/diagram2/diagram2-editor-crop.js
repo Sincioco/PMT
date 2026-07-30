@@ -3,9 +3,13 @@ import {
   annotationImageCropCornerRadii,
   annotationImageCropInsets,
   permanentlyCropAnnotationImage
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const cropCornerKeys = ["topLeft", "topRight", "bottomRight", "bottomLeft"];
+const maximumCropCornerRadius = 200;
+
+export const diagram2CropNumericDebounceMilliseconds = 500;
+export const diagram2CropSelectionQuietMilliseconds = 3000;
 
 export function diagram2ImageEffectiveClip(image) {
   return annotationEmbeddedImageEffectiveClip(image);
@@ -21,8 +25,16 @@ export function diagram2ImageCropCornerRadii(image) {
 
 export function diagram2ImageHasReversibleCrop(image) {
   const full = diagram2ImageBounds(image);
-  const clip = diagram2ImageEffectiveClip(image);
+  const clip = intersectBounds(full, image?.imageClip || full);
   return Boolean(full && clip && !sameBounds(full, clip));
+}
+
+export function diagram2ImageHasCropInspector(image) {
+  if (image?.type !== "embedded-image") return false;
+  const corners = diagram2ImageCropCornerRadii(image);
+  return diagram2ImageHasReversibleCrop(image)
+    || image.cropPermanent === true
+    || cropCornerKeys.some(key => corners[key] > 0);
 }
 
 export function resizeDiagram2CropClip(image, directionInput, pointInput, options = {}) {
@@ -75,9 +87,10 @@ export function diagram2CropPatchFromInsets(image, insetsInput = {}) {
 export function diagram2CropCornerPatch(image, valuesInput = {}) {
   const current = diagram2ImageCropCornerRadii(image);
   const maximum = Math.min(
-    finiteNumber(diagram2ImageEffectiveClip(image)?.width, 0),
-    finiteNumber(diagram2ImageEffectiveClip(image)?.height, 0)
-  ) / 2;
+    maximumCropCornerRadius,
+    finiteNumber(diagram2ImageEffectiveClip(image)?.width, 0) / 2,
+    finiteNumber(diagram2ImageEffectiveClip(image)?.height, 0) / 2
+  );
   const values = {};
   cropCornerKeys.forEach(key => {
     values[key] = clamp(finiteNumber(valuesInput[key], current[key]), 0, maximum);
@@ -85,7 +98,21 @@ export function diagram2CropCornerPatch(image, valuesInput = {}) {
   const uniform = cropCornerKeys.every(key => Math.abs(values[key] - values.topLeft) < 0.001);
   return uniform
     ? { cropCornerRadius: values.topLeft, cropCornerRadii: null }
-    : { cropCornerRadius: 0, cropCornerRadii: values };
+    : {
+        cropCornerRadius: clamp(finiteNumber(image?.cropCornerRadius, 0), 0, maximum),
+        cropCornerRadii: values
+      };
+}
+
+export function diagram2CropOptionsPatch(image, valuesInput = {}) {
+  if (image?.type !== "embedded-image") return null;
+  const insetPatch = diagram2CropPatchFromInsets(image, valuesInput.insets);
+  if (!insetPatch) return null;
+  const imageWithInsets = { ...image, ...insetPatch };
+  return {
+    ...insetPatch,
+    ...diagram2CropCornerPatch(imageWithInsets, valuesInput.corners)
+  };
 }
 
 export function diagram2ResetCropPatch(image) {
@@ -100,9 +127,155 @@ export function diagram2ResetCropPatch(image) {
 }
 
 export async function permanentlyCropDiagram2Image(image) {
-  const state = { width: image?.width || 1, height: image?.height || 1, objects: [{ ...image }] };
+  const state = {
+    width: image?.width || 1,
+    height: image?.height || 1,
+    objects: [{ ...image, cropVisible: true }]
+  };
   const result = await permanentlyCropAnnotationImage(state, image?.id);
   return { object: state.objects[0], result };
+}
+
+export function createDiagram2CropNumericAdjustmentScheduler(options = {}) {
+  const timers = options.timers || globalThis;
+  const setTimer = timers.setTimeout?.bind(timers);
+  const clearTimer = timers.clearTimeout?.bind(timers);
+  if (typeof setTimer !== "function" || typeof clearTimer !== "function") {
+    throw new Error("Crop numeric scheduling requires timer support.");
+  }
+
+  let destroyed = false;
+  let pendingAdjustment = null;
+  let activeImageId = "";
+  let commitTimer = 0;
+  let quietTimer = 0;
+  let commitPromise = null;
+  const stats = {
+    inputEventCount: 0,
+    debounceFiringCount: 0,
+    commitCount: 0,
+    cancelCount: 0,
+    timerCleanupCount: 0
+  };
+
+  function schedule(adjustmentInput) {
+    if (destroyed) return false;
+    const adjustment = cloneCropAdjustment(adjustmentInput);
+    if (!adjustment.imageId) return false;
+    if (activeImageId && activeImageId !== adjustment.imageId) {
+      cancel("image changed");
+    }
+    if (!activeImageId) {
+      activeImageId = adjustment.imageId;
+      options.begin?.(adjustment);
+    }
+
+    pendingAdjustment = adjustment;
+    stats.inputEventCount += 1;
+    clearCommitTimer(false);
+    clearQuietTimer(false);
+    commitTimer = setTimer(() => {
+      commitTimer = 0;
+      stats.timerCleanupCount += 1;
+      stats.debounceFiringCount += 1;
+      void flush("debounce");
+    }, diagram2CropNumericDebounceMilliseconds);
+    quietTimer = setTimer(() => {
+      quietTimer = 0;
+      stats.timerCleanupCount += 1;
+      end("quiet period");
+    }, diagram2CropSelectionQuietMilliseconds);
+    return true;
+  }
+
+  async function flush(reason = "flush") {
+    if (destroyed) return false;
+    if (!pendingAdjustment) return commitPromise || false;
+    clearCommitTimer(true);
+    const adjustment = pendingAdjustment;
+    pendingAdjustment = null;
+    const previousCommit = commitPromise;
+    const currentCommit = Promise.resolve(previousCommit)
+      .then(() => options.commit?.(adjustment, { reason }))
+      .then(committed => {
+        if (committed !== false) stats.commitCount += 1;
+        return committed !== false;
+      });
+    commitPromise = currentCommit;
+    try {
+      return await currentCommit;
+    } finally {
+      if (commitPromise === currentCommit) commitPromise = null;
+    }
+  }
+
+  function cancel(reason = "cancel") {
+    const imageId = activeImageId || pendingAdjustment?.imageId || "";
+    const hadAdjustment = Boolean(imageId || pendingAdjustment || commitTimer || quietTimer);
+    clearCommitTimer(true);
+    clearQuietTimer(true);
+    pendingAdjustment = null;
+    activeImageId = "";
+    if (hadAdjustment) {
+      stats.cancelCount += 1;
+      options.cancel?.({ imageId, reason });
+    }
+    return hadAdjustment;
+  }
+
+  function end(reason = "end") {
+    const imageId = activeImageId;
+    clearQuietTimer(true);
+    activeImageId = "";
+    if (imageId) options.end?.({ imageId, reason });
+    return Boolean(imageId);
+  }
+
+  async function flushAndEnd(reason = "flush and end") {
+    const committed = await flush(reason);
+    end(reason);
+    return committed;
+  }
+
+  function destroy() {
+    if (destroyed) return;
+    cancel("destroy");
+    destroyed = true;
+  }
+
+  function diagnostics() {
+    return {
+      ...stats,
+      activeImageId,
+      pendingAdjustment: Boolean(pendingAdjustment),
+      pendingCommit: Boolean(commitPromise),
+      pendingTimerCount: Number(Boolean(commitTimer)) + Number(Boolean(quietTimer))
+    };
+  }
+
+  function clearCommitTimer(countCleanup) {
+    if (!commitTimer) return;
+    clearTimer(commitTimer);
+    commitTimer = 0;
+    if (countCleanup) stats.timerCleanupCount += 1;
+  }
+
+  function clearQuietTimer(countCleanup) {
+    if (!quietTimer) return;
+    clearTimer(quietTimer);
+    quietTimer = 0;
+    if (countCleanup) stats.timerCleanupCount += 1;
+  }
+
+  return {
+    schedule,
+    flush,
+    flushAndEnd,
+    cancel,
+    end,
+    destroy,
+    diagnostics
+  };
 }
 
 function diagram2ImageBounds(image) {
@@ -153,4 +326,14 @@ function finiteNumber(value, fallback) {
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function cloneCropAdjustment(adjustmentInput = {}) {
+  return {
+    imageId: String(adjustmentInput.imageId || "").trim(),
+    values: {
+      insets: { ...(adjustmentInput.values?.insets || {}) },
+      corners: { ...(adjustmentInput.values?.corners || {}) }
+    }
+  };
 }

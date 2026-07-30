@@ -11,31 +11,31 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageEffectiveClip
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingIndexDiagnostics,
   patchDiagram2FieldMappingIndexes,
   setDiagram2FieldMappingRouteIndex,
   diagram2MappingAttentionTargets
-} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-field-mappings.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   diagram2FieldMappingTableRowKey
-} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2ImageResourceManager
-} from "./diagram2-image-resources.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-image-resources.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteKey,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipGeometry
-} from "./diagram2-routing.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -430,6 +430,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let cropTargetId = "";
   let cropPreviewState = null;
   let cropPreviewFrameCount = 0;
+  const selectionChromeSuppressedIds = new Set();
+  let cropOptionAdjustmentImageId = "";
+  let cropOptionAdjustmentBeginCount = 0;
+  let cropOptionAdjustmentCommitCount = 0;
+  let cropOptionAdjustmentCancelCount = 0;
+  let cropOptionImagePatchCount = 0;
+  let cropOptionOverlayPatchCount = 0;
   let fullRenderCount = 0;
   let fullRenderReason = "";
   let frameSequence = 0;
@@ -1014,6 +1021,55 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     cropTargetId = image ? objectId : "";
     cropPreviewState = null;
     renderCropOverlay();
+    return diagnostics();
+  }
+
+  function setSelectionChromeSuppressed(objectIdInput, suppressed = true) {
+    const objectId = String(objectIdInput || "").trim();
+    if (!objectId) return diagnostics();
+    if (suppressed === true) selectionChromeSuppressedIds.add(objectId);
+    else selectionChromeSuppressedIds.delete(objectId);
+    patchSelectionOverlays();
+    return diagnostics();
+  }
+
+  function beginCropOptionAdjustment(objectIdInput) {
+    const objectId = String(objectIdInput || "").trim();
+    const image = fieldMappingIndexes.objectsById.get(objectId);
+    if (image?.type !== "embedded-image") return diagnostics();
+    cropOptionAdjustmentImageId = objectId;
+    cropOptionAdjustmentBeginCount += 1;
+    setCropTarget(objectId);
+    setSelectionChromeSuppressed(objectId, true);
+    return diagnostics();
+  }
+
+  function commitCropOptionAdjustment(objectIdInput, options = {}) {
+    const objectId = String(objectIdInput || cropOptionAdjustmentImageId || "").trim();
+    if (!objectId) return diagnostics();
+    cropOptionAdjustmentCommitCount += 1;
+    cropOptionImagePatchCount += 1;
+    if (options.keepTarget !== false) {
+      setCropTarget(objectId);
+      cropOptionOverlayPatchCount += 1;
+    }
+    return diagnostics();
+  }
+
+  function cancelCropOptionAdjustment(objectIdInput, options = {}) {
+    const objectId = String(objectIdInput || cropOptionAdjustmentImageId || "").trim();
+    cropOptionAdjustmentCancelCount += 1;
+    cropOptionAdjustmentImageId = "";
+    if (objectId) setSelectionChromeSuppressed(objectId, false);
+    if (options.keepTarget !== true) clearCropPreview();
+    return diagnostics();
+  }
+
+  function endCropOptionAdjustment(objectIdInput, options = {}) {
+    const objectId = String(objectIdInput || cropOptionAdjustmentImageId || "").trim();
+    cropOptionAdjustmentImageId = "";
+    if (objectId) setSelectionChromeSuppressed(objectId, false);
+    if (options.keepTarget !== true) clearCropPreview();
     return diagnostics();
   }
 
@@ -1729,7 +1785,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       mappingArrowLifetimeMs,
       cropPreviewFrameCount,
       cropPreviewActive: Boolean(cropPreviewState),
-      cropTargetId
+      cropTargetId,
+      cropOptionAdjustmentImageId,
+      cropOptionAdjustmentBeginCount,
+      cropOptionAdjustmentCommitCount,
+      cropOptionAdjustmentCancelCount,
+      cropOptionImagePatchCount,
+      cropOptionOverlayPatchCount,
+      selectionChromeSuppressedIds: [...selectionChromeSuppressedIds]
     };
   }
 
@@ -1779,6 +1842,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       cropPreviewFrameCount,
       cropPreviewActive: Boolean(cropPreviewState),
       cropTargetId,
+      cropOptionAdjustmentImageId,
+      cropOptionAdjustmentBeginCount,
+      cropOptionAdjustmentCommitCount,
+      cropOptionAdjustmentCancelCount,
+      cropOptionImagePatchCount,
+      cropOptionOverlayPatchCount,
+      selectionChromeSuppressedIds: [...selectionChromeSuppressedIds],
       pendingDiagramFlush: pendingDiagramFlushFrame !== 0,
       transactionDepth
     };
@@ -1883,6 +1953,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     mappingPinnedState = null;
     cropTargetId = "";
     cropPreviewState = null;
+    cropOptionAdjustmentImageId = "";
+    selectionChromeSuppressedIds.clear();
     lastDiagnostics = emptyDiagnostics();
     lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
     lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
@@ -3651,7 +3723,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
           entry.connector === true ? "diagram2-renderer-connector-selection" : "",
           entry.locked === true ? "is-locked" : ""
         ].filter(Boolean).join(" "),
-        transform: entry.transform
+        transform: entry.transform,
+        display: selectionChromeSuppressedIds.has(entry.id) ? "none" : null,
+        "data-diagram2-selection-suppressed": selectionChromeSuppressedIds.has(entry.id) ? "true" : null
       });
 
       let outline = overlay.querySelector(":scope > rect[data-diagram2-selection-outline]");
@@ -4124,6 +4198,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     previewMarquee,
     clearMarquee,
     setCropTarget,
+    setSelectionChromeSuppressed,
+    beginCropOptionAdjustment,
+    commitCropOptionAdjustment,
+    cancelCropOptionAdjustment,
+    endCropOptionAdjustment,
     previewCrop,
     clearCropPreview,
     showFieldMappingHover,

@@ -18,8 +18,8 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
-import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -46,7 +46,7 @@ import {
   diagramUpdatedTime,
   loadDiagramCanonicalState,
   loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../shared/diagram-documents.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js";
@@ -54,19 +54,19 @@ import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-compatibility.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-closure-v13";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -87,7 +87,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-shell.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -96,11 +96,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-templates.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -391,22 +391,22 @@ export function createDiagram2Feature({
     if (action === "set-diagram2-tool") {
       if (!diagram2EditModeActive()) return true;
       const tool = button?.dataset?.tool || button?.dataset?.diagram2Tool || "select";
-      if (tool === "entity") await addDiagram2EntityFromDialog();
-      else if (isDiagram2CoreDrawingTool(tool)) await addDiagram2ToolbarObject(tool);
+      if (tool === "crop") {
+        await diagram2Phase6Host?.activateCropTool();
+      } else if (tool === "entity") {
+        await diagram2Phase6Host?.setTool("select", { reason: "tool changed" });
+        await addDiagram2EntityFromDialog();
+      } else if (isDiagram2CoreDrawingTool(tool)) {
+        await diagram2Phase6Host?.setTool("select", { reason: "tool changed" });
+        await addDiagram2ToolbarObject(tool);
+      }
       else if (tool === "format-painter") {
-        if (diagram2Controller?.activeTool() === "format-painter") diagram2Controller.cancelFormatPainter();
+        const wasActive = diagram2Controller?.activeTool() === "format-painter";
+        await diagram2Phase6Host?.setTool("select", { reason: "tool changed" });
+        if (wasActive) diagram2Controller.cancelFormatPainter();
         else diagram2Controller?.beginFormatPainter();
       }
-      else {
-        diagram2Controller?.setActiveTool(tool);
-        if (tool === "crop") {
-          const image = diagram2Controller?.getObjectsByIds(diagram2Controller.selectedObjectIds())
-            .find(object => object?.type === "embedded-image");
-          diagram2Renderer?.setCropTarget?.(image?.id || "");
-        } else {
-          diagram2Renderer?.clearCropPreview?.();
-        }
-      }
+      else await diagram2Phase6Host?.setTool(tool, { reason: "tool changed" });
       updateDiagram2EditorControls();
       return true;
     }
@@ -583,6 +583,7 @@ export function createDiagram2Feature({
     }
     if (action === "set-diagram2-inspector-tab") {
       if (!diagram2EditModeActive()) return true;
+      await diagram2Phase6Host?.flushCropAdjustment("inspector tab changed");
       setDiagram2InspectorActiveTab(
         app.querySelector("[data-diagram2-editor-shell]"),
         button?.dataset?.diagram2InspectorTab
@@ -2010,6 +2011,7 @@ export function createDiagram2Feature({
     }
     globalThis.__pmtDiagram2Compatibility = null;
     globalThis.__pmtDiagram2SelectionClipboard = null;
+    globalThis.__pmtDiagram2Phase6Host = null;
     diagram2Renderer = null;
     diagram2Controller = null;
     diagram2HostAdapter = null;
@@ -2039,7 +2041,7 @@ export function createDiagram2Feature({
   function bindDiagram2InspectorTabs() {
     const shell = app.querySelector("[data-diagram2-editor-shell]");
     if (!shell) return;
-    shell.addEventListener("keydown", event => {
+    shell.addEventListener("keydown", async event => {
       const tab = event.target?.closest?.("[data-diagram2-inspector-tab]");
       if (!tab || !shell.contains(tab)) return;
       const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
@@ -2056,6 +2058,7 @@ export function createDiagram2Feature({
           : event.key === "ArrowLeft"
             ? (index + tabs.length - 1) % tabs.length
             : (index + 1) % tabs.length;
+      await diagram2Phase6Host?.flushCropAdjustment("inspector tab changed");
       setDiagram2InspectorActiveTab(shell, tabs[nextIndex]?.dataset.diagram2InspectorTab);
       tabs[nextIndex]?.focus({ preventScroll: true });
     });
@@ -2077,9 +2080,6 @@ export function createDiagram2Feature({
       applyRelationshipOption: (name, value) => applyDiagram2RelationshipOption(name, value),
       applyRelationshipStyle: (name, value) => applyDiagram2SelectedRelationshipStyle(name, value),
       applyRelationshipType: value => applyDiagram2SelectedRelationshipType(value),
-      applyCropInsets: values => diagram2Phase6Host?.applyCropInsets(values),
-      applyCropCorners: values => diagram2Phase6Host?.applyCropCorners(values),
-      applyCropCornerRadius: value => diagram2Phase6Host?.applyCropCornerRadius(value),
       setCropVisibility: value => diagram2Phase6Host?.setCropVisibility(value),
       renameFieldRectangle: value => diagram2Phase6Host?.renameFieldRectangle(value),
       setFieldRectangleConnectionSide: value => diagram2Phase6Host?.setFieldRectangleConnectionSide(value),
@@ -2347,6 +2347,7 @@ export function createDiagram2Feature({
         confirm,
         notify
       });
+      globalThis.__pmtDiagram2Phase6Host = diagram2Phase6Host;
       diagram2Phase6Host.bind(signal);
       bindDiagram2EditorInteractions({
         root: viewer,
@@ -2358,6 +2359,7 @@ export function createDiagram2Feature({
         canMutate: diagram2CanMutateCurrentDocument,
         onStateChange: syncDiagram2InteractionState,
         onDiagnostics: updateDiagram2Diagnostics,
+        onSetTool: (tool, toolOptions) => diagram2Phase6Host?.setTool(tool, toolOptions),
         onSave: saveDiagram2Document,
         onUndo: undoDiagram2,
         onRedo: redoDiagram2,
@@ -2643,6 +2645,7 @@ export function createDiagram2Feature({
 
   async function saveDiagram2Document() {
     if (diagram2Busy || !diagram2Controller) return false;
+    await diagram2Phase6Host?.finishCropAdjustment("save");
     const document = currentDiagram2Document();
     if (!document || !diagram2Controller.currentState()) {
       notify?.("Select a Diagram before saving.");
@@ -2694,6 +2697,7 @@ export function createDiagram2Feature({
   async function closeDiagram2Editor() {
     if (diagram2DocumentMode !== "edit") return false;
     if (diagram2Busy) return false;
+    await diagram2Phase6Host?.finishCropAdjustment("editor close");
     if (diagram2Controller?.historyStatus?.().dirty === true) {
       const action = await askDiagram2UnsavedCloseAction();
       if (action === "cancel") return false;

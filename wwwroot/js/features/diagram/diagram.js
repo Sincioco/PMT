@@ -25,7 +25,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -53,9 +53,9 @@ import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-closure-v13";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260730-diagram2-phase6-closure-v13";
-import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramTreeGroups = new Set(["all", "project", "project-sprint"]);

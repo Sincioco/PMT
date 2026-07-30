@@ -2,7 +2,7 @@ import {
   autoFormatAnnotationEntitiesOrgTree,
   buildAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const schemaTitle = "PMT's Diagram Tool by Sin";
 const schemaDiagramName = "PMT's Database Schema";

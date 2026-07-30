@@ -16,6 +16,12 @@ The starting worktree was clean. Phase 5's implementation commit remains:
 
 `Sin and Codex: make Diagram 2 Compact match Diagram 1`
 
+The D1 Crop parity correction started from:
+
+`3dc131e17e6cb81c3de1bdc64127259b467d17f7`
+
+The unrelated untracked `Requirements/2026-07-30 - Requirements - Day 39.txt` file was present at correction start and remains preserved and excluded from the commit.
+
 The existing Diagram 1 RTE labels remain unchanged:
 
 - `Annotate`
@@ -86,6 +92,41 @@ Selection and unrelated style changes do not decode an image again. Missing reso
 - permanent-crop delegation to the existing D1 operation.
 
 Pointer and keyboard previews live only in renderer state. Preview frames patch the selected image and crop overlay, suppress ordinary selection chrome, create zero history entries, and do not serialize the Diagram. Commit writes one command and restores selection. Cancel restores the exact original image/crop state. Confirmed permanent crop replaces the source and clears local undo because the operation is irreversible inside the annotation, matching D1.
+
+#### D1 Crop UI/UX parity correction
+
+The final Crop correction re-audited the live Diagram 1 implementation as the executable oracle before changing Diagram 2.
+
+| D1 behavior | Observed result |
+| --- | --- |
+| Activate Crop on one unlocked image without a reversible crop | Keeps the image selected, enters Crop, starts at the full image boundary, hides ordinary selection handles, shows Crop handles, and focuses the workspace without scrolling it. |
+| Activate Crop on a locked image | Rejects Crop without changing the image. |
+| Activate Crop on a fixed original image | Allows Crop while preserving the fixed original-image role. |
+| Activate Crop on an existing reversible crop | Offers `Cancel`, `Remove Crop`, and `Apply Crop Permanently` in that order. After Permanent is chosen, a hidden saved crop is temporarily revealed for confirmation and restored if the warning is canceled. |
+| Main Radius | Applies one effective radius to all four corners and clamps it to the effective cropped dimensions and D1's 200-unit absolute maximum. |
+| Individual corners | Changes only the requested corner, preserves the other three effective values, and returns to the uniform representation when all four values match. |
+| Insets | Changes one edge while preserving the others and keeps at least 8 diagram units of effective width and height. |
+| Numeric-option quiet period | Hides only ordinary selection chrome and restores it 3,000 ms after the last option adjustment. The selected object and Objects tree state remain intact. |
+| Pointer handles | Preview immediately through renderer state, mutate no canonical data per pointer frame, and commit one history command at pointer release. |
+| Exit, Reset, Undo, and Redo | Crop-toggle, Select, Escape, another tool, or another object closes the active mode consistently. Reset is undoable; Undo/Redo restores the whole committed adjustment. |
+| Permanent crop | Requires confirmation, rasterizes the effective crop even when its saved visibility was off, resets crop metadata to the replacement source bounds, and clears local history as an irreversible D1 operation. |
+| Save/Reopen and RTE | Reversible crop metadata survives document and RTE round trips through the existing shared annotation format. |
+
+The D2 defect was the root-level `change` listener in `diagram2-editor-shell.js`. Its nine number inputs changed their displayed value while focused but did not update the image until blur, Tab, Enter, or another committed `change` event. D2 also lacked a Crop numeric scheduler and D1's independent three-second selection-chrome quiet period.
+
+The correction keeps the implementation local:
+
+- one shared trailing-edge scheduler owns all nine Crop number inputs;
+- every `input` updates the pending values and restarts one 500 ms timer;
+- the final burst commits one controller command and patches the selected image and Crop overlay;
+- `change`, blur, Enter, tab switch, tool switch, object selection, Save, and normal close flush the same pending value without duplication;
+- Escape and editor cancel discard an uncommitted value, restore the inspector from canonical state, and clear timers;
+- Save awaits an already-started blur commit, so stale SVG metadata cannot be serialized;
+- a separate 3,000 ms timer controls renderer-local selection suppression;
+- the controller selection, selected Objects-tree item, image, Crop boundary, and Crop handles stay present while ordinary selection geometry is hidden; and
+- pointer Crop remains immediate and outside the numeric debounce.
+
+The renderer exposes focused Crop-adjustment operations and counters but no new architectural layer. The shared Phase 6 host owns scheduler lifecycle for both the top-navigation and RTE adapters, while the controller remains the only canonical/history owner.
 
 ### Entity Annotations
 
@@ -291,10 +332,63 @@ All Phase 6 screenshots were visually inspected.
 | `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d2-ui-cell-arrows-1920x1080.png` | D2 UI-cell activation with matching geometry |
 | `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d1-database-cell-arrows-1920x1080.png` | D1 database-cell activation and exact field endpoint |
 | `docs/screenshots/diagram-2-phase-6/closure/field-mapping-table-d2-database-cell-arrows-1920x1080.png` | D2 database-cell activation with matching endpoint |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d1-entry-1366x768.png` | D1 Crop entry on the shared source image at 1366 x 768 |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d2-entry-1366x768.png` | D2 full-boundary Crop entry with ordinary selection chrome hidden |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d1-radius-selection-hidden-1920x1080.png` | D1 Radius 28 oracle during its selection-quiet period |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d2-radius-selection-hidden-1920x1080.png` | D2 Radius 28 while the input remains focused, with Crop boundary/handles retained |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d1-independent-corners-1920x1080.png` | D1 effective independent-corner result with top-left Radius 12 |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d2-independent-corners-1920x1080.png` | D2 matching independent-corner result |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d1-insets-1920x1080.png` | D1 18/24/12/18 inset result |
+| `docs/screenshots/diagram-2-phase-6/closure/crop/crop-d2-insets-1920x1080.png` | D2 matching inset result and synchronized Crop overlay |
 
 The RTE fixture loads the real PMT token, base, dialog, image-annotation, Diagram, and Diagram 2 style sheets from a clean same-origin HTML page. Its screenshots therefore represent the real editor styling without starting an unrelated full application instance.
 
 ## Phase 6 Closure Pass
+
+### D1 Crop parity and debounced Radius preview
+
+The focused browser fixture uses the same 1,600 x 900 canvas, 660 x 420 source image at `(60, 100)`, 90% zoom, 18/24/12/18 edge insets, uniform Radius 28, and top-left Radius 12 in D1 and D2. D2 visibly updates the rounded image while Radius remains focused, hides ordinary selection chrome, and keeps the Crop boundary and handles visible.
+
+Observed no-Tab burst:
+
+| Measurement | Result |
+| --- | ---: |
+| Real number-input `input` events | 20 |
+| Trailing debounce duration | 500 ms |
+| Debounce firings | 1 |
+| History commands | 1 |
+| Selected-image patches | 1 |
+| Crop-overlay patches | 1 |
+| Unrelated object patches | 0 |
+| Relationship reroutes | 0 |
+| Full renders | 0 |
+| Repeated image decodes | 0 |
+| Timer cleanups | 2 |
+| Pending timers after quiet period | 0 |
+| Selection-chrome quiet duration | 3,000 ms |
+
+The transition fixture separately proves early blur/Tab flush, no duplicate 500 ms commit, Escape cancellation, inset isolation, independent-corner normalization, return to uniform radius, inspector-tab flush, tool-switch flush, object-selection flush, Undo/Redo, and zero pending timers. Radius is clamped to the smaller of D1's 200-unit maximum and half the effective crop dimensions.
+
+Host coverage:
+
+| Host | No-Tab numeric update | Flush/Save behavior | Cancel/cleanup |
+| --- | --- | --- | --- |
+| Top-navigation Diagram 2 Edit | PASS | PASS | PASS |
+| RTE `Annotate 2.0` | PASS | PASS, including an in-flight blur commit before Apply | PASS |
+| RTE `Edit Annotation 2.0` | PASS | PASS and reopens the saved Radius | PASS |
+| Diagram 1 oracle | PASS | PASS | PASS |
+
+Parity mismatch counts:
+
+```text
+Effective crop bounds:            0
+Effective corner radii:           0
+Selection suppression:            0
+Undo/Redo final state:            0
+Save/Reopen state:                0
+Unexpected full renders:          0
+Repeated image decodes:           0
+```
 
 ### TreeNav continuity and filter parity
 
@@ -355,6 +449,13 @@ Low/high zoom relationship mismatches:   0
 Document 31 Compact path changes:        83 of 83
 Document 31 Save/read path mismatches:    0 of 83
 Document 31 reload path mismatches:       0 of 83
+D1/D2 effective Crop-bound mismatches:    0
+D1/D2 effective corner mismatches:        0
+Crop input events in focused burst:       20
+Crop debounce firings/history commands:   1 / 1
+Crop image/overlay patches:               1 / 1
+Crop unrelated object/route work:         0 / 0
+Crop full renders/repeated decodes:        0 / 0
 ```
 
 ## Files Changed
@@ -419,31 +520,33 @@ docs/screenshots/diagram-2-phase-6/*
 
 ## Automated Validation
 
-Final observed evidence:
+Final Crop-correction evidence:
 
-- `npm run check:js` - 189 JavaScript modules syntax-checked.
-- Combined publishable-source `npm run test:js` evidence - 432/432 passed; the full-suite run completed in 188,451.596 ms.
-- Dedicated Compact parity - 28/28 passed, including no-movement route repair, history, and saved SVG roundtrip coverage.
-- Full Diagram 2 navigation suite - 24/24 passed across 1366/1920 in 2.4 minutes.
-- The heavy navigation gate showed Compact progress in 27.7 ms, completed Compact in 892.1 ms, changed all 78 routes, and found zero D1 path mismatches at overview detail, full detail, or in a fresh saved-state renderer.
-- Every measured navigation interaction remained below 128 ms: zoom, pan, Entity drag, edit-mode entry, and relationship-handle adjustment all stayed below the 500 ms UX ceiling.
-- Live authenticated Diagram 31 acceptance found 83/83 relationship paths identical after no-movement Compact, Save/Close into read-only mode, and a full browser reload.
-- The final affected browser matrix passed 32 tests in 2.6 minutes; two smaller-viewport cases were intentionally skipped and their 1920 equivalents passed.
-- The 232-Entity/624-relationship browser gate retained one initial full render, zero routine full-render increase, and zero relationship reroutes for a style-only patch. Marquee updates measured 0.3 ms p95 or better.
-- Phase 6 Field Mapping Table closure retained zero table-geometry mismatches and zero arrow-geometry errors outside tolerance.
-- `npm run check:release-notes` for the publishable source set confirmed current generated data for all 36 releases.
-- `dotnet build -p:OutputPath=bin\CodexPhase6Closure\` - succeeded with zero errors.
-- `git diff --check` - passed; Git reported only line-ending conversion notices.
+- `npm run check:js` - 189 JavaScript modules syntax-checked in 7 seconds.
+- Focused Phase 6 unit test - 15/15 passed in 117.4092 ms.
+- Exact D1 Compact oracle - 28/28 passed in 187,827.1912 ms. All 21 parity fixtures retained zero Entity-position, automatic-route, locked/manual-route, route-contact, overlap, and full-render mismatches.
+- `npm run test:js` - 433/434 passed in 186,460.4117 ms. The sole failure is unrelated: the preserved, untracked `Requirements/2026-07-30 - Requirements - Day 39.txt` raises the historical prompt count to 37 while the repository's current release-note data contains 36 entries. The Crop and Compact tests in that run passed.
+- Diagram 2 Phase 6 at 1366 x 768 - 4 passed, 2 expected large-fixture skips, 22.0 seconds.
+- Diagram 2 Phase 6 at 1920 x 1080 - 6/6 passed, 29.4 seconds.
+- RTE Annotate/Edit 2.0 at 1366 x 768 - 5/5 passed, 14.2 seconds.
+- RTE Annotate/Edit 2.0 at 1920 x 1080 - 5/5 passed, 14.2 seconds.
+- Diagram 1 Image Annotation at 1366 x 768 - 4/4 passed, 5.6 seconds.
+- Diagram 1 Image Annotation at 1920 x 1080 - 4/4 passed, 6.7 seconds.
+- Required browser matrix total - 28 passed, 2 expected skips, 0 failures.
+- No-Tab focused browser burst - 20 input events, 1 debounce firing, 1 image patch, 1 Crop-overlay patch, 1 history command, 0 unrelated object patches, 0 relationship reroutes, 0 full renders, 0 repeated decodes, 2 timer cleanups, and 0 pending timers.
+- D1/D2 Crop fixture - zero mismatches for effective bounds, effective corner radii, selection suppression, Undo/Redo final state, Save/Reopen, full renders, and repeated decodes.
+- `dotnet build` reached compilation but could not replace the running server's locked `bin/Debug/net6.0/PMT.exe`. The final `dotnet build -p:OutputPath=bin\CodexPhase6CropClosure\` run succeeded in 6.30 seconds with zero errors and two existing .NET 6 end-of-support warnings.
+- `git diff --check` - passed after documentation and screenshot cleanup.
 
 The About 3D flyby was not tested because Phase 6 did not change it.
 
 ## Cache And Local Testing
 
-The browser entry point, Diagram 2 CSS, both Diagram 2 hosts, changed renderer/controller modules, and their transitive Diagram compatibility dependencies use:
+The browser entry point, both Diagram 2 hosts, changed renderer/controller modules, and their transitive Diagram compatibility dependencies use:
 
-`20260730-diagram2-phase6-closure-v13`
+`20260730-diagram2-phase6-crop-closure-v14`
 
-No application image asset changed. The new PNG files are documentation evidence only.
+No application CSS or image asset changed. The new PNG files are documentation evidence only.
 
 No .NET source changed. After this commit, **no .NET recompile is required for manual testing**. Use **Ctrl + F5** once to fetch the Phase 6 CSS and ES modules with the new cache token.
 
@@ -454,18 +557,19 @@ No .NET source changed. After this commit, **no .NET recompile is required for m
 3. Paste and drop an image; verify each creates one editable object through the existing upload path.
 4. Resize, reorder, copy/paste, template, save, reopen, and export an image.
 5. Confirm changing vector opacity does not alter a selected image.
-6. Select an image and enter Crop. Adjust four insets, four independent corner radii, uniform radius, and keyboard handles.
-7. Cancel a Crop preview and verify exact restoration with no Undo entry.
-8. Commit Crop, Undo, Redo, reset it, and test confirmed permanent crop.
-9. Create/edit an Entity Annotation with and without its arrow; move the Entity and verify the callout follows.
-10. Create a Field Rectangle over a screenshot and map it to a database Entity field.
-11. Change connection side and relationship type; verify automatic Field Rectangle naming.
-12. Generate a Field Mapping Table and hover/focus its row; verify source, target field, row, and attention routes highlight.
-13. Save and reopen through top-navigation Diagram 2.
-14. Repeat image/crop/mapping through `Annotate 2.0` and `Edit Annotation 2.0`; verify Save updates the same RTE image.
-15. Cancel the RTE host and verify no upload and unchanged RTE HTML.
-16. Open read-only Diagram 2 and exercise mapping hover, click, double-click, and keyboard behavior.
-17. Use diagnostics to confirm no extra full render, no repeated image decode, local mapping index work, and clean resource counts after close.
+6. Select an image and enter Crop. Adjust four insets, four independent corner radii, uniform radius, and keyboard handles. Keep the Radius input focused and confirm the canvas updates about 500 ms after input stops without pressing Tab.
+7. During a numeric adjustment, confirm ordinary selection handles hide immediately while the Crop boundary and handles remain visible, then return about three seconds after the last input.
+8. Cancel a pending numeric adjustment with Escape and verify exact restoration with no Undo entry.
+9. Commit Crop, Undo, Redo, reset it, and test confirmed permanent crop.
+10. Create/edit an Entity Annotation with and without its arrow; move the Entity and verify the callout follows.
+11. Create a Field Rectangle over a screenshot and map it to a database Entity field.
+12. Change connection side and relationship type; verify automatic Field Rectangle naming.
+13. Generate a Field Mapping Table and hover/focus its row; verify source, target field, row, and attention routes highlight.
+14. Save and reopen through top-navigation Diagram 2.
+15. Repeat image/crop/mapping through `Annotate 2.0` and `Edit Annotation 2.0`; verify Save updates the same RTE image.
+16. Cancel the RTE host and verify no upload and unchanged RTE HTML.
+17. Open read-only Diagram 2 and exercise mapping hover, click, double-click, and keyboard behavior.
+18. Use diagnostics to confirm no extra full render, no repeated image decode, local mapping index work, and clean resource counts after close.
 
 ## Known Limitations
 
@@ -485,9 +589,9 @@ None. Phase 6 changes no database schema, stored procedure, version marker, migr
 
 Phase 6 uses one coherent implementation checkpoint:
 
-`Sin and Codex: complete Diagram 2 Phase 6 image and mapping parity`
+`Sin and Codex: make Diagram 2 Crop match Diagram 1`
 
-The immutable final SHA is reported in the completion response and the public `Codex:` commit comment immediately after the checkpoint is created. A Git commit cannot embed its own final SHA in the content it hashes.
+The immutable final SHA is reported in the completion response. This correction stops after the local commit; no push was requested by the attached execution file. A Git commit cannot embed its own final SHA in the content it hashes.
 
 ## Stop Boundary
 

@@ -70,7 +70,7 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
 test("Diagram 2 renderer destroys pending 232-entity stress work without stale live maps", async ({ page }) => {
   await page.goto("/css/base.css");
   const result = await page.evaluate(async state => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -132,7 +132,7 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
 test("Diagram 2 Phase 3 stays incremental within 232-entity performance budgets", async ({ page }) => {
   await page.goto("/css/base.css");
   const result = await page.evaluate(async state => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-closure-v13");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260730-diagram2-phase6-crop-closure-v14");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "0";
@@ -707,7 +707,7 @@ async function ensureDiagram2RteFixture(page) {
 
 async function openDiagram2RteCycle(page, cycle, action = "cancel") {
   await page.evaluate(async ({ index, cycleAction }) => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-closure-v13");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260730-diagram2-phase6-crop-closure-v14");
     const image = document.querySelector("#diagram2-rte-lifecycle-image");
     const editing = cycleAction === "edit-save" && Boolean(window.__diagram2LifecycleSavedSvg);
     const annotationUrl = editing

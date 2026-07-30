@@ -15,8 +15,11 @@ import {
   remapDiagram2SelectionClipboardPackageIds
 } from "../../wwwroot/js/features/diagram2/diagram2-compatibility.js";
 import {
+  createDiagram2CropNumericAdjustmentScheduler,
   diagram2CropCornerPatch,
+  diagram2CropNumericDebounceMilliseconds,
   diagram2CropPatchFromInsets,
+  diagram2CropSelectionQuietMilliseconds,
   diagram2ImageCropInsets,
   diagram2ImageEffectiveClip,
   diagram2ImageHasReversibleCrop,
@@ -161,6 +164,7 @@ test("Diagram 2 crop math stays inside the image and supports reset and corner r
     left: 40
   });
   assert.equal(diagram2ImageHasReversibleCrop(cropped), true);
+  assert.equal(diagram2ImageHasReversibleCrop({ ...cropped, cropVisible: false }), true);
   assert.deepEqual(resizeDiagram2CropClip(cropped, "se", { x: 1000, y: 1000 }), {
     x: 140,
     y: 70,
@@ -176,12 +180,156 @@ test("Diagram 2 crop math stays inside the image and supports reset and corner r
     cropCornerRadius: 12,
     cropCornerRadii: null
   });
+  assert.deepEqual(diagram2CropCornerPatch({
+    ...cropped,
+    cropCornerRadius: 28
+  }, {
+    topLeft: 12,
+    topRight: 28,
+    bottomRight: 28,
+    bottomLeft: 28
+  }), {
+    cropCornerRadius: 28,
+    cropCornerRadii: {
+      topLeft: 12,
+      topRight: 28,
+      bottomRight: 28,
+      bottomLeft: 28
+    }
+  });
+  assert.equal(diagram2CropCornerPatch({
+    ...cropped,
+    width: 1000,
+    height: 1000,
+    imageClip: { x: 100, y: 50, width: 1000, height: 1000 }
+  }, {
+    topLeft: 500,
+    topRight: 500,
+    bottomRight: 500,
+    bottomLeft: 500
+  }).cropCornerRadius, 200);
   assert.deepEqual(diagram2ResetCropPatch(cropped).imageClip, {
     x: 100,
     y: 50,
     width: 400,
     height: 240
   });
+});
+
+test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores selection separately", async () => {
+  const timers = createFakeTimers();
+  const committed = [];
+  let selectionSuppressed = false;
+  let cropOverlayVisible = true;
+  const scheduler = createDiagram2CropNumericAdjustmentScheduler({
+    timers,
+    begin: () => {
+      selectionSuppressed = true;
+    },
+    commit: adjustment => {
+      committed.push(adjustment);
+      return true;
+    },
+    cancel: () => {
+      selectionSuppressed = false;
+    },
+    end: () => {
+      selectionSuppressed = false;
+    }
+  });
+
+  for (let value = 1; value <= 20; value += 1) {
+    scheduler.schedule({
+      imageId: "crop-screen",
+      values: {
+        insets: { left: 10, right: 12, top: 8, bottom: 6 },
+        corners: {
+          topLeft: value,
+          topRight: value,
+          bottomRight: value,
+          bottomLeft: value
+        }
+      }
+    });
+    if (value < 20) timers.advance(10);
+  }
+
+  assert.equal(scheduler.diagnostics().inputEventCount, 20);
+  assert.equal(scheduler.diagnostics().commitCount, 0);
+  assert.equal(committed.length, 0);
+  assert.equal(selectionSuppressed, true);
+  assert.equal(cropOverlayVisible, true);
+
+  timers.advance(diagram2CropNumericDebounceMilliseconds - 1);
+  await Promise.resolve();
+  assert.equal(committed.length, 0);
+
+  timers.advance(1);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(committed, [{
+    imageId: "crop-screen",
+    values: {
+      insets: { left: 10, right: 12, top: 8, bottom: 6 },
+      corners: {
+        topLeft: 20,
+        topRight: 20,
+        bottomRight: 20,
+        bottomLeft: 20
+      }
+    }
+  }]);
+  assert.equal(scheduler.diagnostics().debounceFiringCount, 1);
+  assert.equal(scheduler.diagnostics().commitCount, 1);
+  assert.equal(selectionSuppressed, true);
+
+  timers.advance(
+    diagram2CropSelectionQuietMilliseconds
+      - diagram2CropNumericDebounceMilliseconds
+      - 1
+  );
+  assert.equal(selectionSuppressed, true);
+  timers.advance(1);
+  assert.equal(selectionSuppressed, false);
+  assert.equal(scheduler.diagnostics().pendingTimerCount, 0);
+  assert.equal(scheduler.diagnostics().timerCleanupCount, 2);
+});
+
+test("Diagram 2 Crop flush waits for an in-flight blur commit before Save", async () => {
+  const timers = createFakeTimers();
+  let releaseCommit;
+  const commitGate = new Promise(resolve => {
+    releaseCommit = resolve;
+  });
+  const scheduler = createDiagram2CropNumericAdjustmentScheduler({
+    timers,
+    commit: async () => {
+      await commitGate;
+      return true;
+    }
+  });
+  scheduler.schedule({
+    imageId: "crop-screen",
+    values: {
+      insets: { left: 20, right: 10, top: 5, bottom: 5 },
+      corners: { topLeft: 12, topRight: 12, bottomRight: 12, bottomLeft: 12 }
+    }
+  });
+  timers.advance(diagram2CropNumericDebounceMilliseconds);
+  await Promise.resolve();
+  assert.equal(scheduler.diagnostics().pendingCommit, true);
+
+  let saveFlushFinished = false;
+  const saveFlush = scheduler.flushAndEnd("save").then(() => {
+    saveFlushFinished = true;
+  });
+  await Promise.resolve();
+  assert.equal(saveFlushFinished, false);
+  releaseCommit();
+  await saveFlush;
+  assert.equal(saveFlushFinished, true);
+  assert.equal(scheduler.diagnostics().commitCount, 1);
+  assert.equal(scheduler.diagnostics().pendingCommit, false);
 });
 
 test("Diagram 2 image resources decode once, share cache entries, and clean up", () => {
@@ -235,6 +383,39 @@ test("Diagram 2 image resources decode once, share cache entries, and clean up",
   assert.equal(manager.diagnostics().resourceReleaseCount, 3);
   manager.destroy();
 });
+
+function createFakeTimers() {
+  let now = 0;
+  let sequence = 0;
+  const callbacks = new Map();
+  return {
+    setTimeout(callback, delay) {
+      sequence += 1;
+      callbacks.set(sequence, {
+        callback,
+        dueAt: now + Math.max(0, Number(delay) || 0)
+      });
+      return sequence;
+    },
+    clearTimeout(id) {
+      callbacks.delete(id);
+    },
+    advance(milliseconds) {
+      const target = now + Math.max(0, Number(milliseconds) || 0);
+      while (true) {
+        const next = [...callbacks.entries()]
+          .filter(([, timer]) => timer.dueAt <= target)
+          .sort((left, right) => left[1].dueAt - right[1].dueAt || left[0] - right[0])[0];
+        if (!next) break;
+        const [id, timer] = next;
+        callbacks.delete(id);
+        now = timer.dueAt;
+        timer.callback();
+      }
+      now = target;
+    }
+  };
+}
 
 test("Diagram 2 Entity annotations preserve owner, child, and group indexes", () => {
   const state = phase6State();

@@ -61,7 +61,7 @@ import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-ht
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../shared/tree-nav-state.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);

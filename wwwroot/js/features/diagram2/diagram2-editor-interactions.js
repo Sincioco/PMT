@@ -1,14 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-controller.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-routing.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   resizeDiagram2CropClip
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -183,8 +183,11 @@ export function bindDiagram2EditorInteractions(options = {}) {
       const object = controller.getObjectById(objectId);
       event.preventDefault();
       if (object?.type === "embedded-image") {
+        const alreadySelected = controller.selectedObjectIds().includes(object.id);
         controller.setSelection([object.id], { expandGroups: false });
-        renderer.setCropTarget?.(object.id);
+        if (alreadySelected) renderer.setCropTarget?.(object.id);
+        else if (typeof options.onSetTool === "function") void options.onSetTool("select", { reason: "selection changed" });
+        else controller.setActiveTool("select");
         options.onStateChange?.();
       }
       return;
@@ -453,8 +456,11 @@ export function bindDiagram2EditorInteractions(options = {}) {
     }
     if (event.key === "Escape" && controller.activeTool() === "crop") {
       event.preventDefault();
-      controller.setActiveTool("select");
-      renderer.clearCropPreview?.();
+      if (typeof options.onSetTool === "function") void options.onSetTool("select", { reason: "Escape" });
+      else {
+        controller.setActiveTool("select");
+        renderer.clearCropPreview?.();
+      }
       options.onStateChange?.();
       return;
     }
@@ -553,7 +559,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
       if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"].includes(shortcutTool)) {
         if (!event.repeat) void options.onAddObject?.(shortcutTool);
       } else {
-        controller.setActiveTool(shortcutTool);
+        if (typeof options.onSetTool === "function") void options.onSetTool(shortcutTool, { reason: "keyboard shortcut" });
+        else controller.setActiveTool(shortcutTool);
         options.onStateChange?.();
       }
       return;

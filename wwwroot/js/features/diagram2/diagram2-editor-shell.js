@@ -7,23 +7,24 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-closure-v13";
+} from "../../components/image-annotation.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import { appUrl } from "../../shared/app-urls.js";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-entities.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
+  diagram2ImageHasCropInspector,
   diagram2ImageHasReversibleCrop
-} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-crop.js?v=20260730-diagram2-phase6-crop-closure-v14";
 import {
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-closure-v13";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-closure-v13";
+} from "./diagram2-editor-field-rectangles.js?v=20260730-diagram2-phase6-crop-closure-v14";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260730-diagram2-phase6-crop-closure-v14";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -1169,23 +1170,6 @@ export function bindDiagram2EditorFormatControls(root, options = {}) {
       return;
     }
 
-    const cropInsetControl = target.closest("[data-diagram2-crop-inset]");
-    if (cropInsetControl && root.contains(cropInsetControl)) {
-      void options.applyCropInsets?.(diagram2CropInsetControlValues(root));
-      return;
-    }
-
-    const cropCornerControl = target.closest("[data-diagram2-crop-corner]");
-    if (cropCornerControl && root.contains(cropCornerControl)) {
-      void options.applyCropCorners?.(diagram2CropCornerControlValues(root));
-      return;
-    }
-
-    if (target.matches("[data-diagram2-crop-corner-radius]")) {
-      void options.applyCropCornerRadius?.(target.value);
-      return;
-    }
-
     if (target.matches("[data-diagram2-crop-visible]")) {
       void options.setCropVisibility?.(target.checked === true);
       return;
@@ -1398,11 +1382,11 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
         <div class="image-annotation-crop-divider" role="separator"></div>
         <h4 id="diagram2CropRadiusFormat">Radius</h4>
         <div class="image-annotation-inspector-grid">
-          <label class="field image-annotation-wide"><span>Radius</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner-radius></label>
-          <label class="field"><span>Top left</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="topLeft"></label>
-          <label class="field"><span>Top right</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="topRight"></label>
-          <label class="field"><span>Bottom left</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="bottomLeft"></label>
-          <label class="field"><span>Bottom right</span><input type="number" min="0" max="10000" step="1" value="0" data-diagram2-crop-corner="bottomRight"></label>
+          <label class="field image-annotation-wide"><span>Radius</span><input type="number" min="0" max="200" step="1" value="0" data-diagram2-crop-corner-radius></label>
+          <label class="field"><span>Top left</span><input type="number" min="0" max="200" step="1" value="0" data-diagram2-crop-corner="topLeft"></label>
+          <label class="field"><span>Top right</span><input type="number" min="0" max="200" step="1" value="0" data-diagram2-crop-corner="topRight"></label>
+          <label class="field"><span>Bottom left</span><input type="number" min="0" max="200" step="1" value="0" data-diagram2-crop-corner="bottomLeft"></label>
+          <label class="field"><span>Bottom right</span><input type="number" min="0" max="200" step="1" value="0" data-diagram2-crop-corner="bottomRight"></label>
         </div>
         <label class="inline-check image-annotation-wide"><input type="checkbox" data-diagram2-crop-visible checked><span>Show saved crop</span></label>
         <div class="image-annotation-field-mapping-actions">
@@ -1760,7 +1744,7 @@ function syncDiagram2InspectorTabVisibility(root, selectedObjects = []) {
   const visibleTabs = {
     format: true,
     rectangle: type === "rectangle",
-    crop: type === "embedded-image",
+    crop: type === "embedded-image" && diagram2ImageHasCropInspector(single),
     "field-mapping-table": type === "field-mapping-table",
     entity: type === "entity" || fieldRectangle || type === "entity-relationship" || type === "entity-relationships"
   };
@@ -1877,7 +1861,7 @@ function syncDiagram2CropControls(root, image, options = {}) {
   const reversible = image ? diagram2ImageHasReversibleCrop(image) : false;
   root.querySelectorAll("[data-diagram2-crop-inset]").forEach(control => {
     control.value = diagram2DimensionText(insets[control.dataset.diagram2CropInset] || 0);
-    control.disabled = !canUse;
+    control.disabled = !canUse || !reversible;
   });
   root.querySelectorAll("[data-diagram2-crop-corner]").forEach(control => {
     control.value = diagram2DimensionText(corners[control.dataset.diagram2CropCorner] || 0);
@@ -1921,20 +1905,6 @@ function syncDiagram2FieldRectangleControls(root, fieldRectangle, options = {}) 
       ? `${mapping.referencedEntity}.${mapping.referencedField}`
       : "No database mapping";
   }
-}
-
-function diagram2CropInsetControlValues(root) {
-  return Object.fromEntries(
-    [...root.querySelectorAll("[data-diagram2-crop-inset]")]
-      .map(control => [control.dataset.diagram2CropInset, Number(control.value) || 0])
-  );
-}
-
-function diagram2CropCornerControlValues(root) {
-  return Object.fromEntries(
-    [...root.querySelectorAll("[data-diagram2-crop-corner]")]
-      .map(control => [control.dataset.diagram2CropCorner, Number(control.value) || 0])
-  );
 }
 
 function diagram2FieldMappingImages(stateInput) {
