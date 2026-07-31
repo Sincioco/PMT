@@ -11,7 +11,7 @@ import {
 } from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
 import {
   diagram2NormalizeEntityReference
-} from "./diagram2-editor-field-mappings.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
 import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 
 const defaultMappingTableStyle = {
@@ -120,10 +120,18 @@ export function diagram2FieldMappingRowsForImage(indexes, image) {
   return sortDiagram2FieldMappingRows(rows, indexes);
 }
 
-export function planDiagram2FieldMappingTableSync(objectsInput, changedFieldRectangleIds = []) {
+export function planDiagram2FieldMappingTableSync(
+  objectsInput,
+  changedFieldRectangleIds = [],
+  previousFieldRectanglesInput = []
+) {
   const objects = Array.isArray(objectsInput) ? objectsInput : [];
   const changedIds = new Set(changedFieldRectangleIds.map(String));
-  const changedRectangles = objects.filter(object => changedIds.has(object?.id));
+  const changedRectangles = [
+    ...objects.filter(object => changedIds.has(object?.id) && isDiagram2FieldRectangle(object)),
+    ...(Array.isArray(previousFieldRectanglesInput) ? previousFieldRectanglesInput : [])
+      .filter(object => changedIds.has(object?.id) && isDiagram2FieldRectangle(object))
+  ];
   const imagesById = new Map(objects
     .filter(object => object?.type === "embedded-image")
     .map(image => [image.id, image]));

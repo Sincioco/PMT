@@ -1,14 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-controller.js?v=20260731-diagram2-rte-interactions-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
 } from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
 import {
   resizeDiagram2CropClip
-} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -165,10 +165,11 @@ export function bindDiagram2EditorInteractions(options = {}) {
       options.onWheel(event);
       return;
     }
-    options.onDiagnostics?.(renderer.zoomBy(Math.exp(-event.deltaY * 0.0015), {
+    const diagnostics = renderer.zoomBy(Math.exp(-event.deltaY * 0.0015), {
       clientX: event.clientX,
       clientY: event.clientY
-    }));
+    });
+    options.onDiagnostics?.(diagnostics);
   }, { passive: false, signal });
 
   canvas.addEventListener("pointerdown", event => {
@@ -640,7 +641,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
       const deltaY = moveEvent.clientY - gesture.point.y;
       gesture.point = { x: moveEvent.clientX, y: moveEvent.clientY };
       options.onPan?.(deltaX, deltaY);
-      options.onDiagnostics?.(renderer.panBy(deltaX, deltaY));
+      const diagnostics = renderer.panBy(deltaX, deltaY);
+      options.onDiagnostics?.(diagnostics);
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
   }
@@ -681,7 +683,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
         || Math.abs(delta.deltaX) > 0.5
         || Math.abs(delta.deltaY) > 0.5;
       if (gesture.changed) lastObjectPointerDown = { id: "", time: 0 };
-      options.onDiagnostics?.(renderer.previewGeometry(delta));
+      const diagnostics = renderer.previewGeometry(delta);
+      options.onDiagnostics?.(diagnostics);
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
   }
@@ -786,7 +789,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
       if (!clip) return;
       gesture.clip = clip;
       gesture.changed = !sameBounds(gesture.originalClip, clip);
-      options.onDiagnostics?.(renderer.previewCrop?.(objectId, clip));
+      const diagnostics = renderer.previewCrop?.(objectId, clip);
+      options.onDiagnostics?.(diagnostics);
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
   }
@@ -842,7 +846,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
       );
       gesture.objects = objects;
       gesture.changed = objectsChanged(gesture.originals, objects);
-      options.onDiagnostics?.(renderer.previewGeometry({ objects }));
+      const diagnostics = renderer.previewGeometry({ objects });
+      options.onDiagnostics?.(diagnostics);
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
   }

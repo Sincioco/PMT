@@ -8,7 +8,7 @@ import {
   diagram2CropOptionsPatch,
   diagram2ImageHasReversibleCrop,
   diagram2ResetCropPatch
-} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
 import {
   isDiagram2ImageFile,
   loadDiagram2ImageDimensions
@@ -21,7 +21,7 @@ import {
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor,
   setDiagram2InspectorActiveTab
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-field-focus-crop-routes-v3";
+} from "./diagram2-editor-shell.js?v=20260731-diagram2-crop-preview-v1";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;

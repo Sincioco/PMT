@@ -150,11 +150,19 @@ body.diagram2-edit-mode-active #app {
 
 .diagram2-readonly-shell {
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--color-surface);
+}
+
+.diagram2-readonly-main {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .diagram2-readonly-shell.is-entity-relationships-hidden [data-diagram2-relationship-plane],
@@ -642,16 +650,25 @@ body.diagram2-edit-mode-active #app {
   width: min(var(--diagram2-templates-pane-width, var(--diagram2-left-pane-width, 320px)), 50%);
 }
 
+.diagram2-mapping-pane {
+  width: clamp(200px, var(--diagram2-mapping-pane-width, var(--diagram2-left-pane-width, 320px)), 600px);
+  max-width: min(600px, calc(100% - 120px));
+}
+
 .diagram2-editor-main:not(.is-left-pane-open) .diagram2-editor-left-pane,
+.diagram2-readonly-main:not(.is-left-pane-open) .diagram2-editor-left-pane,
 .diagram2-editor-main:not(.is-tools-open) .diagram2-editor-tools-pane,
 .diagram2-editor-main:not(.is-objects-open) .diagram2-editor-objects-pane,
-.diagram2-editor-main:not(.is-templates-open) .diagram2-template-pane {
+.diagram2-editor-main:not(.is-templates-open) .diagram2-template-pane,
+.diagram2-editor-main:not(.is-mapping-open) .diagram2-mapping-pane,
+.diagram2-readonly-main:not(.is-mapping-open) .diagram2-mapping-pane {
   display: none;
 }
 
 .diagram2-editor-tools-pane,
 .diagram2-editor-objects-pane,
-.diagram2-template-pane {
+.diagram2-template-pane,
+.diagram2-mapping-pane {
   min-width: 0;
   min-height: 0;
   overflow: visible;
@@ -758,7 +775,8 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-editor-objects-pane .diagram2-editor-left-pane-scroll,
-.diagram2-template-pane .diagram2-editor-left-pane-scroll {
+.diagram2-template-pane .diagram2-editor-left-pane-scroll,
+.diagram2-mapping-pane .diagram2-editor-left-pane-scroll {
   padding: 0 var(--space-4) var(--space-4);
 }
 
@@ -951,10 +969,123 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-editor-objects-pane .diagram2-editor-left-pane-scroll,
-.diagram2-template-pane .diagram2-editor-left-pane-scroll {
+.diagram2-template-pane .diagram2-editor-left-pane-scroll,
+.diagram2-mapping-pane .diagram2-editor-left-pane-scroll {
   display: grid;
   gap: var(--space-3);
   min-width: 0;
+}
+
+.diagram2-mapping-pane-list,
+.diagram2-mapping-pane-rows {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.diagram2-mapping-pane-list {
+  gap: var(--space-4);
+}
+
+.diagram2-mapping-pane-controls {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.diagram2-mapping-pane-search {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.diagram2-mapping-pane-search input {
+  width: 100%;
+  min-width: 0;
+}
+
+.diagram2-mapping-pane-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.diagram2-mapping-pane-group-toggle input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.diagram2-mapping-pane-group {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.diagram2-mapping-pane-group h4 {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.diagram2-mapping-pane-rows {
+  gap: var(--space-1);
+}
+
+.diagram2-mapping-pane-row {
+  display: grid;
+  min-width: 0;
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  padding-bottom: var(--space-1);
+}
+
+.diagram2-mapping-pane-field {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 34px;
+  padding: var(--space-1) var(--space-2);
+  border-color: transparent;
+  text-align: left;
+  background: transparent;
+}
+
+.diagram2-mapping-pane-field:hover,
+.diagram2-mapping-pane-field:focus-visible,
+.diagram2-mapping-pane-field.is-pinned {
+  border-color: color-mix(in srgb, var(--color-accent, #2563eb) 32%, var(--color-border));
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-accent, #2563eb) 8%, var(--color-surface));
+}
+
+.diagram2-mapping-pane-field-kind {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.diagram2-mapping-pane-field-value {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.diagram2-mapping-pane-empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .diagram2-editor-objects-pane .image-annotation-object-tree-actions,

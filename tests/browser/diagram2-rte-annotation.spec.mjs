@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -25,6 +25,12 @@ import {
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-images.js";
 
 test.use({ timezoneId: "Asia/Taipei" });
+
+const diagram2RtePerformanceState = JSON.parse(await readFile(
+  new URL("../fixtures/diagram2/diagram-23-state.json", import.meta.url),
+  "utf8"
+));
+const diagram2RtePerformanceSvg = buildAnnotationSvg(diagram2RtePerformanceState);
 
 test("Annotate 2.0 saves through the RTE upload URL and remains editable", async ({ page }, testInfo) => {
   let uploadedSvg = "";
@@ -53,7 +59,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -195,7 +201,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -267,6 +273,183 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     controller: null,
     renderer: null
   });
+});
+
+test("Annotation 2.0 keeps RTE pointer movement and drawing responsive on a saved diagram", async ({ page }) => {
+  const browserErrors = [];
+  page.on("pageerror", error => browserErrors.push(error.message));
+  await page.route("**/uploads/rte-performance.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: diagram2RtePerformanceSvg
+  }));
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/rte-performance.svg" alt="Performance fixture"></p>
+    </div>
+  `);
+  await loadDiagram2RteStyles(page);
+  await page.evaluate(async () => {
+    const { openDiagram2RteAnnotationHost } = await import(
+      "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1"
+    );
+    const image = document.querySelector("#targetImage");
+    const editor = document.querySelector(".rich-editor");
+    window.__diagram2RtePerformancePromise = openDiagram2RteAnnotationHost({
+      image,
+      editor,
+      source: "/uploads/rte-performance.svg",
+      annotationUrl: "/uploads/rte-performance.svg",
+      originalReference: "/uploads/rte-performance.svg",
+      originalFileName: "rte-performance.svg",
+      annotated: true,
+      canEdit: true,
+      loadTemplateLibrary: async () => ({ version: 1, templates: [], defaults: {} }),
+      loadDefaultTemplateLibrary: async () => ({ version: 1, templates: [], defaults: {} }),
+      saveTemplateLibrary: async library => library,
+      apply: async () => {}
+    });
+  });
+
+  const dialog = page.locator("[data-diagram2-rte-host]");
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore?.currentState?.().objects?.length || 0
+  )).toBe(diagram2RtePerformanceState.objects.length);
+
+  const setup = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const object = controller.createDefaultObject("rectangle", { x: 3600, y: 1500 }, {
+      id: "rte-performance-rectangle",
+      fill: "#d9ead3"
+    });
+    await controller.addObject(object, {
+      label: "Seed RTE performance rectangle",
+      reason: "RTE pointer performance fixture"
+    });
+    controller.setActiveTool("select");
+    controller.setSelection([object.id], { expandGroups: false });
+    renderer.focusObjectIds([object.id], {
+      scale: 1,
+      reason: "RTE pointer performance"
+    });
+    await renderer.whenInteractive();
+    const current = controller.getObjectById(object.id);
+    const svg = document.querySelector("[data-diagram2-rte-host] [data-diagram2-svg]");
+    return {
+      id: object.id,
+      x: current.x,
+      y: current.y,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+  const object = dialog.locator(
+    `[data-diagram2-object-plane] [data-diagram2-object-id='${setup.id}']`
+  );
+  await expect(object).toBeVisible();
+  const box = await object.boundingBox();
+  expect(box).toBeTruthy();
+  const startX = box.x + (box.width / 2);
+  const startY = box.y + (box.height / 2);
+
+  await page.mouse.move(startX, startY);
+  await page.evaluate(() => {
+    performance.clearMeasures("diagram2 geometry preview");
+    window.__diagram2RteMoveStartedAt = performance.now();
+  });
+  await page.mouse.down();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2Renderer.diagnostics().geometryPreviewActive
+  )).toBe(true);
+  await page.evaluate(() => {
+    const svg = document.querySelector("[data-diagram2-rte-host] [data-diagram2-svg]");
+    const counts = { records: 0, addedNodes: 0, removedNodes: 0 };
+    const observer = new MutationObserver(records => {
+      records.forEach(record => {
+        counts.records += 1;
+        counts.addedNodes += record.addedNodes.length;
+        counts.removedNodes += record.removedNodes.length;
+      });
+    });
+    observer.observe(svg, { childList: true, subtree: true });
+    window.__diagram2RtePreviewMutationObserver = observer;
+    window.__diagram2RtePreviewMutationCounts = counts;
+  });
+  await page.mouse.move(startX + 54, startY + 32, { steps: 8 });
+  const preview = await page.evaluate(async () => {
+    const renderer = window.__pmtDiagram2Renderer;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await renderer.whenInteractive();
+    window.__diagram2RtePreviewMutationObserver.disconnect();
+    const measures = performance.getEntriesByName("diagram2 geometry preview");
+    const diagnostics = renderer.diagnostics();
+    return {
+      durationMs: performance.now() - window.__diagram2RteMoveStartedAt,
+      frameDurationMs: Math.max(0, ...measures.map(measure => measure.duration)),
+      active: diagnostics.geometryPreviewActive,
+      reason: diagnostics.geometryPreviewReason,
+      commitCount: diagnostics.geometryPreviewCommitCount,
+      undoEntryCount: diagnostics.geometryPreviewUndoEntryCount,
+      relationshipCount: diagnostics.geometryPreviewRelationshipCount,
+      patchedObjectCount: diagnostics.geometryPreviewPatchedObjectCount,
+      mutations: window.__diagram2RtePreviewMutationCounts
+    };
+  });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(({ id, x, y }) => {
+    const current = window.__pmtDiagram2EditorCore.getObjectById(id);
+    return current.x !== x || current.y !== y;
+  }, setup)).toBe(true);
+  const settled = await page.evaluate(async () => {
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenInteractive();
+    const svg = document.querySelector("[data-diagram2-rte-host] [data-diagram2-svg]");
+    return {
+      durationMs: performance.now() - window.__diagram2RteMoveStartedAt,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+
+  const beforeDraw = await page.evaluate(() => ({
+    objectCount: window.__pmtDiagram2EditorCore.currentState().objects.length,
+    fullRenderCount: Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2FullRenderCount || 0)
+  }));
+  await ensureDiagram2RteToolsPaneOpen(dialog);
+  await page.evaluate(() => {
+    window.__diagram2RteDrawStartedAt = performance.now();
+  });
+  await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length
+  ), { timeout: 500 }).toBe(beforeDraw.objectCount + 1);
+  const draw = await page.evaluate(async () => {
+    await window.__pmtDiagram2Renderer.whenInteractive();
+    return {
+      durationMs: performance.now() - window.__diagram2RteDrawStartedAt,
+      fullRenderCount: Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+
+  console.info("DIAGRAM2_RTE_POINTER_PERFORMANCE", JSON.stringify({ preview, settled, draw, browserErrors }));
+  expect(preview.durationMs).toBeLessThan(500);
+  expect(preview.frameDurationMs).toBeLessThan(50);
+  expect(preview.active).toBe(true);
+  expect(preview.reason).toBe("preview move");
+  expect(preview.commitCount).toBe(0);
+  expect(preview.undoEntryCount).toBe(0);
+  expect(preview.relationshipCount).toBe(0);
+  expect(preview.patchedObjectCount).toBe(1);
+  expect(preview.mutations).toEqual({ records: 0, addedNodes: 0, removedNodes: 0 });
+  expect(settled.durationMs).toBeLessThan(500);
+  expect(settled.fullRenderCount).toBe(setup.fullRenderCount);
+  expect(draw.durationMs).toBeLessThan(500);
+  expect(draw.fullRenderCount).toBe(beforeDraw.fullRenderCount);
+  expect(browserErrors).toEqual([]);
+
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2RtePerformancePromise);
 });
 
 async function loadDiagram2RteStyles(page) {
@@ -420,15 +603,18 @@ async function assertDiagram2RteCropNumericDebounce(page, options) {
   });
   await expect(radius).toHaveValue(String(options.endRadius));
   await expect(selection).toBeHidden();
-  await expect(overlay).toBeVisible();
-  await page.waitForTimeout(350);
+  await expect(overlay).toBeHidden();
+  await page.waitForTimeout(100);
   expect(await page.evaluate(id =>
     window.__pmtDiagram2EditorCore.getObjectById(id)?.cropCornerRadius, options.imageId
   )).toBe(options.startRadius);
 
   await expect.poll(() => page.evaluate(id =>
     window.__pmtDiagram2EditorCore.getObjectById(id)?.cropCornerRadius, options.imageId
-  )).toBe(options.endRadius);
+  ), {
+    timeout: 500,
+    intervals: [25, 50, 75, 100]
+  }).toBe(options.endRadius);
   const after = await page.evaluate(() => ({
     history: window.__pmtDiagram2EditorCore.historyStatus().entryCount,
     fullRenders: window.__pmtDiagram2Renderer.diagnostics().fullRenderCount,
@@ -441,8 +627,9 @@ async function assertDiagram2RteCropNumericDebounce(page, options) {
   expect(after.commits).toBe(before.commits + 1);
   await expect(radius).toBeFocused();
   await expect(selection).toBeHidden();
-  await expect(overlay).toBeVisible();
-  await expect(selection).toBeVisible({ timeout: 3500 });
+  await expect(overlay).toBeHidden();
+  await expect(selection).toBeVisible({ timeout: 1600 });
+  await expect(selection.locator("[data-diagram2-resize-handle]").first()).toBeVisible();
 }
 
 async function assertDiagram2RtePhase6EditMapping(page, testInfo) {
@@ -802,7 +989,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -847,7 +1034,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -902,7 +1089,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;
@@ -1041,7 +1228,7 @@ async function openD2RoundtripHost(page, svg, key, options = {}) {
   await page.evaluate(({ markup, storageKey, annotated, initialState }) => {
     void (async () => {
       const { openDiagram2RteAnnotationHost } = await import(
-        "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2"
+        "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1"
       );
       const image = document.querySelector("#targetImage");
       const editor = document.querySelector(".rich-editor");

@@ -8,8 +8,8 @@ import {
 const cropCornerKeys = ["topLeft", "topRight", "bottomRight", "bottomLeft"];
 const maximumCropCornerRadius = 200;
 
-export const diagram2CropNumericDebounceMilliseconds = 500;
-export const diagram2CropSelectionQuietMilliseconds = 3000;
+export const diagram2CropNumericDebounceMilliseconds = 200;
+export const diagram2CropSelectionQuietMilliseconds = 1000;
 
 export function diagram2ImageEffectiveClip(image) {
   return annotationEmbeddedImageEffectiveClip(image);

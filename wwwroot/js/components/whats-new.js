@@ -1,15 +1,15 @@
 import {
   releaseNoteContentHtml,
   releaseNoteNavigationHtml
-} from "./release-notes.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
-import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
+} from "./release-notes.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
+import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
 import {
   releaseNoteById,
   releaseNotes,
   releaseNotesForLogin,
   releaseNotesSeenPreferenceKey,
   refreshReleaseNotes
-} from "../shared/release-notes.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
+} from "../shared/release-notes.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
 
 export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNotes }) {
   let checkedUserId = 0;

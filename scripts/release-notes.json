@@ -1593,5 +1593,23 @@
         ]
       }
     ]
+  },
+  {
+    "day": 40,
+    "title": "Diagram 2 for Enterprise ERDs and UI to Database Field Mapping",
+    "sections": [
+      {
+        "title": "Diagram 2",
+        "items": [
+          "Diagram 2 is now live and much faster than Diagram 1, making it ideal for creating large enterprise ERD diagrams."
+        ]
+      },
+      {
+        "title": "UI to Database Field Mapping",
+        "items": [
+          "Create UI Field to Database Field mappings in Diagram 2 to document systems clearly and help onboard new team members."
+        ]
+      }
+    ]
   }
 ]

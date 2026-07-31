@@ -64,9 +64,10 @@ import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adap
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-field-focus-crop-routes-v3";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-field-focus-crop-routes-v3";
+} from "./diagram2-editor-controller.js?v=20260731-diagram2-rte-interactions-v1";
+import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-crop-preview-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-rte-interactions-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -74,6 +75,7 @@ import {
   bindDiagram2EditorLeftPaneResize,
   copyDiagram2SelectionArtwork,
   diagram2EditorShellHtml,
+  diagram2MappingPaneHtml,
   diagram2ObjectsPaneHtml,
   openDiagram2CompactProgress,
   diagram2TemplatePaneHtml,
@@ -81,6 +83,7 @@ import {
   openDiagram2RelationshipEditor,
   openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
+  setDiagram2MappingPaneOpen,
   setDiagram2ObjectsPaneOpen,
   setDiagram2TemplatesPaneOpen,
   setDiagram2ToolsPaneOpen,
@@ -88,7 +91,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-field-focus-crop-routes-v3";
+} from "./diagram2-editor-shell.js?v=20260731-diagram2-crop-preview-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -102,7 +105,7 @@ import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
+} from "./diagram2-renderer.js?v=20260731-diagram2-rte-interactions-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -190,6 +193,9 @@ export function createDiagram2Feature({
   let diagram2ModeDocumentId = 0;
   let diagram2ClipboardImageBusy = false;
   let diagram2ObjectSearch = "";
+  let diagram2MappingSearch = "";
+  let diagram2MappingGroupByTable = false;
+  let diagram2ReadonlyFieldMappingIndexes = null;
   let diagram2TemplateState = null;
   let diagram2ObjectTreeDrag = null;
   let diagram2TreeRevealSelection = false;
@@ -605,18 +611,28 @@ export function createDiagram2Feature({
     if (action === "toggle-diagram2-tools-pane") {
       if (!diagram2EditModeActive()) return true;
       setDiagram2ToolsPaneOpen(app);
+      syncDiagram2MappingTablePresentation();
       syncDiagram2VisibleViewportInset({ refit: false });
       return true;
     }
     if (action === "toggle-diagram2-objects-pane") {
       if (!diagram2EditModeActive()) return true;
       setDiagram2ObjectsPaneOpen(app);
+      syncDiagram2MappingTablePresentation();
       syncDiagram2VisibleViewportInset({ refit: false });
       return true;
     }
     if (action === "toggle-diagram2-templates-pane") {
       if (!diagram2EditModeActive()) return true;
       setDiagram2TemplatesPaneOpen(app);
+      syncDiagram2MappingTablePresentation();
+      syncDiagram2VisibleViewportInset({ refit: false });
+      return true;
+    }
+    if (action === "toggle-diagram2-mapping-pane") {
+      if (!diagram2EditModeActive()) return true;
+      setDiagram2MappingPaneOpen(app);
+      syncDiagram2MappingTablePresentation();
       syncDiagram2VisibleViewportInset({ refit: false });
       return true;
     }
@@ -1420,6 +1436,7 @@ export function createDiagram2Feature({
               },
               showDiagnostics: diagram2DiagnosticsVisible,
               diagnosticsHtml: diagram2DiagnosticsHtml(),
+              includeMappingPane: true,
               objectSearch: diagram2ObjectSearch,
               templateState: diagram2TemplateState
             }) : diagram2ReadonlyShellHtml(document)}
@@ -1431,9 +1448,12 @@ export function createDiagram2Feature({
   function diagram2ReadonlyShellHtml(document) {
     return `
       <div class="diagram-readonly-viewer diagram-tree-preview-image diagram2-readonly-shell" data-diagram2-readonly-shell>
-        <div class="diagram-preview diagram-readonly-viewport diagram2-readonly-canvas diagram2-viewer-canvas" data-diagram2-viewer-canvas tabindex="0" aria-label="Read-only Diagram 2 canvas. Drag to pan; use mouse wheel to zoom.">
-          <div class="diagram2-renderer-surface ${diagram2ViewerZoom === "fit" ? "is-fit" : ""}" data-diagram2-renderer-surface></div>
-          <div class="diagram2-readonly-scroll-spacer" data-diagram2-readonly-scroll-spacer aria-hidden="true"></div>
+        <div class="diagram2-readonly-main" data-diagram2-readonly-main data-diagram2-left-pane-mode="mapping">
+          ${diagram2MappingPaneHtml(diagram2RendererState)}
+          <div class="diagram-preview diagram-readonly-viewport diagram2-readonly-canvas diagram2-viewer-canvas" data-diagram2-viewer-canvas tabindex="0" aria-label="Read-only Diagram 2 canvas. Drag to pan; use mouse wheel to zoom.">
+            <div class="diagram2-renderer-surface ${diagram2ViewerZoom === "fit" ? "is-fit" : ""}" data-diagram2-renderer-surface></div>
+            <div class="diagram2-readonly-scroll-spacer" data-diagram2-readonly-scroll-spacer aria-hidden="true"></div>
+          </div>
         </div>
         ${diagram2DiagnosticsPanelHtml()}
       </div>
@@ -1503,6 +1523,9 @@ export function createDiagram2Feature({
     globalThis.__pmtDiagram2Renderer = diagram2Renderer;
     diagram2RendererDocumentId = document.id;
     diagram2RendererState = normalizeDiagram2CanonicalState(result.state);
+    diagram2ReadonlyFieldMappingIndexes = isEditMode
+      ? null
+      : createDiagram2FieldMappingIndexes(diagram2RendererState.objects);
     diagram2SelectedObjectIds = [];
     if (isEditMode) {
       diagram2TemplateState = await createDiagram2TemplateState({
@@ -1526,6 +1549,7 @@ export function createDiagram2Feature({
       });
       refreshDiagram2ObjectsPane();
       refreshDiagram2TemplatePane(viewer);
+      refreshDiagram2MappingPane(viewer);
       diagram2Controller.onChange(event => {
         diagram2RendererState = diagram2Controller.currentState();
         diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
@@ -1550,6 +1574,9 @@ export function createDiagram2Feature({
           );
           return;
         }
+        if (event.reason === "history" || event.reason === "state") {
+          refreshDiagram2MappingPane(viewer);
+        }
         refreshDiagram2TemplatePane(viewer);
         updateDiagram2EditorControls();
         if (event.diagnostics) updateDiagram2Diagnostics(event.diagnostics);
@@ -1559,6 +1586,7 @@ export function createDiagram2Feature({
       diagram2HostAdapter = null;
       diagram2Controller = null;
       globalThis.__pmtDiagram2EditorCore = null;
+      refreshDiagram2MappingPane(viewer);
     }
     const rendererState = isEditMode
       ? diagram2RendererState
@@ -1566,6 +1594,7 @@ export function createDiagram2Feature({
     let diagnostics = diagram2Renderer.render(rendererState, {
       reason: "initial"
     });
+    syncDiagram2MappingTablePresentation(viewer);
     syncDiagram2VisibleViewportInset({ refit: false });
     diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
     syncDiagram2ReadonlyScrollbars({ reset: true });
@@ -2055,6 +2084,7 @@ export function createDiagram2Feature({
     diagram2SelectedObjectIds = [];
     diagram2Busy = false;
     diagram2ObjectSearch = "";
+    diagram2ReadonlyFieldMappingIndexes = null;
     diagram2TemplateState = null;
     diagram2ObjectTreeDrag = null;
   }
@@ -2066,6 +2096,7 @@ export function createDiagram2Feature({
     bindDiagram2ColorPickers();
     bindDiagram2InspectorResize();
     bindDiagram2LeftPaneResize();
+    bindDiagram2MappingPaneControls();
     bindDiagram2ObjectTreeControls();
     bindDiagram2TreeSplitter();
     bindDiagram2TreeContextMenu();
@@ -2132,10 +2163,26 @@ export function createDiagram2Feature({
   }
 
   function bindDiagram2LeftPaneResize() {
-    const shell = app.querySelector("[data-diagram2-editor-shell]");
+    const shell = app.querySelector("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
     if (!shell) return;
     bindDiagram2EditorLeftPaneResize(shell, {
       onResize: () => syncDiagram2VisibleViewportInset({ refit: false })
+    });
+  }
+
+  function bindDiagram2MappingPaneControls() {
+    const shell = app.querySelector("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
+    if (!shell || shell.dataset.diagram2MappingControlsBound === "true") return;
+    shell.dataset.diagram2MappingControlsBound = "true";
+    shell.addEventListener("input", event => {
+      if (!event.target?.matches?.("[data-diagram2-mapping-search]")) return;
+      diagram2MappingSearch = String(event.target.value || "");
+      refreshDiagram2MappingPane(shell, { focus: "search" });
+    });
+    shell.addEventListener("change", event => {
+      if (!event.target?.matches?.("[data-diagram2-mapping-group-by-table]")) return;
+      diagram2MappingGroupByTable = event.target.checked === true;
+      refreshDiagram2MappingPane(shell, { focus: "group" });
     });
   }
 
@@ -2369,6 +2416,7 @@ export function createDiagram2Feature({
     viewportAbortController = new AbortController();
     const { signal } = viewportAbortController;
     bindDiagram2CanvasContextMenu(viewer, canvas, signal, { editMode });
+    bindDiagram2MappingPaneInteractions(viewer, signal, { editMode });
     if (editMode) {
       diagram2Phase6Host = createDiagram2Phase6Host({
         root: viewer,
@@ -2564,6 +2612,117 @@ export function createDiagram2Feature({
         });
       }
     }, { signal });
+  }
+
+  function bindDiagram2MappingPaneInteractions(viewer, signal, options = {}) {
+    if (!viewer?.querySelector("[data-diagram2-mapping-pane]")) return;
+    const editMode = options.editMode === true;
+    const fieldSelector = "[data-diagram2-mapping-pane-field]";
+    const fieldFromEvent = event => event.target.closest?.(fieldSelector);
+    const isPaneField = field => Boolean(
+      field?.closest?.("[data-diagram2-mapping-pane]")
+      && viewer.contains(field)
+    );
+    const mappingOptions = field => ({
+      tableId: field?.dataset?.diagram2FieldMappingTableId,
+      cellKind: field?.dataset?.diagram2FieldMappingCellKind,
+      attentionStartPoints: diagram2MappingPaneAttentionStartPoints(field)
+    });
+    const select = field => {
+      const mappingId = String(field?.dataset?.diagram2FieldMappingId || "").trim();
+      if (!mappingId) return null;
+      if (editMode) {
+        diagram2Controller?.selectFieldMapping?.(mappingId);
+        syncDiagram2InteractionState();
+      }
+      return diagram2Renderer?.pinFieldMapping?.(mappingId, mappingOptions(field));
+    };
+    const focus = field => {
+      const mappingId = String(field?.dataset?.diagram2FieldMappingId || "").trim();
+      if (!mappingId) return;
+      select(field);
+      const cellKind = field.dataset.diagram2FieldMappingCellKind;
+      const diagnostics = diagram2Renderer?.focusFieldMappingTarget?.(mappingId, { cellKind });
+      syncDiagram2FocusedViewport(diagnostics, { mappingId, cellKind });
+      diagram2Renderer?.pinFieldMapping?.(mappingId, mappingOptions(field));
+    };
+
+    viewer.addEventListener("pointerover", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)
+        || event.relatedTarget?.closest?.(fieldSelector) === field) return;
+      diagram2Renderer?.showFieldMappingHover?.(
+        field.dataset.diagram2FieldMappingId,
+        mappingOptions(field)
+      );
+    }, { signal });
+    viewer.addEventListener("pointerout", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)
+        || event.relatedTarget?.closest?.(fieldSelector) === field) return;
+      diagram2Renderer?.clearFieldMappingHover?.();
+    }, { signal });
+    viewer.addEventListener("focusin", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)) return;
+      diagram2Renderer?.showFieldMappingHover?.(
+        field.dataset.diagram2FieldMappingId,
+        mappingOptions(field)
+      );
+    }, { signal });
+    viewer.addEventListener("focusout", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)
+        || event.relatedTarget?.closest?.(fieldSelector) === field) return;
+      diagram2Renderer?.clearFieldMappingHover?.();
+    }, { signal });
+    viewer.addEventListener("click", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      select(field);
+      field.focus?.({ preventScroll: true });
+    }, { signal });
+    viewer.addEventListener("dblclick", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      focus(field);
+    }, { signal });
+    viewer.addEventListener("keydown", event => {
+      const field = fieldFromEvent(event);
+      if (!isPaneField(field)) return;
+      if (event.key === "Escape" && diagram2Renderer?.clearFieldMappingSelection?.()) {
+        event.preventDefault();
+        return;
+      }
+      if (!["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "Enter") focus(field);
+      else select(field);
+    }, { signal });
+  }
+
+  function diagram2MappingPaneAttentionStartPoints(field) {
+    const pane = field?.closest?.("[data-diagram2-mapping-pane]");
+    const row = field?.closest?.("[data-diagram2-mapping-pane-row]");
+    if (!pane || !row || !diagram2Renderer?.screenToWorld) return null;
+    const paneRect = pane.getBoundingClientRect();
+    const pointFor = kind => {
+      const item = row.querySelector(`[data-diagram2-field-mapping-cell-kind='${kind}']`);
+      const rect = item?.getBoundingClientRect?.();
+      if (!rect?.height) return null;
+      return diagram2Renderer.screenToWorld({
+        clientX: paneRect.right + 1,
+        clientY: rect.top + (rect.height / 2)
+      });
+    };
+    return {
+      ui: pointFor("ui"),
+      database: pointFor("database")
+    };
   }
 
   function resetDiagram2ReadonlyViewOptions() {
@@ -3816,6 +3975,53 @@ export function createDiagram2Feature({
     );
     const nextScroll = root.querySelector("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll");
     if (nextScroll) nextScroll.scrollTop = previousScrollTop;
+  }
+
+  function refreshDiagram2MappingPane(rootInput = app, options = {}) {
+    const root = rootInput || app;
+    const shell = root.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
+      ? root
+      : root.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
+    const pane = shell?.querySelector?.("[data-diagram2-mapping-pane]");
+    const current = diagram2Controller?.currentState?.() || diagram2RendererState;
+    if (!shell || !pane || !current) return 0;
+    const previousScrollTop = pane.querySelector(".diagram2-editor-left-pane-scroll")?.scrollTop || 0;
+    pane.outerHTML = diagram2MappingPaneHtml(current, {
+      indexes: diagram2Controller?.fieldMappingIndexes?.() || diagram2ReadonlyFieldMappingIndexes,
+      search: diagram2MappingSearch,
+      groupByTable: diagram2MappingGroupByTable
+    });
+    const nextPane = shell.querySelector("[data-diagram2-mapping-pane]");
+    const nextScroll = nextPane?.querySelector(".diagram2-editor-left-pane-scroll");
+    if (nextScroll) nextScroll.scrollTop = previousScrollTop;
+    if (options.focus === "search") {
+      const search = nextPane?.querySelector("[data-diagram2-mapping-search]");
+      search?.focus?.({ preventScroll: true });
+      search?.setSelectionRange?.(search.value.length, search.value.length);
+    } else if (options.focus === "group") {
+      nextPane?.querySelector("[data-diagram2-mapping-group-by-table]")
+        ?.focus?.({ preventScroll: true });
+    }
+    const mappingCount = Number.parseInt(nextPane?.dataset?.diagram2MappingCount || "0", 10) || 0;
+    if (shell.matches("[data-diagram2-readonly-shell]")) {
+      setDiagram2MappingPaneOpen(shell, mappingCount > 0);
+    }
+    syncDiagram2MappingTablePresentation(shell);
+    syncDiagram2VisibleViewportInset({ refit: false });
+    return mappingCount;
+  }
+
+  function syncDiagram2MappingTablePresentation(rootInput = app) {
+    const root = rootInput || app;
+    const shell = root.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
+      ? root
+      : root.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
+    const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
+    const mappingPaneOpen = Boolean(main?.classList.contains("is-left-pane-open")
+      && main.classList.contains("is-mapping-open")
+      && main.dataset.diagram2LeftPaneMode === "mapping");
+    diagram2Renderer?.setFieldMappingTablesVisible?.(!mappingPaneOpen);
+    return mappingPaneOpen;
   }
 
   function setDiagram2TemplateMessage(message) {

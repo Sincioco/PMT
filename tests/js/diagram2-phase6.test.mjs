@@ -42,6 +42,7 @@ import {
 import {
   createDiagram2FieldMappingIndexes,
   diagram2EntityFieldMappingKey,
+  diagram2FieldMappingPaneGroups,
   diagram2FieldMappingIndexDiagnostics,
   diagram2MappingAttentionTargets,
   patchDiagram2FieldMappingIndexes,
@@ -217,6 +218,8 @@ test("Diagram 2 crop math stays inside the image and supports reset and corner r
 });
 
 test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores selection separately", async () => {
+  assert.equal(diagram2CropNumericDebounceMilliseconds, 200);
+  assert.equal(diagram2CropSelectionQuietMilliseconds, 1000);
   const timers = createFakeTimers();
   const committed = [];
   let selectionSuppressed = false;
@@ -225,6 +228,7 @@ test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores 
     timers,
     begin: () => {
       selectionSuppressed = true;
+      cropOverlayVisible = false;
     },
     commit: adjustment => {
       committed.push(adjustment);
@@ -232,9 +236,11 @@ test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores 
     },
     cancel: () => {
       selectionSuppressed = false;
+      cropOverlayVisible = true;
     },
     end: () => {
       selectionSuppressed = false;
+      cropOverlayVisible = true;
     }
   });
 
@@ -258,7 +264,7 @@ test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores 
   assert.equal(scheduler.diagnostics().commitCount, 0);
   assert.equal(committed.length, 0);
   assert.equal(selectionSuppressed, true);
-  assert.equal(cropOverlayVisible, true);
+  assert.equal(cropOverlayVisible, false);
 
   timers.advance(diagram2CropNumericDebounceMilliseconds - 1);
   await Promise.resolve();
@@ -282,6 +288,7 @@ test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores 
   assert.equal(scheduler.diagnostics().debounceFiringCount, 1);
   assert.equal(scheduler.diagnostics().commitCount, 1);
   assert.equal(selectionSuppressed, true);
+  assert.equal(cropOverlayVisible, false);
 
   timers.advance(
     diagram2CropSelectionQuietMilliseconds
@@ -289,8 +296,10 @@ test("Diagram 2 Crop numeric scheduling commits one trailing burst and restores 
       - 1
   );
   assert.equal(selectionSuppressed, true);
+  assert.equal(cropOverlayVisible, false);
   timers.advance(1);
   assert.equal(selectionSuppressed, false);
+  assert.equal(cropOverlayVisible, true);
   assert.equal(scheduler.diagnostics().pendingTimerCount, 0);
   assert.equal(scheduler.diagnostics().timerCleanupCount, 2);
 });
@@ -559,6 +568,99 @@ test("Diagram 2 Field Mapping Tables synchronize only the changed image region",
   assert.notEqual(updated, table);
   assert.deepEqual(updated.rows, []);
   assert.equal(updated.sourceImageId, "screen");
+});
+
+test("Diagram 2 Mapping pane groups come from live mappings with or without a canvas table", () => {
+  const state = phase6MappedState();
+  const groups = diagram2FieldMappingPaneGroups(createDiagram2FieldMappingIndexes(state.objects));
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, "");
+  assert.equal(groups[0].rows[0].tableId, "mapping-table");
+  assert.deepEqual(groups[0].rows.map(row => ({
+    uiField: row.uiField,
+    databaseField: row.databaseField
+  })), [{
+    uiField: "TaskId",
+    databaseField: "pmt.Tasks.TaskId"
+  }]);
+
+  const withoutTable = state.objects.filter(object => object.type !== "field-mapping-table");
+  const ungrouped = diagram2FieldMappingPaneGroups(createDiagram2FieldMappingIndexes(withoutTable));
+  assert.equal(ungrouped.length, 1);
+  assert.equal(ungrouped[0].rows[0].tableId, "");
+  assert.equal(ungrouped[0].rows[0].mappingId, "mapping:field-task:taskid");
+
+  const grouped = diagram2FieldMappingPaneGroups(
+    createDiagram2FieldMappingIndexes(state.objects),
+    { groupByTable: true }
+  );
+  assert.equal(grouped[0].name, "pmt.Tasks");
+  assert.equal(grouped[0].rows[0].databaseTable, "pmt.Tasks");
+  assert.equal(diagram2FieldMappingPaneGroups(
+    createDiagram2FieldMappingIndexes(state.objects),
+    { search: "TASKS.TASK" }
+  ).length, 1);
+  const renamedUiObjects = state.objects.map(object =>
+    object.id === "field-task" ? renameDiagram2FieldRectangle(object, "Screen task number") : object);
+  assert.equal(diagram2FieldMappingPaneGroups(
+    createDiagram2FieldMappingIndexes(renamedUiObjects),
+    { search: "TASK NUMBER" }
+  ).length, 1);
+  assert.deepEqual(diagram2FieldMappingPaneGroups(
+    createDiagram2FieldMappingIndexes(state.objects),
+    { search: "not present" }
+  ), []);
+});
+
+test("Diagram 2 keeps Mapping pane and canvas-table rows synchronized with database field changes", async () => {
+  const controller = createDiagram2EditorController({
+    renderer: fakeRenderer(),
+    host: editableHost(),
+    state: phase6MappedState()
+  });
+
+  controller.setSelection(["entity-tasks"]);
+  const selectedMapping = controller.selectFieldMapping("mapping:field-task:taskid");
+  assert.deepEqual(selectedMapping.selectedIds, []);
+  assert.deepEqual(controller.selectedObjectIds(), []);
+
+  assert.equal(await controller.updateEntityField("entity-tasks", 0, { name: "WorkTaskId" }), true);
+  const renamedRectangle = controller.getObjectById("field-task");
+  const renamedTable = controller.getObjectById("mapping-table");
+  const renamedGroups = diagram2FieldMappingPaneGroups(controller.fieldMappingIndexes());
+  assert.equal(diagram2FieldRectangleMapping(renamedRectangle).referencedField, "WorkTaskId");
+  assert.equal(renamedTable.rows[0].databaseField, "pmt.Tasks.WorkTaskId");
+  assert.equal(renamedGroups[0].rows[0].databaseField, "pmt.Tasks.WorkTaskId");
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(diagram2FieldRectangleMapping(controller.getObjectById("field-task")).referencedField, "TaskId");
+  assert.equal(controller.getObjectById("mapping-table").rows[0].databaseField, "pmt.Tasks.TaskId");
+
+  assert.equal(await controller.moveObjects(["field-task"], 600, 0), true);
+  assert.deepEqual(controller.getObjectById("mapping-table").rows, []);
+  assert.equal(diagram2FieldMappingPaneGroups(controller.fieldMappingIndexes())[0].rows[0].uiField, "TaskId");
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("mapping-table").rows[0].uiField, "TaskId");
+
+  assert.equal(await controller.removeEntityField("entity-tasks", 0), true);
+  assert.equal(diagram2FieldRectangleMapping(controller.getObjectById("field-task")), null);
+  assert.deepEqual(controller.getObjectById("mapping-table").rows, []);
+  assert.deepEqual(diagram2FieldMappingPaneGroups(controller.fieldMappingIndexes()), []);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("mapping-table").rows[0].databaseField, "pmt.Tasks.TaskId");
+
+  controller.setSelection(["entity-tasks"]);
+  assert.equal(await controller.deleteSelectedObjects(), true);
+  assert.equal(controller.getObjectById("entity-tasks"), null);
+  assert.equal(diagram2FieldRectangleMapping(controller.getObjectById("field-task")), null);
+  assert.deepEqual(controller.getObjectById("mapping-table").rows, []);
+  assert.deepEqual(diagram2FieldMappingPaneGroups(controller.fieldMappingIndexes()), []);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("entity-tasks").entityName, "Tasks");
+  assert.equal(diagram2FieldRectangleMapping(controller.getObjectById("field-task")).referencedField, "TaskId");
+  assert.equal(controller.getObjectById("mapping-table").rows[0].databaseField, "pmt.Tasks.TaskId");
 });
 
 test("Diagram 2 Phase 6 objects survive file, clipboard, and template round trips", async () => {

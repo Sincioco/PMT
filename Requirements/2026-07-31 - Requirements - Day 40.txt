@@ -1,0 +1,71 @@
+Project Management Tool (PMT):  Day 39 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  59
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.  For now, do not test.  Let me test manually.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.  Prefix all of your commits with "Sin and Codex: ".
+
+Task Completion:
+	As you complete each task and you are ready for me to test it, highlight them in bold and echo the task and tell me when it is ready for testing.
+
+
+Checkboxes
+---------
+1.) In RTE, only allow the checkbox itself, not its labels/text, to toggle the checkbox on/off.  The labels/text should not toggle the checkbox on/off.
+2.) In the Edit Checkboxes dialog box, the textboxes are lacking styling.
+
+Diagram
+-------
+1.) In D2, when the right-click menu option of "UI to DB Field Mapping Lines" should also hide the Field Rectangle Mapping.  Field Rectangle Mapping should only for the row the user is currently hovering on the Field Mapping Table.
+2.) In D2, when in read-mode, there are right-click menu options when you .  Make these read-only mode right-click menu options also available during edit mode when you right-click on the canvas.  Just add to the existing edit-mode canvas right-click menu that is already present.
+3.) In D2, when hovering on the Field Mapping Table, the blue line that gets drawn does not match that of what was in D1.  Match it please.
+
+4.) In D2, in edit mode, create a new button at the top right after the "Templates" button and call it "Mapping";
+5.) When clicked, hide the Field Mapping Table on the canvas, then render the same information in the Mapping left pane, so that the Mapping top button functions as a toggle to hide/show the Field Mapping Table (on the canvas) and its left pane;
+6.) Do not render the Mapping left pane in the same way as you render the Field Mapping Table;
+7.) Match the look / UX of the Field Mapping left pane to what the left pane's content normally looks like.
+8.) Continue to show the field mapping lines and the blue 3-second arrow when the user hovers on a row in the Field Mapping Table on the left pane.
+
+9.) In D1, in edit mode, the crop tab's behavior seemed better than what D2 is doing.  For example, in D1, the selection border of the selected image is hidden when the left, top, bottom, top and radius is being adjusted.  After a short while the selection border re-appears.  When making adjustments to the left, top, bottom, top and radius properties, it should provide immediate feedback to the user.  The canvas should redraw immediate (once per 200 ms delay or whatever D1 did) so the user can preview in real-time what their adjustments look like.  Hide the selection border / resize handles when the user is adjusting the left, top, bottom, top and radius properties.  After a short while (1000 ms delay) the selection border / resize handles should re-appear.
+
+
+10.) The Mapping left pane was meant as a permanent home for the UI to Database Field Mapping.  As the user make changes to the canvas, be sure the Mapping left pane is updated in real-time to reflect the changes.  For example, if the user adds a new UI Field or Database Field, it should appear in the Mapping left pane.  If the user deletes a UI Field or Database Field, it should be removed from the Mapping left pane.  If the user renames a UI Field or Database Field, it should be updated in the Mapping left pane.  If the user re-orders the UI Fields or Database Fields, it should be reflected in the Mapping left pane.  The Mapping left pane should always be in sync with the canvas.
+11.) In D2, when in read mode, if the canvas has a Field Mapping Rectangle, the Field Mapping Table should be visible in the left pane.
+12.) In D2, in both edit and read mode, be sure that the Mapping left pane is scrollable if the content exceeds the height of the left pane.  The user should be able to scroll through the Mapping left pane to see all UI Fields and Database Fields.
+13.) In D2, be sure that the Mapping left pane is resizable by the user.  The user should be able to drag the right edge of the Mapping left pane to resize it.  The Mapping left pane should have a minimum width of 200px and a maximum width of 600px.
+14.) In D2, the Mapping left pane should have the same click and double-click behavior as the Field Mapping Table on the canvas.  For example, if the user clicks on a UI Field or Database Field in the Mapping left pane, it should highlight that field in the canvas.  If the user double-clicks on a UI Field or Database Field in the Mapping left pane, bring that UI field or database field in view and show the field mapping line and the blue 3-second arrow for that field mapping.  The Mapping left pane should have the same behavior as the Field Mapping Table on the canvas.
+
+15.) Major Bug:  In a RTE, when an image is selected and you select "Annotation 2.0", the Annotation 2.0 cavans is slow.  Moving or drawing anything is slow and sluggish.  Much slower than Annotation 1.0 (D1).
+
+16.) In D2 when in Edit mode, clicking on a row on the Field Mapping Table (both on the canvas and on the left pane), a rectangular outer border (bounds) of the highlight entity and Field Mapping Rectangle is shown.  Please remove this outer rectangular selection border.
+
+17.) In the Mapping left pane, add an abitliy to search both the UI Fields and Database Fields.  The search should be case-insensitive and should filter the list of fields in real-time as the user types.  The search should match any part of the field name, not just the beginning.
+18.) In the Mapping left pane, add a toggle so that the fields can be grouped by table name.
+
+What's New
+---------------------------------
+For the What's New, I want you to highlight that Diagram 2 is now live and is much faster than Diagram 1 perfect for creating large ERD diagrams for Enterprise use.  You can also now create UI Field to Database Field mapping in Diagram 2, perfect for systems documentations to help onboard new members of the team.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, create a detailed commit message and push to the repo.
+Also commit the file named "2026-07-31 - Requirements - Day 40.txt" and "2026-07-30 - Requirements - Day 39.txt".

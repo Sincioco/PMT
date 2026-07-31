@@ -582,13 +582,15 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("button", { name: "Objects", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("button", { name: "Templates", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "Mapping", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("button", { name: "Right Pane", exact: true })).toHaveAttribute("aria-expanded", "true");
   expect(await page.locator(".diagram2-editor-nav > button").evaluateAll(buttons =>
-    buttons.map(button => button.textContent.trim()))).toEqual(["Tools", "Objects", "Templates", "Right Pane"]);
+    buttons.map(button => button.textContent.trim()))).toEqual(["Tools", "Objects", "Templates", "Mapping", "Right Pane"]);
   await expect(page.locator("[data-diagram2-tools-pane]")).toBeVisible();
   await expect(page.locator("[data-diagram2-tools-pane] .diagram2-tools-divider")).toHaveCount(2);
   await expect(page.locator("[data-diagram2-objects-pane]")).toBeHidden();
   await expect(page.locator("[data-diagram2-template-pane]")).toBeHidden();
+  await expect(page.locator("[data-diagram2-mapping-pane]")).toBeHidden();
   await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id]").first()).toBeVisible();
   await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "false");
@@ -3424,7 +3426,7 @@ async function ensureDiagram2LeftPaneClosed(scope) {
   if (!closed) {
     await main.evaluate(element => {
       element.dataset.diagram2LeftPaneMode = "";
-      element.classList.remove("is-left-pane-open", "is-tools-open", "is-objects-open", "is-templates-open");
+      element.classList.remove("is-left-pane-open", "is-tools-open", "is-objects-open", "is-templates-open", "is-mapping-open");
       element.closest("[data-diagram2-editor-shell]")?.querySelectorAll("[data-diagram2-left-pane-toggle]").forEach(button => {
         button.classList.remove("is-active");
         button.setAttribute("aria-expanded", "false");
@@ -3438,7 +3440,7 @@ async function ensureDiagram2LeftPaneClosed(scope) {
 async function assertDiagram2TopBandStableAcrossTabs(page) {
   const before = await diagram2TopBandMetrics(page);
   const beforeViewport = await diagram2ViewportTransformMetrics(page);
-  for (const pane of ["Objects", "Templates", "Tools"]) {
+  for (const pane of ["Objects", "Templates", "Mapping", "Tools"]) {
     await page.getByRole("button", { name: pane, exact: true }).click();
     const after = await diagram2TopBandMetrics(page);
     const afterViewport = await diagram2ViewportTransformMetrics(page);

@@ -1,3 +1,4 @@
+import { formatAnnotationEntityIdentifier } from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import {
   diagram2FieldMappingIdentity,
   diagram2FieldRectangleMapping,
@@ -168,6 +169,97 @@ export function diagram2FieldMappingIndexDiagnostics(indexes) {
     mappingIndexIncrementalPatchCount: finiteNumber(indexes?.incrementalPatchCount, 0),
     mappingIndexIncrementalObjectVisitCount: finiteNumber(indexes?.incrementalObjectVisitCount, 0)
   };
+}
+
+export function diagram2FieldMappingPaneGroups(indexes, options = {}) {
+  if (!(indexes?.mappingsById instanceof Map)) return [];
+  const tableIdByMappingId = new Map();
+  const tables = [...(indexes.tablesById?.values?.() || [])]
+    .sort((left, right) => finiteNumber(left?.y, 0) - finiteNumber(right?.y, 0)
+      || finiteNumber(left?.x, 0) - finiteNumber(right?.x, 0)
+      || String(left?.name || "").localeCompare(String(right?.name || "")));
+
+  tables.forEach(table => {
+    const mappingIds = table.sourceImageId
+      ? indexes.mappingIdsBySourceImageId?.get(table.sourceImageId) || []
+      : indexes.mappingIdsByTableId?.get(table.id) || [];
+    mappingIds.forEach(mappingId => {
+      if (!tableIdByMappingId.has(mappingId)) {
+        tableIdByMappingId.set(mappingId, String(table.id || ""));
+      }
+    });
+  });
+
+  const search = String(options.search || "").trim().toLowerCase();
+  const rows = diagram2FieldMappingPaneRows(
+    indexes,
+    [...indexes.mappingsById.keys()],
+    tableIdByMappingId
+  ).filter(row => !search
+    || row.uiField.toLowerCase().includes(search)
+    || row.databaseField.toLowerCase().includes(search));
+  if (!rows.length) return [];
+  if (options.groupByTable !== true) {
+    return [{ id: "all-mappings", name: "", rows }];
+  }
+
+  const groupsByTable = new Map();
+  rows.forEach(row => {
+    const name = row.databaseTable || "Database Table";
+    if (!groupsByTable.has(name)) {
+      groupsByTable.set(name, {
+        id: `database-table:${name.toLowerCase()}`,
+        name,
+        rows: []
+      });
+    }
+    groupsByTable.get(name).rows.push(row);
+  });
+  return [...groupsByTable.values()]
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function diagram2FieldMappingPaneRows(indexes, mappingIdsInput, tableIdByMappingId) {
+  return [...new Set(Array.isArray(mappingIdsInput) ? mappingIdsInput : [])]
+    .map(id => indexes.mappingsById.get(id))
+    .filter(Boolean)
+    .sort((left, right) => finiteNumber(left.source?.y, 0) - finiteNumber(right.source?.y, 0)
+      || finiteNumber(left.source?.x, 0) - finiteNumber(right.source?.x, 0)
+      || diagram2TargetFieldIndex(left) - diagram2TargetFieldIndex(right)
+      || String(left.sourceField || "").localeCompare(String(right.sourceField || "")))
+    .map(mapping => ({
+      mappingId: String(mapping.id || ""),
+      tableId: String(tableIdByMappingId?.get?.(mapping.id) || ""),
+      uiField: String(mapping.sourceField || mapping.source?.fieldRectangleName || "UI Field").trim() || "UI Field",
+      databaseTable: diagram2MappingDatabaseTable(mapping),
+      databaseField: diagram2MappingDatabaseField(mapping)
+    }));
+}
+
+function diagram2MappingDatabaseTable(mapping) {
+  const sourceMapping = diagram2FieldRectangleMapping(mapping?.source);
+  const referenceParts = String(sourceMapping?.referencedEntity || "")
+    .split(".")
+    .map(part => part.trim())
+    .filter(Boolean);
+  const entity = mapping?.target
+    ? formatAnnotationEntityIdentifier(mapping.target.entitySchema, mapping.target.entityName)
+    : formatAnnotationEntityIdentifier(referenceParts);
+  return entity || "Database Table";
+}
+
+function diagram2MappingDatabaseField(mapping) {
+  const sourceMapping = diagram2FieldRectangleMapping(mapping?.source);
+  const entity = diagram2MappingDatabaseTable(mapping);
+  const field = formatAnnotationEntityIdentifier(mapping?.targetField || sourceMapping?.referencedField || "Database Field");
+  return [entity, field].filter(Boolean).join(".") || "Database Field";
+}
+
+function diagram2TargetFieldIndex(mapping) {
+  const fields = Array.isArray(mapping?.target?.fields) ? mapping.target.fields : [];
+  const target = normalizeIdentifier(mapping?.targetField);
+  const index = fields.findIndex(field => normalizeIdentifier(field?.name) === target);
+  return index < 0 ? Number.MAX_SAFE_INTEGER : index;
 }
 
 function createEmptyIndexes() {

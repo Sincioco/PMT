@@ -18,11 +18,15 @@ import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
   diagram2ImageHasReversibleCrop
-} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
 import {
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
 } from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
+import {
+  createDiagram2FieldMappingIndexes,
+  diagram2FieldMappingPaneGroups
+} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
 import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260731-rte-checkbox-layout-v2";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
@@ -100,6 +104,7 @@ export function diagram2EditorShellHtml(options = {}) {
   const canUse = options.canUse !== false;
   const state = options.state || null;
   const selectedIds = Array.isArray(options.selectedObjectIds) ? options.selectedObjectIds : [];
+  const includeMappingPane = options.includeMappingPane === true;
 
   return `
     <div class="diagram2-editor-shell image-annotation-window ${includeHeader ? "has-editor-head" : ""} ${includeFooter ? "has-editor-footer" : ""}" data-diagram2-editor-shell data-diagram2-host-kind="${escapeAttr(status.hostKind || options.hostKind || "diagram-document")}">
@@ -118,12 +123,14 @@ export function diagram2EditorShellHtml(options = {}) {
       ${diagram2ToolbarHtml({
         canUse,
         includeActions: options.includeToolbarActions === true || !includeFooter,
+        includeMappingPane,
         selectedZoom
       })}
       <div class="image-annotation-main diagram2-editor-main is-left-pane-open is-tools-open" data-diagram2-editor-main data-diagram2-left-pane-mode="tools">
         ${diagram2ToolsPaneHtml({ canUse })}
         ${diagram2ObjectsPaneHtml(state, selectedIds, { search: options.objectSearch })}
         ${diagram2TemplatePaneHtml(options.templateState, state, selectedIds)}
+        ${includeMappingPane ? diagram2MappingPaneHtml(state) : ""}
         <div class="diagram2-editor-center" data-diagram2-editor-center>
           <div class="image-annotation-workspace diagram2-editor-workspace" data-diagram2-workspace tabindex="0" aria-label="Diagram 2 canvas">
             <div class="image-annotation-canvas-stage diagram2-editor-canvas-stage" data-diagram2-canvas-stage>
@@ -656,6 +663,75 @@ export function diagram2TemplatePaneHtml(templateStateInput = {}, state = null, 
   `;
 }
 
+export function diagram2MappingPaneHtml(stateInput = null, options = {}) {
+  const indexes = options.indexes?.mappingsById instanceof Map
+    ? options.indexes
+    : createDiagram2FieldMappingIndexes(stateInput?.objects || []);
+  const search = String(options.search || "");
+  const groupByTable = options.groupByTable === true;
+  const groups = diagram2FieldMappingPaneGroups(indexes, { search, groupByTable });
+  const mappingCount = indexes.mappingsById.size;
+  const visibleCount = groups.reduce((total, group) => total + group.rows.length, 0);
+  const content = groups.length
+    ? groups.map(diagram2MappingPaneGroupHtml).join("")
+    : `<p class="diagram2-mapping-pane-empty">${mappingCount ? "No mappings match your search." : "No UI to database field mappings."}</p>`;
+  const countText = search.trim()
+    ? `${visibleCount} of ${mappingCount}`
+    : `${mappingCount} ${mappingCount === 1 ? "mapping" : "mappings"}`;
+
+  return `
+    <aside class="diagram2-editor-left-pane diagram2-mapping-pane" data-diagram2-left-pane data-diagram2-left-pane-name="mapping" data-diagram2-mapping-pane data-diagram2-mapping-count="${mappingCount}" data-diagram2-mapping-visible-count="${visibleCount}" aria-label="UI to database field mapping">
+      <div class="diagram2-editor-left-pane-scroll">
+        <div class="diagram2-editor-pane-title">
+          <h3>Mapping</h3>
+          <span>${escapeHtml(countText)}</span>
+        </div>
+        <div class="diagram2-mapping-pane-controls">
+          <label class="diagram2-mapping-pane-search">
+            <span>Search</span>
+            <input type="search" value="${escapeAttr(search)}" placeholder="UI or database field" autocomplete="off" data-diagram2-mapping-search>
+          </label>
+          <label class="diagram2-mapping-pane-group-toggle">
+            <input type="checkbox" data-diagram2-mapping-group-by-table ${groupByTable ? "checked" : ""}>
+            <span>Group by table</span>
+          </label>
+        </div>
+        <div class="diagram2-mapping-pane-list" role="list">
+          ${content}
+        </div>
+      </div>
+      ${diagram2LeftPaneResizerHtml("Mapping")}
+    </aside>
+  `;
+}
+
+function diagram2MappingPaneGroupHtml(group) {
+  return `
+    <section class="diagram2-mapping-pane-group" data-diagram2-mapping-pane-group="${escapeAttr(group.id)}" role="listitem">
+      ${group.name ? `<h4>${escapeHtml(group.name)}</h4>` : ""}
+      <div class="diagram2-mapping-pane-rows">
+        ${group.rows.map(diagram2MappingPaneRowHtml).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function diagram2MappingPaneRowHtml(row) {
+  const commonAttributes = `data-diagram2-field-mapping-cell="true" data-diagram2-mapping-pane-field data-diagram2-field-mapping-id="${escapeAttr(row.mappingId)}" data-diagram2-field-mapping-table-id="${escapeAttr(row.tableId)}"`;
+  return `
+    <div class="diagram2-mapping-pane-row" data-diagram2-mapping-pane-row data-diagram2-field-mapping-id="${escapeAttr(row.mappingId)}" data-diagram2-field-mapping-table-id="${escapeAttr(row.tableId)}" role="group" aria-label="${escapeAttr(`${row.uiField} maps to ${row.databaseField}`)}">
+      <button type="button" class="diagram2-mapping-pane-field" ${commonAttributes} data-diagram2-field-mapping-cell-kind="ui" aria-label="Select UI field ${escapeAttr(row.uiField)}">
+        <span class="diagram2-mapping-pane-field-kind">UI Field</span>
+        <span class="diagram2-mapping-pane-field-value">${escapeHtml(row.uiField)}</span>
+      </button>
+      <button type="button" class="diagram2-mapping-pane-field" ${commonAttributes} data-diagram2-field-mapping-cell-kind="database" aria-label="Select database field ${escapeAttr(row.databaseField)}">
+        <span class="diagram2-mapping-pane-field-kind">Database Field</span>
+        <span class="diagram2-mapping-pane-field-value">${escapeHtml(row.databaseField)}</span>
+      </button>
+    </div>
+  `;
+}
+
 export async function copyDiagram2SelectionArtwork(state, selectedObjectIds, format = "svg") {
   const ids = Array.isArray(selectedObjectIds) ? selectedObjectIds.filter(Boolean) : [];
   if (!ids.length) return false;
@@ -809,12 +885,16 @@ export function setDiagram2TemplatesPaneOpen(root, open) {
   return setDiagram2LeftPaneMode(root, "templates", open);
 }
 
+export function setDiagram2MappingPaneOpen(root, open) {
+  return setDiagram2LeftPaneMode(root, "mapping", open);
+}
+
 export function syncDiagram2RendererViewportInset(root, renderer, options = {}) {
   if (!renderer || typeof renderer.setViewportInset !== "function") return false;
-  const shell = root?.matches?.("[data-diagram2-editor-shell]")
+  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
     ? root
-    : root?.querySelector?.("[data-diagram2-editor-shell]");
-  const main = shell?.querySelector?.("[data-diagram2-editor-main]");
+    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
   const surface = shell?.querySelector?.("[data-diagram2-renderer-surface]");
   const surfaceRect = surface?.getBoundingClientRect?.();
   let left = 0;
@@ -840,13 +920,13 @@ export function syncDiagram2RendererViewportInset(root, renderer, options = {}) 
 
 function setDiagram2LeftPaneMode(root, modeInput, open) {
   if (!root) return false;
-  const shell = root.matches?.("[data-diagram2-editor-shell]")
+  const shell = root.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
     ? root
-    : root.querySelector?.("[data-diagram2-editor-shell]");
-  const main = shell?.querySelector?.("[data-diagram2-editor-main]");
+    : root.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
   if (!shell || !main) return false;
   const requestedMode = String(modeInput || "tools").trim();
-  const mode = ["tools", "objects", "templates"].includes(requestedMode) ? requestedMode : "tools";
+  const mode = ["tools", "objects", "templates", "mapping"].includes(requestedMode) ? requestedMode : "tools";
   const currentMode = String(main.dataset.diagram2LeftPaneMode || "tools");
   const nextOpen = open === undefined
     ? !(main.classList.contains("is-left-pane-open") && currentMode === mode)
@@ -856,6 +936,7 @@ function setDiagram2LeftPaneMode(root, modeInput, open) {
   main.classList.toggle("is-tools-open", nextOpen && mode === "tools");
   main.classList.toggle("is-objects-open", nextOpen && mode === "objects");
   main.classList.toggle("is-templates-open", nextOpen && mode === "templates");
+  main.classList.toggle("is-mapping-open", nextOpen && mode === "mapping");
   shell.querySelectorAll("[data-diagram2-left-pane-toggle]").forEach(button => {
     const active = nextOpen && button.dataset.diagram2LeftPaneToggle === mode;
     button.classList.toggle("is-active", active);
@@ -939,19 +1020,25 @@ export function bindDiagram2EditorInspectorResize(root, options = {}) {
 }
 
 export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
-  const shell = root?.matches?.("[data-diagram2-editor-shell]")
+  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
     ? root
-    : root?.querySelector?.("[data-diagram2-editor-shell]");
+    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
   if (!shell || shell.dataset.diagram2LeftPaneResizeBound === "true") return;
-  const main = shell.querySelector("[data-diagram2-editor-main]");
+  const main = shell.querySelector("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
   if (!main) return;
   shell.dataset.diagram2LeftPaneResizeBound = "true";
 
   let finishResize = () => {};
-  const paneModes = ["tools", "objects", "templates"];
+  const paneModes = ["tools", "objects", "templates", "mapping"];
 
-  const leftPaneWidthLimits = () => {
+  const leftPaneWidthLimits = mode => {
     const mainWidth = Math.max(1, main.getBoundingClientRect().width || window.innerWidth || 1);
+    if (normalizeDiagram2LeftPaneMode(mode) === "mapping") {
+      return {
+        minimum: 200,
+        maximum: Math.min(600, Math.max(200, Math.floor(mainWidth - 120)))
+      };
+    }
     return {
       minimum: 196,
       maximum: Math.max(196, Math.floor(mainWidth * 0.5))
@@ -959,8 +1046,8 @@ export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
   };
 
   const setLeftPaneWidth = (mode, value) => {
-    const limits = leftPaneWidthLimits();
     const paneMode = normalizeDiagram2LeftPaneMode(mode);
+    const limits = leftPaneWidthLimits(paneMode);
     const width = Math.round(clampDiagram2Number(value, limits.minimum, limits.maximum));
     main.style.setProperty(diagram2LeftPaneWidthProperty(paneMode), `${width}px`);
     main.querySelectorAll(`[data-diagram2-left-pane-name="${paneMode}"] [data-diagram2-left-pane-resizer]`).forEach(resizer => {
@@ -1006,9 +1093,9 @@ export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
     const resizer = event.target?.closest?.("[data-diagram2-left-pane-resizer]");
     if (!resizer || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const limits = leftPaneWidthLimits();
     const pane = resizer.closest("[data-diagram2-left-pane]");
     const paneMode = normalizeDiagram2LeftPaneMode(pane?.dataset?.diagram2LeftPaneName || main.dataset.diagram2LeftPaneMode);
+    const limits = leftPaneWidthLimits(paneMode);
     const currentWidth = diagram2CurrentLeftPaneWidth(main, paneMode);
     if (event.key === "Home") setLeftPaneWidth(paneMode, limits.minimum);
     else if (event.key === "End") setLeftPaneWidth(paneMode, limits.maximum);
@@ -1280,7 +1367,7 @@ export function bindDiagram2EditorFormatControls(root, options = {}) {
   });
 }
 
-function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
+function diagram2ToolbarHtml({ canUse, includeActions, includeMappingPane, selectedZoom }) {
   const disabled = canUse ? "" : "disabled";
   return `
     <div class="image-annotation-toolbar diagram2-editor-toolbar" role="toolbar" aria-label="Diagram 2 editor controls">
@@ -1292,6 +1379,7 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
         <button type="button" class="diagram2-left-pane-toggle is-active" data-action="toggle-diagram2-tools-pane" data-diagram2-left-pane-toggle="tools" aria-expanded="true" aria-pressed="true" title="Tools" aria-label="Tools" ${disabled}>Tools</button>
         <button type="button" class="diagram2-left-pane-toggle" data-action="toggle-diagram2-objects-pane" data-diagram2-left-pane-toggle="objects" aria-expanded="false" aria-pressed="false" title="Objects" aria-label="Objects" ${disabled}>Objects</button>
         <button type="button" class="diagram2-left-pane-toggle" data-action="toggle-diagram2-templates-pane" data-diagram2-left-pane-toggle="templates" aria-expanded="false" aria-pressed="false" title="Templates" aria-label="Templates" ${disabled}>Templates</button>
+        ${includeMappingPane ? `<button type="button" class="diagram2-left-pane-toggle" data-action="toggle-diagram2-mapping-pane" data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" ${disabled}>Mapping</button>` : ""}
         <button type="button" data-action="toggle-diagram2-inspector" aria-controls="diagram2Inspector" aria-expanded="true" title="Right Pane" aria-label="Right Pane" ${disabled}>Right Pane</button>
       </div>
       <div class="image-annotation-tool-group" aria-label="History">
@@ -2131,7 +2219,7 @@ function diagram2CurrentLeftPaneWidth(main, mode = "tools") {
 
 function normalizeDiagram2LeftPaneMode(mode) {
   const value = String(mode || "").trim().toLowerCase();
-  return ["tools", "objects", "templates"].includes(value) ? value : "tools";
+  return ["tools", "objects", "templates", "mapping"].includes(value) ? value : "tools";
 }
 
 function diagram2LeftPaneWidthProperty(mode) {

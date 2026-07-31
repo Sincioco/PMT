@@ -2,13 +2,13 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
+} from "./diagram2-renderer.js?v=20260731-diagram2-rte-interactions-v1";
 import {
   createDiagram2EmbeddedImage
 } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 import {
   permanentlyCropDiagram2Image
-} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
 import {
   createDiagram2EntityAnnotationIndexes,
   createDiagram2EntityAnnotationPlan
@@ -24,12 +24,13 @@ import {
 import {
   createDiagram2FieldMappingIndexes,
   patchDiagram2FieldMappingIndexes
-} from "./diagram2-editor-field-mappings.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
 import {
   createDiagram2FieldMappingTable,
+  planDiagram2FieldMappingTableSync,
   syncDiagram2FieldMappingTableForFieldRectangle,
   syncDiagram2FieldMappingTableForImage
-} from "./diagram2-editor-field-mapping-tables.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260731-diagram2-mapping-pane-v2";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
@@ -854,12 +855,7 @@ export function createDiagram2EditorController(options = {}) {
     const mapping = indexes.mappingsById.get(mappingId);
     if (!mapping) return null;
     const relationshipId = mapping.relationshipId || "";
-    const ids = [
-      mapping.sourceId,
-      relationshipId,
-      mapping.targetId
-    ].filter(Boolean);
-    setSelection(ids, { expandGroups: false });
+    setSelection([], { expandGroups: false });
     if (selectionOptions.focusTarget === true && mapping.targetId) {
       renderer?.focusObjectIds?.([mapping.targetId], {
         reason: "focus Field mapping target"
@@ -868,7 +864,7 @@ export function createDiagram2EditorController(options = {}) {
     return {
       ...mapping,
       relationshipId,
-      selectedIds: ids
+      selectedIds: []
     };
   }
 
@@ -904,6 +900,42 @@ export function createDiagram2EditorController(options = {}) {
       return object && object.locked !== true && !objectPositionFixed(object);
     });
     if (!ids.length) return false;
+    const deletedObjects = ids.map(id => getObjectById(id)).filter(Boolean);
+    const removedEntityReferences = deletedObjects
+      .filter(object => object?.type === "entity" && !isDiagram2FieldRectangle(object))
+      .map(diagram2EntityReference)
+      .filter(Boolean);
+    const nextObjects = canonicalState.objects
+      .filter(object => !ids.includes(object.id))
+      .map(object => {
+        const mapping = diagram2FieldRectangleMapping(object);
+        if (!mapping || !removedEntityReferences.some(reference =>
+          sameDiagram2Identifier(mapping.referencedEntity, reference))) return object;
+        return setDiagram2FieldRectangleMapping(object, null) || object;
+      });
+    const fieldRectangleUpdates = nextObjects.filter(object =>
+      isDiagram2FieldRectangle(object) && !sameDiagram2Value(getObjectById(object.id), object));
+    const mappingTablesAffected = fieldRectangleUpdates.length > 0
+      || deletedObjects.some(object => isDiagram2FieldRectangle(object) || object.type === "embedded-image");
+    const tableUpdates = mappingTablesAffected
+      ? planDiagram2FieldMappingTableSync(nextObjects)
+        .filter(table => !ids.includes(table.id) && !sameDiagram2Value(getObjectById(table.id), table))
+      : [];
+    const dependentUpdates = uniqueDiagram2Objects([
+      ...fieldRectangleUpdates,
+      ...tableUpdates
+    ]);
+    if (dependentUpdates.length) {
+      return executeDiagram2ObjectDelta({
+        beforeObjects: dependentUpdates.map(object => getObjectById(object.id)).filter(Boolean),
+        afterObjects: dependentUpdates,
+        removedObjectIds: ids,
+        selectionAfter: []
+      }, {
+        label: commandOptions.label || "Delete objects",
+        reason: commandOptions.reason || "delete objects"
+      });
+    }
     const command = createDiagram2DeleteObjectsCommand({
       objects: ids.map(id => ({
         object: cloneDiagram2Value(getObjectById(id)),
@@ -1302,7 +1334,13 @@ export function createDiagram2EditorController(options = {}) {
 
   async function updateEntityDefinition(objectId, definition, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
-    const plan = diagram2ApplyEntityDefinitionPlan(canonicalState, objectId, definition);
+    const plan = synchronizeDiagram2FieldMappingTablesInPlan(
+      retargetDiagram2FieldMappingsInPlan(
+        diagram2ApplyEntityDefinitionPlan(canonicalState, objectId, definition),
+        objectId,
+        { fallbackByFieldIndex: true, clearMissingField: true }
+      )
+    );
     return executeDiagram2StatePlan(plan, {
       label: commandOptions.label || "Update entity",
       reason: commandOptions.reason || "update entity"
@@ -1329,7 +1367,13 @@ export function createDiagram2EditorController(options = {}) {
 
   async function updateEntityField(objectId, fieldIndex, patch, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
-    const plan = diagram2UpdateEntityFieldPlan(canonicalState, objectId, fieldIndex, patch);
+    const plan = synchronizeDiagram2FieldMappingTablesInPlan(
+      retargetDiagram2FieldMappingsInPlan(
+        diagram2UpdateEntityFieldPlan(canonicalState, objectId, fieldIndex, patch),
+        objectId,
+        { fallbackByFieldIndex: true }
+      )
+    );
     return executeDiagram2StatePlan(plan, {
       label: commandOptions.label || "Update entity field",
       reason: commandOptions.reason || "update entity field"
@@ -1347,7 +1391,13 @@ export function createDiagram2EditorController(options = {}) {
 
   async function removeEntityField(objectId, fieldIndex, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
-    const plan = diagram2RemoveEntityFieldPlan(canonicalState, objectId, fieldIndex);
+    const plan = synchronizeDiagram2FieldMappingTablesInPlan(
+      retargetDiagram2FieldMappingsInPlan(
+        diagram2RemoveEntityFieldPlan(canonicalState, objectId, fieldIndex),
+        objectId,
+        { clearMissingField: true }
+      )
+    );
     return executeDiagram2StatePlan(plan, {
       label: commandOptions.label || "Remove entity field",
       reason: commandOptions.reason || "remove entity field"
@@ -1630,6 +1680,105 @@ export function createDiagram2EditorController(options = {}) {
       diagnostics: plan.diagnostics || null
     });
     return true;
+  }
+
+  function synchronizeDiagram2FieldMappingTablesInPlan(plan) {
+    if (!plan?.nextState) return plan;
+    const affectedIds = new Set(plan.affectedObjectIds || []);
+    const changedFieldRectangleIds = plan.nextState.objects
+      .filter(object => affectedIds.has(object.id)
+        && isDiagram2FieldRectangle(object)
+        && !sameDiagram2Value(getObjectById(object.id), object))
+      .map(object => object.id);
+    if (!changedFieldRectangleIds.length) return plan;
+    const tableUpdates = planDiagram2FieldMappingTableSync(
+      plan.nextState.objects,
+      changedFieldRectangleIds
+    );
+    if (!tableUpdates.length) return plan;
+    const updatesById = new Map(tableUpdates.map(table => [table.id, table]));
+    return {
+      ...plan,
+      nextState: {
+        ...plan.nextState,
+        objects: plan.nextState.objects.map(object => updatesById.get(object.id) || object)
+      },
+      affectedObjectIds: uniqueStrings([
+        ...(plan.affectedObjectIds || []),
+        ...updatesById.keys()
+      ])
+    };
+  }
+
+  function retargetDiagram2FieldMappingsInPlan(plan, entityIdInput, options = {}) {
+    if (!plan?.nextState) return plan;
+    const entityId = String(entityIdInput || "").trim();
+    const previousEntity = getObjectById(entityId);
+    const nextEntity = plan.nextState.objects.find(object => object.id === entityId && object.type === "entity");
+    if (!previousEntity || !nextEntity) return plan;
+    const previousReference = diagram2EntityReference(previousEntity);
+    const nextReference = diagram2EntityReference(nextEntity);
+    const previousFields = Array.isArray(previousEntity.fields) ? previousEntity.fields : [];
+    const nextFields = Array.isArray(nextEntity.fields) ? nextEntity.fields : [];
+    const changedIds = [];
+    const objects = plan.nextState.objects.map(object => {
+      const mapping = diagram2FieldRectangleMapping(object);
+      if (!mapping || !sameDiagram2Identifier(mapping.referencedEntity, previousReference)) return object;
+      const previousFieldIndex = previousFields.findIndex(field =>
+        sameDiagram2Identifier(field?.name, mapping.referencedField));
+      const matchingField = nextFields.find(field =>
+        sameDiagram2Identifier(field?.name, mapping.referencedField));
+      const targetField = matchingField
+        || (options.fallbackByFieldIndex === true
+          && previousFields.length === nextFields.length
+          && previousFieldIndex >= 0
+          ? nextFields[previousFieldIndex]
+          : null);
+      if (!targetField && options.clearMissingField !== true) return object;
+      const nextMapping = targetField
+        ? {
+            ...mapping,
+            referencedEntity: nextReference,
+            referencedField: targetField.name
+          }
+        : null;
+      if (nextMapping
+        && sameDiagram2Identifier(mapping.referencedEntity, nextMapping.referencedEntity)
+        && sameDiagram2Identifier(mapping.referencedField, nextMapping.referencedField)) return object;
+      const nextObject = setDiagram2FieldRectangleMapping(object, nextMapping);
+      if (!nextObject) return object;
+      changedIds.push(object.id);
+      return nextObject;
+    });
+    if (!changedIds.length) return plan;
+    return {
+      ...plan,
+      nextState: {
+        ...plan.nextState,
+        objects
+      },
+      affectedObjectIds: uniqueStrings([
+        ...(plan.affectedObjectIds || []),
+        ...changedIds
+      ])
+    };
+  }
+
+  function diagram2EntityReference(entity) {
+    return [entity?.entitySchema, entity?.entityName]
+      .map(value => String(value || "").trim())
+      .filter(Boolean)
+      .join(".");
+  }
+
+  function sameDiagram2Identifier(left, right) {
+    const normalize = value => String(value || "")
+      .trim()
+      .replaceAll("[", "")
+      .replaceAll("]]", "]")
+      .replaceAll("]", "")
+      .toLowerCase();
+    return normalize(left) === normalize(right);
   }
 
   async function undo() {
@@ -3811,12 +3960,31 @@ async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {
     });
   if (update.changed !== true) return false;
 
-  const renderer = context.renderer;
-  if (renderer && options.rendererAlreadyUpdated !== true) {
-    renderer.beginDiagramUpdate(options.reason || "move objects");
-    objectIds.forEach(id => {
-      renderer.updateObject(id, object => moveDiagram2ObjectGeometry(object, deltaX, deltaY));
+  const changedFieldRectangleIds = objectIds.filter(id =>
+    isDiagram2FieldRectangle(context.getObjectById(id)));
+  const tableUpdates = changedFieldRectangleIds.length
+    ? planDiagram2FieldMappingTableSync(
+        context.state.objects,
+        changedFieldRectangleIds,
+        [...(update.previousObjectsById?.values?.() || [])]
+      )
+    : [];
+  if (tableUpdates.length) {
+    const updatesById = new Map(tableUpdates.map(table => [table.id, table]));
+    context.updateObjectsCanonical([...updatesById.keys()], (_object, id) => updatesById.get(id), {
+      reason: options.reason || "move objects"
     });
+  }
+
+  const renderer = context.renderer;
+  if (renderer && (options.rendererAlreadyUpdated !== true || tableUpdates.length)) {
+    renderer.beginDiagramUpdate(options.reason || "move objects");
+    if (options.rendererAlreadyUpdated !== true) {
+      objectIds.forEach(id => {
+        renderer.updateObject(id, object => moveDiagram2ObjectGeometry(object, deltaX, deltaY));
+      });
+    }
+    tableUpdates.forEach(table => renderer.updateObject(table.id, table));
     renderer.endDiagramUpdate(options.reason || "move objects");
   }
 
