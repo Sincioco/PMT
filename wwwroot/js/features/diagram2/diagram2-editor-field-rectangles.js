@@ -1,8 +1,8 @@
 import {
   normalizeAnnotationState,
   setAnnotationEntityFieldForeignKeyMapping
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
-import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 
 export function isDiagram2FieldRectangle(object) {
   return object?.type === "entity" && object.entityKind === "field-rectangle";

@@ -11,32 +11,32 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageEffectiveClip
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingIndexDiagnostics,
   patchDiagram2FieldMappingIndexes,
   setDiagram2FieldMappingRouteIndex,
   diagram2MappingAttentionTargets
-} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-field-mappings.js?v=20260731-rte-checkbox-layout-v2";
 import {
   diagram2FieldMappingTableRowKey
-} from "./diagram2-editor-field-mapping-tables.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2ImageResourceManager
-} from "./diagram2-image-resources.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-image-resources.js?v=20260731-rte-checkbox-layout-v2";
 import {
   compactDiagram2RelationshipPoints,
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteKey,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipGeometry
-} from "./diagram2-routing.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -424,6 +424,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let mappingIndexRebuildCount = 0;
   let mappingHoverState = null;
   let mappingPinnedState = null;
+  let fieldMappingLinesVisible = true;
   let mappingArrowTimer = 0;
   let mappingArrowStartedAt = 0;
   let mappingArrowLifetimeMs = 0;
@@ -1221,6 +1222,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return hadSelection;
   }
 
+  function setFieldMappingLinesVisible(visible = true) {
+    fieldMappingLinesVisible = visible !== false;
+    if (planes.fieldRelationships) {
+      planes.fieldRelationships.style.display = fieldMappingLinesVisible ? "" : "none";
+    }
+    renderFieldMappingHighlight();
+    return fieldMappingLinesVisible;
+  }
+
   function focusFieldMappingTarget(mappingIdInput, options = {}) {
     const mappingId = String(mappingIdInput || "").trim();
     const mapping = fieldMappingIndexes.mappingsById.get(mappingId);
@@ -1307,6 +1317,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (relationship) {
       const route = routing.relationshipRoutesById.get(relationship.id)
         || relationshipRoute(relationship, relationshipRouteOptions(null, canonicalState));
+      if (!fieldMappingLinesVisible) {
+        appendDiagram2ActiveFieldMappingRelationship(group, relationship, route);
+      }
       appendDiagram2FieldMappingHighlightTrace(
         group,
         route.points,
@@ -1316,6 +1329,28 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       );
     }
     mappingHoverPatchCount += 1;
+  }
+
+  function appendDiagram2ActiveFieldMappingRelationship(parent, relationship, route) {
+    if (!route?.path) return;
+    const style = relationshipStyle(relationship);
+    const group = appendSvg(parent, "g", {
+      "data-diagram2-field-mapping-active-relationship": relationship.id,
+      "pointer-events": "none"
+    });
+    appendSvg(group, "path", {
+      class: "diagram2-renderer-relationship diagram2-renderer-active-field-mapping-relationship",
+      "data-diagram2-field-mapping-active-relationship-path": relationship.id,
+      d: route.path,
+      fill: "none",
+      stroke: style.stroke,
+      "stroke-width": style.strokeWidth,
+      opacity: style.opacity,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round",
+      "pointer-events": "none"
+    });
+    patchRelationshipSymbols(group, relationship, route, style);
   }
 
   function fieldMappingRelationship(mapping) {
@@ -2182,6 +2217,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       planes[key] = plane;
       viewportPlane.appendChild(plane);
     });
+    planes.fieldRelationships.style.display = fieldMappingLinesVisible ? "" : "none";
     ["belowObjects", "betweenObjects", "aboveObjects"].forEach(key => {
       planes[key]?.setAttribute("data-diagram2-object-plane", "");
     });
@@ -4384,6 +4420,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     pinFieldMapping,
     clearFieldMappingHover,
     clearFieldMappingSelection,
+    setFieldMappingLinesVisible,
     focusFieldMappingTarget,
     viewportMatrix,
     screenToWorld,

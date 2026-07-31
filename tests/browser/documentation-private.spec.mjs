@@ -222,7 +222,7 @@ test("RTE checkbox lists support dialog editing, ordering, sizing, and read-mode
       checkboxRight: Math.round(checkbox.right)
     };
   });
-  expect(wrapping.display).toBe("grid");
+  expect(wrapping.display).toBe("flex");
   expect(wrapping.lineCount).toBeGreaterThan(1);
   expect(Math.min(...wrapping.lineLefts)).toBeGreaterThan(wrapping.checkboxRight);
   expect(wrapping.lineLefts.some(left => Math.abs(left - wrapping.labelLeft) <= 1)).toBe(true);
@@ -253,6 +253,26 @@ test("RTE checkbox lists support dialog editing, ordering, sizing, and read-mode
   await listDialog.locator("[data-rich-checkbox-auto-width]").check();
   await listDialog.getByRole("button", { name: "Save" }).click();
   await expect(checkboxList).toHaveAttribute("data-rich-check-width-mode", "auto");
+  const autoWidthLayout = await checkboxList.locator(".rich-check-item").first().evaluate(item => {
+    const checkbox = item.querySelector("input[type='checkbox']").getBoundingClientRect();
+    const label = item.querySelector(".rich-check-label");
+    const labelBounds = label.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    const lines = [...range.getClientRects()].filter(rect => rect.width > 1);
+    return {
+      display: getComputedStyle(item).display,
+      checkboxTop: Math.round(checkbox.top),
+      checkboxRight: Math.round(checkbox.right),
+      labelTop: Math.round(labelBounds.top),
+      labelLeft: Math.round(labelBounds.left),
+      lineCount: lines.length
+    };
+  });
+  expect(autoWidthLayout.display).toBe("flex");
+  expect(Math.abs(autoWidthLayout.checkboxTop - autoWidthLayout.labelTop)).toBeLessThanOrEqual(5);
+  expect(autoWidthLayout.labelLeft).toBeGreaterThan(autoWidthLayout.checkboxRight);
+  expect(autoWidthLayout.lineCount).toBe(1);
 
   await fullScreenEditor.locator("[data-action='save-documentation-inline-edit']").first().click();
   await expect.poll(() => calls.filter(call => call.method === "PUT")).toHaveLength(1);

@@ -3,11 +3,12 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day4-v1";
+import { screenRegistry } from "./screen-registry.js?v=20260731-diagram1-overflow-v1";
 import { canReadView } from "../shared/security.js?v=20260725-diagram2-day1-v1";
 
-const navigationVersion = 6;
+const navigationVersion = 7;
 const diagram2OrderMigrationVersion = 6;
+const diagram1NavigationMigrationVersion = 7;
 const betaVisibilityVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
 const lockedVisibleViews = new Set(["About", "Settings"]);
@@ -48,7 +49,7 @@ export function normalizeNavigationConfig(value = {}) {
 
     items.push({
       view,
-      label: navigationLabelFor(item, screensByView.get(view)),
+      label: navigationLabelFor(item, screensByView.get(view), savedVersion),
       visible: navigationVisibleFor(item, screensByView.get(view), savedVersion)
     });
     seenViews.add(view);
@@ -60,7 +61,7 @@ export function normalizeNavigationConfig(value = {}) {
 
   return {
     version: navigationVersion,
-    items: migrateDiagram2Order(enforceFixedNavigationOrder(items), savedVersion)
+    items: enforceFixedNavigationOrder(migrateDiagram2Order(items, savedVersion))
   };
 }
 
@@ -108,8 +109,13 @@ export function visibleNavigationScreens() {
     .filter(screen => screen && canReadView(screen.view));
 }
 
-function navigationLabelFor(item, screen) {
+function navigationLabelFor(item, screen, savedVersion) {
   const label = typeof item?.label === "string" ? item.label.trim() : "";
+  if (screen?.view === "Diagram"
+      && savedVersion < diagram1NavigationMigrationVersion
+      && (!label || label === "Diagram")) {
+    return screen.label;
+  }
   return label || screen?.label || item?.view || "";
 }
 
@@ -147,16 +153,11 @@ function enforceFixedNavigationOrder(items) {
     orderedItems.splice(sprintIndex >= 0 ? sprintIndex + 1 : orderedItems.length, 0, boardItem);
   }
 
-  if (diagramItem) {
-    const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
-    orderedItems.splice(documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length, 0, diagramItem);
-  }
-
   if (logItem) {
-    const diagramIndex = orderedItems.findIndex(item => item.view === "Diagram");
+    const diagram2Index = orderedItems.findIndex(item => item.view === "Diagram 2");
     const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
-    const insertIndex = diagramIndex >= 0
-      ? diagramIndex + (orderedItems[diagramIndex + 1]?.view === "Diagram 2" ? 2 : 1)
+    const insertIndex = diagram2Index >= 0
+      ? diagram2Index + 1
       : documentationIndex >= 0
         ? documentationIndex + 1
         : orderedItems.length;
@@ -170,6 +171,7 @@ function enforceFixedNavigationOrder(items) {
 
   if (aboutItem) orderedItems.push(aboutItem);
   if (settingsItem) orderedItems.push(settingsItem);
+  if (diagramItem) orderedItems.push(diagramItem);
   return orderedItems;
 }
 
@@ -181,8 +183,8 @@ function migrateDiagram2Order(items, savedVersion) {
 
   const diagram2Item = items[diagram2Index];
   const orderedItems = items.filter((_, index) => index !== diagram2Index);
-  const diagramIndex = orderedItems.findIndex(item => item.view === "Diagram");
-  orderedItems.splice(diagramIndex >= 0 ? diagramIndex + 1 : orderedItems.length, 0, diagram2Item);
+  const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
+  orderedItems.splice(documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length, 0, diagram2Item);
   return orderedItems;
 }
 

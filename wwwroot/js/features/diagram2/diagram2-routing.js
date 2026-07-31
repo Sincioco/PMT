@@ -1,7 +1,7 @@
 import {
   adjustAnnotationEntityRelationshipRoute,
   annotationEntityRelationshipRenderModel
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 
 const defaultDiagram2RouteBoundsPadding = 9;
 

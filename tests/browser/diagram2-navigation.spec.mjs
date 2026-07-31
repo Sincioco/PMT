@@ -14,7 +14,7 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/css/base.css");
   const result = await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const state = {
       version: 1,
       width: 480,
@@ -72,20 +72,20 @@ test("Diagram 2 keeps relationship-heavy overview routes stable while zooming", 
       createDiagram2Renderer,
       diagram2CanonicalRelationships
     } = await import(
-      "/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"
+      "/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2"
     );
     const { createDiagram2EditorController } = await import(
-      "/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"
+      "/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"
     );
     const {
       createDiagram2RelationshipRouteModel,
       diagram2RelationshipRouteKey,
       diagram2RelationshipRouteFromModel
     } = await import(
-      "/js/features/diagram2/diagram2-routing.js?v=20260731-diagram2-route-release-v15"
+      "/js/features/diagram2/diagram2-routing.js?v=20260731-rte-checkbox-layout-v2"
     );
     const { annotationCompactEntityRelationshipRouteStateKey } = await import(
-      "/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15"
+      "/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2"
     );
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0;width:1920px;height:1080px";
@@ -438,7 +438,11 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
-  await openNavigationScreen(page, "Diagram");
+  await page.locator(".nav-overflow-toggle").click();
+  const diagram1OverflowItem = page.locator(".nav-overflow-menu button[data-view='Diagram']");
+  await expect(diagram1OverflowItem).toBeVisible();
+  await expect(diagram1OverflowItem).toContainText("Diagram 1");
+  await diagram1OverflowItem.click();
   await expect(page).toHaveURL(/#\/diagram$/);
   await expect(page.locator(".diagram-screen")).toBeVisible();
   await assertDiagram1ClipboardExports(page);
@@ -499,7 +503,10 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-filter='diagram2-snap']")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
-  await assertDiagram2CanvasCopyMenu(page, { copyToClipboard: true });
+  await assertDiagram2CanvasCopyMenu(page, {
+    copyToClipboard: true,
+    viewerOptions: true
+  });
   await assertDiagram2PngDownload(page);
   const readZoomControl = page.locator("[data-filter='diagram2-zoom']");
   await waitForViewportReason(page, "fit");
@@ -705,15 +712,16 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await openNavigationScreen(page, "Settings");
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
   await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram 2']")).toContainText("#/diagram-2");
+  await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram']")).toContainText("Diagram 1");
   await dragNavigationItemBefore(page, "Diagram 2", "Log");
   const navigationOrder = await page.locator("[data-navigation-list] [data-nav-view]").evaluateAll(rows =>
     rows.map(row => row.dataset.navView));
-  expect(navigationOrder.indexOf("Diagram 2")).toBe(navigationOrder.indexOf("Diagram") + 1);
   expect(navigationOrder.indexOf("Log")).toBe(navigationOrder.indexOf("Diagram 2") + 1);
+  expect(navigationOrder.at(-1)).toBe("Diagram");
   const savedNavigationOrder = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("pmt-navigation") || "{}").items?.map(item => item.view) || []);
-  expect(savedNavigationOrder.indexOf("Diagram 2")).toBe(savedNavigationOrder.indexOf("Diagram") + 1);
   expect(savedNavigationOrder.indexOf("Log")).toBe(savedNavigationOrder.indexOf("Diagram 2") + 1);
+  expect(savedNavigationOrder.at(-1)).toBe("Diagram");
 
   expect(browserErrors).toEqual([]);
 });
@@ -837,11 +845,11 @@ test("Diagram 2 Compact visual evidence uses the same post-Compact state as Diag
       buildAnnotationSvg,
       normalizeAnnotationState,
       parseAnnotationSvg
-    } = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    } = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const {
       createDiagram2Renderer,
       diagram2ContentBounds
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
     const fixtures = {};
     if (fixtureNamesInput.includes("pmt-schema")) {
       const pmtSvg = await fetch("/assets/docs/pmt-database-schema.svg", { cache: "no-store" }).then(response => response.text());
@@ -1019,10 +1027,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2")
     ]);
     const state = {
       version: 1,
@@ -1141,8 +1149,8 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
 
   const marqueeCoalesce = await page.evaluate(async () => {
     const [controllerModule, interactionModule] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2")
     ]);
     const canvas = document.createElement("div");
     canvas.tabIndex = 0;
@@ -1511,7 +1519,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260731-diagram2-route-release-v15">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260731-rte-checkbox-layout-v2">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -1522,11 +1530,11 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2")
     ]);
     const root = document.querySelector("#phase4Harness");
     const state = {
@@ -1892,7 +1900,7 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260731-diagram2-route-release-v15">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260731-rte-checkbox-layout-v2">
     <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
 
@@ -1903,10 +1911,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260731-diagram2-route-release-v15")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260731-rte-checkbox-layout-v2")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -3475,7 +3483,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({
@@ -3851,8 +3859,30 @@ async function assertDiagram2RichTextEditorParity(page) {
       && object.html.includes("rich-check-item")
     );
   }, richTextId)).toBe(true);
-  await expect(page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id="${richTextId}"] .diagram2-renderer-rich-text-surface`))
-    .toContainText("Source parity works.");
+  const renderedRichText = page.locator(
+    `[data-diagram2-object-plane] [data-diagram2-object-id="${richTextId}"] .diagram2-renderer-rich-text-surface`
+  );
+  await expect(renderedRichText).toContainText("Source parity works.");
+  const renderedChecklistLayout = await renderedRichText.locator(".rich-check-item").evaluate(item => {
+    const checkbox = item.querySelector("input[type='checkbox']").getBoundingClientRect();
+    const label = item.querySelector(".rich-check-label");
+    const labelBounds = label.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    const lines = [...range.getClientRects()].filter(rect => rect.width > 1);
+    return {
+      display: getComputedStyle(item).display,
+      checkboxTop: Math.round(checkbox.top),
+      checkboxRight: Math.round(checkbox.right),
+      labelTop: Math.round(labelBounds.top),
+      labelLeft: Math.round(labelBounds.left),
+      lineCount: lines.length
+    };
+  });
+  expect(renderedChecklistLayout.display).toBe("flex");
+  expect(Math.abs(renderedChecklistLayout.checkboxTop - renderedChecklistLayout.labelTop)).toBeLessThanOrEqual(5);
+  expect(renderedChecklistLayout.labelLeft).toBeGreaterThan(renderedChecklistLayout.checkboxRight);
+  expect(renderedChecklistLayout.lineCount).toBe(1);
 
   const afterApply = await page.evaluate(async ({ id, baseline }) => {
     const controller = window.__pmtDiagram2EditorCore;
@@ -4022,6 +4052,15 @@ async function assertDiagram2ObjectContextMenuParity(page) {
 async function assertDiagram2CanvasCopyMenu(page, options = {}) {
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   const menu = page.locator("[data-diagram2-canvas-context-menu]");
+  const expectedLabels = options.viewerOptions === true
+    ? [
+        "Entity Relationships",
+        "UI to DB Field Mapping Lines",
+        "Relationship Lines Only",
+        "Copy as SVG",
+        "Copy as PNG"
+      ]
+    : ["Copy as SVG", "Copy as PNG"];
   const openMenu = async () => {
     const box = await canvas.boundingBox();
     expect(box).toBeTruthy();
@@ -4033,8 +4072,73 @@ async function assertDiagram2CanvasCopyMenu(page, options = {}) {
     await expect(menu).toBeVisible();
     expect(await menu.locator("button").evaluateAll(buttons => buttons.map(button =>
       button.querySelector(".dropdown-menu-label")?.textContent?.trim()
-    ))).toEqual(["Copy as SVG", "Copy as PNG"]);
+    ))).toEqual(expectedLabels);
   };
+
+  if (options.viewerOptions === true) {
+    const shell = page.locator("[data-diagram2-readonly-shell]");
+    const svg = page.locator("[data-diagram2-svg]");
+    const entityRelationshipPlane = page.locator("[data-diagram2-relationship-plane]");
+    const fieldRelationshipPlane = page.locator("[data-diagram2-field-relationship-plane]");
+    const fieldRectanglePlane = page.locator("[data-diagram2-field-rectangle-plane]");
+    const mappingTablePlane = page.locator("[data-diagram2-mapping-table-plane]");
+    const mappingHighlightPlane = page.locator("[data-diagram2-mapping-highlight-plane]");
+    const firstRelationshipSymbols = page.locator("[data-diagram2-relationship-symbols]").first();
+    const fullRenderCount = async () => Number(await svg.getAttribute("data-diagram2-full-render-count") || 0);
+    const originalFullRenderCount = await fullRenderCount();
+    const displayValue = locator => locator.evaluate(node => getComputedStyle(node).display);
+
+    await openMenu();
+    const entityRelationships = menu.locator("[data-diagram2-toggle-entity-relationships]");
+    await expect(entityRelationships).toHaveAttribute("role", "menuitemcheckbox");
+    await expect(entityRelationships).toHaveAttribute("aria-checked", "true");
+    await entityRelationships.click();
+    await expect(menu).toBeHidden();
+    await expect(shell).toHaveClass(/is-entity-relationships-hidden/);
+    expect(await displayValue(entityRelationshipPlane)).toBe("none");
+
+    await openMenu();
+    await expect(entityRelationships).toHaveAttribute("aria-checked", "false");
+    await entityRelationships.click();
+    await expect(shell).not.toHaveClass(/is-entity-relationships-hidden/);
+    expect(await displayValue(entityRelationshipPlane)).not.toBe("none");
+
+    await openMenu();
+    const fieldMappings = menu.locator("[data-diagram2-toggle-field-mappings]");
+    await expect(fieldMappings).toHaveAttribute("role", "menuitemcheckbox");
+    await expect(fieldMappings).toHaveAttribute("aria-checked", "true");
+    await fieldMappings.click();
+    await expect(shell).toHaveClass(/is-field-mapping-lines-hidden/);
+    expect(await displayValue(fieldRelationshipPlane)).toBe("none");
+    expect(await displayValue(fieldRectanglePlane)).not.toBe("none");
+    expect(await displayValue(mappingTablePlane)).not.toBe("none");
+    expect(await displayValue(mappingHighlightPlane)).not.toBe("none");
+
+    await openMenu();
+    await expect(fieldMappings).toHaveAttribute("aria-checked", "false");
+    await fieldMappings.click();
+    await expect(shell).not.toHaveClass(/is-field-mapping-lines-hidden/);
+    expect(await displayValue(fieldRelationshipPlane)).not.toBe("none");
+    expect(await displayValue(fieldRectanglePlane)).not.toBe("none");
+    expect(await displayValue(mappingTablePlane)).not.toBe("none");
+    expect(await displayValue(mappingHighlightPlane)).not.toBe("none");
+
+    await expect(firstRelationshipSymbols).toHaveCount(1);
+    await openMenu();
+    const relationshipLinesOnly = menu.locator("[data-diagram2-toggle-relationship-lines-only]");
+    await expect(relationshipLinesOnly).toHaveAttribute("role", "menuitemcheckbox");
+    await expect(relationshipLinesOnly).toHaveAttribute("aria-checked", "false");
+    await relationshipLinesOnly.click();
+    await expect(shell).toHaveClass(/is-relationship-lines-only/);
+    expect(await displayValue(firstRelationshipSymbols)).toBe("none");
+
+    await openMenu();
+    await expect(relationshipLinesOnly).toHaveAttribute("aria-checked", "true");
+    await relationshipLinesOnly.click();
+    await expect(shell).not.toHaveClass(/is-relationship-lines-only/);
+    expect(await displayValue(firstRelationshipSymbols)).not.toBe("none");
+    expect(await fullRenderCount()).toBe(originalFullRenderCount);
+  }
 
   await openMenu();
   await menu.locator("[data-action='copy-diagram2-svg']").click();
@@ -4077,6 +4181,15 @@ async function assertDiagram1ClipboardExports(page) {
       clientY: box.y + Math.min(80, box.height / 2)
     });
     await expect(menu).toBeVisible();
+    expect(await menu.locator("button").evaluateAll(buttons => buttons.map(button =>
+      button.querySelector(".dropdown-menu-label")?.textContent?.trim()
+    ))).toEqual([
+      "Entity Relationships",
+      "UI to DB Field Mapping Lines",
+      "Relationship Lines Only",
+      "Copy as SVG",
+      "Copy as PNG"
+    ]);
   };
 
   await openMenu();
@@ -4549,7 +4662,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4659,7 +4772,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -4866,7 +4979,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -5075,10 +5188,10 @@ async function assertDiagram2LargeEntityEditingGates(page) {
     const {
       createDiagram2Renderer,
       diagram2CanonicalRelationships
-    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
+    } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
     const {
       createDiagram2EditorController
-    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15");
+    } = await import("/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2");
     const output = [];
 
     for (const entityCount of [500, 1000]) {

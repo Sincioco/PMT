@@ -1,4 +1,4 @@
-import { normalizeAnnotationState } from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+import { normalizeAnnotationState } from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 
 let diagram2ImageSequence = 0;
 

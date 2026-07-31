@@ -61,7 +61,7 @@ import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-ht
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260731-diagram2-route-release-v15";
+} from "../../shared/tree-nav-state.js?v=20260731-rte-checkbox-layout-v2";
 
 const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);

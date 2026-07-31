@@ -7,11 +7,11 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "./components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
-} from "./components/diagram-field-mapping-interactions.js?v=20260731-diagram2-route-release-v15";
+} from "./components/diagram-field-mapping-interactions.js?v=20260731-rte-checkbox-layout-v2";
 import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import {
   htmlWithoutUserMentionMarkup,
@@ -40,7 +40,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260722-rich-entity-mentions-v1";
-import { createApplicationShell } from "./core/application-shell.js?v=20260726-diagram2-nav-icon-v1";
+import { createApplicationShell } from "./core/application-shell.js?v=20260731-diagram1-overflow-v1";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -49,13 +49,13 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260726-diagram2-nav-icon-v1";
+} from "./core/router.js?v=20260731-diagram1-overflow-v1";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=20260725-diagram2-day4-v1";
+} from "./core/screen-registry.js?v=20260731-diagram1-overflow-v1";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -66,7 +66,7 @@ import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   diagramSharedDocumentContract,
   normalizeDiagramTemplateLibrary
-} from "./shared/diagram-contracts.js?v=20260731-diagram2-route-release-v15";
+} from "./shared/diagram-contracts.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createAboutAuthFlyby,
   createAboutFeature,
@@ -76,9 +76,9 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260731-diagram2-route-release-v15";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260731-diagram2-route-release-v15";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-route-release-v15";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260731-rte-checkbox-layout-v2";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260731-rte-checkbox-layout-v2";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -91,7 +91,7 @@ import { createReleaseNotesFeature } from "./features/release-notes/release-note
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260726-diagram2-nav-icon-v1";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260731-diagram1-overflow-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
 import { createSuggestionsFeature } from "./features/suggestions/suggestions.js?v=20260725-day36-v1";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260722-rte-toggle-state-v1";

@@ -3,7 +3,7 @@ import {
   annotationImageCropCornerRadii,
   annotationImageCropInsets,
   permanentlyCropAnnotationImage
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 
 const cropCornerKeys = ["topLeft", "topRight", "bottomRight", "bottomLeft"];
 const maximumCropCornerRadius = 200;

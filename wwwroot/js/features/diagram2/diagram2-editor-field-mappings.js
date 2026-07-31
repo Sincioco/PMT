@@ -2,7 +2,7 @@ import {
   diagram2FieldMappingIdentity,
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
 
 export function createDiagram2FieldMappingIndexes(objectsInput = []) {
   const objects = Array.isArray(objectsInput) ? objectsInput : [];

@@ -18,10 +18,10 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
-import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260731-rte-checkbox-layout-v2";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
-import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
+import { sectionHead } from "../../components/sections.js?v=20260731-diagram1-overflow-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
 import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
@@ -33,7 +33,7 @@ import {
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260726-d2-flat-diagnostics-v1";
-import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=20260726-diagram2-nav-icon-v1";
+import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=20260731-diagram1-overflow-v1";
 import { state } from "../../core/store.js";
 import {
   blankDiagramSource,
@@ -46,7 +46,7 @@ import {
   diagramUpdatedTime,
   loadDiagramCanonicalState,
   loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260731-diagram2-route-release-v15";
+} from "../../shared/diagram-documents.js?v=20260731-rte-checkbox-layout-v2";
 import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js";
@@ -54,19 +54,19 @@ import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260731-diagram2-route-release-v15";
+} from "../../shared/tree-nav-state.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-compatibility.js?v=20260731-rte-checkbox-layout-v2";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-route-release-v15";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-rte-checkbox-layout-v2";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -88,7 +88,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -97,11 +97,11 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -192,6 +192,9 @@ export function createDiagram2Feature({
   let diagram2TemplateState = null;
   let diagram2ObjectTreeDrag = null;
   let diagram2TreeRevealSelection = false;
+  let diagram2ReadonlyEntityRelationshipsVisible = true;
+  let diagram2ReadonlyFieldMappingLinesVisible = true;
+  let diagram2ReadonlyRelationshipLinesOnly = false;
 
   function syncDiagram2LeftNavContextFromStorage() {
     selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
@@ -1122,7 +1125,7 @@ export function createDiagram2Feature({
           ${diagram2ViewerHtml(selectedDocument, selectedMissingId)}
         </section>
         ${diagram2TreeContextMenuHtml()}
-        ${diagram2CanvasContextMenuHtml()}
+        ${diagram2CanvasContextMenuHtml({ viewerOptions: true })}
       </div>
     `;
   }
@@ -1345,9 +1348,15 @@ export function createDiagram2Feature({
     `;
   }
 
-  function diagram2CanvasContextMenuHtml() {
+  function diagram2CanvasContextMenuHtml(options = {}) {
     return `
-      <div class="dropdown-menu documentation-tree-context-menu diagram2-canvas-context-menu" data-diagram2-canvas-context-menu role="menu" aria-label="Diagram canvas actions" hidden>
+      <div class="dropdown-menu documentation-tree-context-menu diagram2-canvas-context-menu" data-diagram2-canvas-context-menu role="menu" aria-label="${options.viewerOptions === true ? "Diagram viewer options" : "Diagram canvas actions"}" hidden>
+        ${options.viewerOptions === true ? `
+          <button type="button" class="dropdown-menu-item" data-diagram2-toggle-entity-relationships role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Entity Relationships</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+          <button type="button" class="dropdown-menu-item" data-diagram2-toggle-field-mappings role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8863;</span><span class="dropdown-menu-label">UI to DB Field Mapping Lines</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+          <button type="button" class="dropdown-menu-item" data-diagram2-toggle-relationship-lines-only role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#9472;</span><span class="dropdown-menu-label">Relationship Lines Only</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+          <div class="rich-image-menu-separator" role="separator"></div>
+        ` : ""}
         ${diagram2TreeContextMenuItemHtml("copy-diagram2-svg", "Copy as SVG", "&#10697;", "data-diagram2-context-requires-export")}
         ${diagram2TreeContextMenuItemHtml("copy-diagram2-png", "Copy as PNG", "&#9635;", "data-diagram2-context-requires-export")}
       </div>
@@ -1552,7 +1561,10 @@ export function createDiagram2Feature({
       diagram2Controller = null;
       globalThis.__pmtDiagram2EditorCore = null;
     }
-    let diagnostics = diagram2Renderer.render(diagram2RendererState, {
+    const rendererState = isEditMode
+      ? diagram2RendererState
+      : diagram2ReadonlyRendererState(diagram2RendererState);
+    let diagnostics = diagram2Renderer.render(rendererState, {
       reason: "initial"
     });
     syncDiagram2VisibleViewportInset({ refit: false });
@@ -2020,6 +2032,7 @@ export function createDiagram2Feature({
 
   function resetDiagram2Renderer() {
     abortDiagram2ViewportControls();
+    resetDiagram2ReadonlyViewOptions();
     if (diagram2IgnoreScrollTimer) globalThis.clearTimeout(diagram2IgnoreScrollTimer);
     diagram2IgnoreScrollTimer = 0;
     diagram2IgnoringScrollEvent = false;
@@ -2545,21 +2558,96 @@ export function createDiagram2Feature({
     }, { signal });
   }
 
+  function resetDiagram2ReadonlyViewOptions() {
+    diagram2ReadonlyEntityRelationshipsVisible = true;
+    diagram2ReadonlyFieldMappingLinesVisible = true;
+    diagram2ReadonlyRelationshipLinesOnly = false;
+  }
+
+  function diagram2ReadonlyRendererState(stateInput) {
+    return {
+      ...stateInput,
+      relationshipStyle: {
+        ...(stateInput?.relationshipStyle || {}),
+        showSymbols: true
+      }
+    };
+  }
+
+  function diagram2ReadonlyVisibilityRenderOptions() {
+    return {
+      hideEntityRelationships: !diagram2ReadonlyEntityRelationshipsVisible,
+      hideFieldRectangleRelationships: !diagram2ReadonlyFieldMappingLinesVisible,
+      relationshipStyleOverride: {
+        showSymbols: diagram2ReadonlyRelationshipLinesOnly !== true
+      }
+    };
+  }
+
+  function applyDiagram2ReadonlyViewOptions(viewer) {
+    const shell = viewer?.querySelector?.("[data-diagram2-readonly-shell]");
+    if (!shell) return;
+    shell.classList.toggle(
+      "is-entity-relationships-hidden",
+      !diagram2ReadonlyEntityRelationshipsVisible
+    );
+    shell.classList.toggle(
+      "is-field-mapping-lines-hidden",
+      !diagram2ReadonlyFieldMappingLinesVisible
+    );
+    shell.classList.toggle(
+      "is-relationship-lines-only",
+      diagram2ReadonlyRelationshipLinesOnly
+    );
+    diagram2Renderer?.setFieldMappingLinesVisible?.(diagram2ReadonlyFieldMappingLinesVisible);
+  }
+
   function bindDiagram2CanvasContextMenu(viewer, canvas, signal, options = {}) {
     const menu = app.querySelector("[data-diagram2-canvas-context-menu]");
     if (!menu) return;
+    const viewerOptions = options.editMode !== true;
     const closeMenu = () => {
       menu.hidden = true;
       viewer?.classList?.remove("rich-image-menu-open");
     };
+    const syncCheckbox = (selector, checked) => {
+      const button = menu.querySelector(selector);
+      if (!button) return;
+      button.classList.toggle("is-checked", checked);
+      button.setAttribute("aria-checked", String(checked));
+      button.querySelector(".dropdown-menu-check").innerHTML = checked ? "&#10003;" : "";
+    };
+    const syncMenu = () => {
+      if (viewerOptions) {
+        syncCheckbox(
+          "[data-diagram2-toggle-entity-relationships]",
+          diagram2ReadonlyEntityRelationshipsVisible
+        );
+        syncCheckbox(
+          "[data-diagram2-toggle-field-mappings]",
+          diagram2ReadonlyFieldMappingLinesVisible
+        );
+        syncCheckbox(
+          "[data-diagram2-toggle-relationship-lines-only]",
+          diagram2ReadonlyRelationshipLinesOnly
+        );
+      }
+      const canExport = diagram2CurrentSecurity().canExport === true;
+      menu.querySelectorAll("[data-diagram2-context-requires-export]").forEach(button => {
+        button.disabled = !canExport;
+      });
+    };
+    if (viewerOptions) applyDiagram2ReadonlyViewOptions(viewer);
     canvas.addEventListener("contextmenu", event => {
       const objectTarget = event.target.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]");
       if (options.editMode === true && objectTarget) return;
-      if (!diagram2CurrentOutputState() || !diagram2CurrentSecurity().canExport) return;
+      if (!diagram2CurrentOutputState()) return;
+      if (!viewerOptions && !diagram2CurrentSecurity().canExport) return;
       event.preventDefault();
       event.stopPropagation();
       app.querySelector("[data-diagram2-tree-context-menu]")?.setAttribute("hidden", "");
       closeDiagram2EditorContextMenu(viewer);
+      syncMenu();
       menu.hidden = false;
       menu.style.position = "fixed";
       viewer?.classList?.add("rich-image-menu-open");
@@ -2571,11 +2659,37 @@ export function createDiagram2Feature({
       menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
     }, { signal });
     menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
-    menu.addEventListener("click", closeMenu, { signal });
+    menu.addEventListener("click", event => {
+      const toggle = event.target.closest?.(
+        "[data-diagram2-toggle-entity-relationships], [data-diagram2-toggle-field-mappings], [data-diagram2-toggle-relationship-lines-only]"
+      );
+      if (!toggle) {
+        closeMenu();
+        return;
+      }
+
+      event.preventDefault();
+      let checked = false;
+      if (toggle.matches("[data-diagram2-toggle-entity-relationships]")) {
+        diagram2ReadonlyEntityRelationshipsVisible = !diagram2ReadonlyEntityRelationshipsVisible;
+        checked = diagram2ReadonlyEntityRelationshipsVisible;
+      } else if (toggle.matches("[data-diagram2-toggle-field-mappings]")) {
+        diagram2ReadonlyFieldMappingLinesVisible = !diagram2ReadonlyFieldMappingLinesVisible;
+        checked = diagram2ReadonlyFieldMappingLinesVisible;
+      } else {
+        diagram2ReadonlyRelationshipLinesOnly = !diagram2ReadonlyRelationshipLinesOnly;
+        checked = diagram2ReadonlyRelationshipLinesOnly;
+      }
+      applyDiagram2ReadonlyViewOptions(viewer);
+      syncMenu();
+      closeMenu();
+      notify?.(`${toggle.querySelector(".dropdown-menu-label")?.textContent || "Diagram option"} ${checked ? "on" : "off"}.`);
+    }, { signal });
     window.addEventListener("pointerdown", event => {
       if (!menu.hidden && !menu.contains(event.target)) closeMenu();
     }, { signal });
     window.addEventListener("scroll", closeMenu, { capture: true, passive: true, signal });
+    window.addEventListener("resize", closeMenu, { signal });
     window.addEventListener("keydown", event => {
       if (menu.hidden) return;
       if (event.key === "Escape" || event.key === "Tab") {
@@ -2841,7 +2955,13 @@ export function createDiagram2Feature({
     try {
       await diagram2Renderer?.whenIdle();
       const portableState = await buildPortableAnnotationState(stateForExport);
-      const svg = prepareDiagram2SvgForDownload(buildAnnotationSvg(portableState), options);
+      const svg = prepareDiagram2SvgForDownload(
+        buildAnnotationSvg(
+          portableState,
+          diagram2EditModeActive() ? undefined : diagram2ReadonlyVisibilityRenderOptions()
+        ),
+        options
+      );
       await copyAnnotationSvgToClipboard(svg);
       notify?.("Diagram copied as SVG.");
       return true;
@@ -2859,7 +2979,13 @@ export function createDiagram2Feature({
     try {
       await diagram2Renderer?.whenIdle();
       const portableState = await buildPortableAnnotationState(stateForExport);
-      const svg = prepareDiagram2SvgForDownload(buildAnnotationSvg(portableState), options);
+      const svg = prepareDiagram2SvgForDownload(
+        buildAnnotationSvg(
+          portableState,
+          diagram2EditModeActive() ? undefined : diagram2ReadonlyVisibilityRenderOptions()
+        ),
+        options
+      );
       await copyAnnotationPngToClipboard({ svg, ...diagram2SvgMetrics(svg) });
       notify?.("Diagram copied as PNG.");
       return true;

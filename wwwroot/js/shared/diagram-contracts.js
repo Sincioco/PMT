@@ -3,7 +3,7 @@ import {
   normalizeAnnotationState,
   normalizeAnnotationTemplateLibrary,
   parseAnnotationSvg
-} from "../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 
 export const pmtDiagramFileFormat = "pmt-diagram";
 export const pmtDiagramFileVersion = 1;

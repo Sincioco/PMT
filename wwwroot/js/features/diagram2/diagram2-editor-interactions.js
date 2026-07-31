@@ -1,14 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
 import {
   resizeDiagram2CropClip
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
 
 const diagram2ShortcutTools = {
   v: "select",

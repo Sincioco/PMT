@@ -80,13 +80,13 @@ async function setupRouteFixture(page, fixture) {
     window.__diagram2RoutePerformance?.destroy?.();
 
     const { createDiagram2Renderer, diagram2CanonicalRelationships } = await import(
-      "/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15"
+      "/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2"
     );
     const { createDiagram2EditorController } = await import(
-      "/js/features/diagram2/diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15"
+      "/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"
     );
     const { bindDiagram2EditorInteractions } = await import(
-      "/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15"
+      "/js/features/diagram2/diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2"
     );
 
     const state = createFixtureState(spec.entityCount, spec.relationshipCount);

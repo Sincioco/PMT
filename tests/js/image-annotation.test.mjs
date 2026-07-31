@@ -6413,7 +6413,7 @@ test("rich-text Diagram objects render on the canvas and round-trip editable HTM
       fill: "none",
       stroke: "#42526b",
       strokeWidth: 2,
-      html: `<p><strong>Tutorial note</strong></p><details class="rich-code-block" open><summary>SQL</summary><pre><code><span class="rich-source-token-keyword">SELECT</span> 1<br></code></pre></details><script>alert("bad")</script>`
+      html: `<p><strong>Tutorial note</strong></p><div class="rich-check-list" data-rich-check-list><div class="rich-check-list-items"><div class="rich-check-item"><input type="checkbox"><div class="rich-check-label">Review the tutorial</div></div></div></div><details class="rich-code-block" open><summary>SQL</summary><pre><code><span class="rich-source-token-keyword">SELECT</span> 1<br></code></pre></details><script>alert("bad")</script>`
     }]
   });
 
@@ -6421,11 +6421,14 @@ test("rich-text Diagram objects render on the canvas and round-trip editable HTM
   assert.match(svg, /<foreignObject\b/);
   assert.match(svg, /class="image-annotation-rich-text-surface rich-readonly"/);
   assert.match(svg, /rich-source-token-keyword/);
+  assert.match(svg, /\.image-annotation-rich-text-surface \.rich-check-item\{display:flex;/);
+  assert.match(svg, /\.image-annotation-rich-text-surface \.rich-check-label\{flex:1 1 auto;/);
   assert.doesNotMatch(svg, /<script/i);
 
   const restored = parseAnnotationSvg(svg).objects[0];
   assert.equal(restored.type, "rich-text");
   assert.match(restored.html, /Tutorial note/);
+  assert.match(restored.html, /rich-check-list/);
   assert.match(restored.html, /rich-code-block/);
   assert.doesNotMatch(restored.html, /<script/i);
 });

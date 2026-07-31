@@ -26,7 +26,7 @@ test("Diagram 1 Crop oracle preserves the shared Phase 6 Crop fixture", async ({
   await page.goto("/image-annotation-crop-test.html");
 
   await page.evaluate(async imageSource => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const state = annotation.normalizeAnnotationState({
       width: 1600,
       height: 900,
@@ -124,7 +124,7 @@ test("Diagram 1 Crop oracle preserves the shared Phase 6 Crop fixture", async ({
   await dialog.getByRole("button", { name: "Done", exact: true }).click();
   await page.evaluate(() => window.__d1CropPromise);
   const saved = await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const image = window.__d1CropResult.state.objects.find(object => object.id === "crop-parity-image");
     return {
       insets: annotation.annotationImageCropInsets(image),
@@ -149,7 +149,7 @@ test("Diagram 1 Crop oracle preserves the shared Phase 6 Crop fixture", async ({
   });
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const state = window.__d1CropResult.state;
     const annotationUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(annotation.buildAnnotationSvg(state))}`;
     window.__d1CropReopenPromise = annotation.openImageAnnotationDialog({
@@ -212,7 +212,7 @@ test("Diagram editable copy and paste writes the shared selection clipboard pack
   await page.goto("/image-annotation-clipboard-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const state = annotation.normalizeAnnotationState({
       width: 600,
       height: 400,
@@ -293,7 +293,7 @@ test("Field Mapping Table hover draws yellow mapping highlights without changing
   await page.goto("/image-annotation-hover-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const databaseEntity = {
       id: "project-entity",
       type: "entity",
@@ -420,7 +420,7 @@ test("public Diagram viewer hydrates Field Mapping Table highlights and arrows",
   await page.goto("/public-field-mapping-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
     const state = annotation.normalizeAnnotationState({
       width: 1000,
       height: 650,

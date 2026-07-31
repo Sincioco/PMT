@@ -6,13 +6,13 @@ import {
   parseAnnotationTemplateUpload,
   portableAnnotationTemplate,
   restoreAnnotationDefaultTemplates
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import {
   loadDiagram2DefaultTemplateLibrary,
   loadDiagram2TemplateLibrary,
   normalizeDiagram2TemplateLibrary,
   saveDiagram2TemplateLibrary
-} from "./diagram2-compatibility.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-compatibility.js?v=20260731-rte-checkbox-layout-v2";
 
 const maximumDiagram2Templates = 50;
 

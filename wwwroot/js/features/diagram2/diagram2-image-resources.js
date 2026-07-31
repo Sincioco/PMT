@@ -1,4 +1,4 @@
-import { diagram2ImageSourceIdentity } from "./diagram2-editor-images.js?v=20260731-diagram2-route-release-v15";
+import { diagram2ImageSourceIdentity } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 
 export function createDiagram2ImageResourceManager(options = {}) {
   const resourcesByIdentity = new Map();

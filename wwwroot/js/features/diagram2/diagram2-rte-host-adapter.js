@@ -2,19 +2,19 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import { appUrl } from "../../shared/app-urls.js";
-import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260731-diagram2-route-release-v15";
+import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260731-diagram2-route-release-v15";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-route-release-v15";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-rte-checkbox-layout-v2";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -36,7 +36,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -45,7 +45,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;

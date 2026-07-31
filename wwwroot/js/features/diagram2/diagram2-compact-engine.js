@@ -1,8 +1,8 @@
-import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260731-diagram2-route-release-v15";
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2CompactDiagnostics,
   diagram2CompactPhases
-} from "./diagram2-route-costing.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-route-costing.js?v=20260731-rte-checkbox-layout-v2";
 
 export async function runDiagram2CompactEngine(input = {}) {
   const startedAt = performanceNow();

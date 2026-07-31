@@ -1,6 +1,6 @@
 import {
   buildAnnotationSvg
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import {
   canDiagramFeatureReadPmtDiagramFile,
   createDiagramSelectionClipboardPackage,
@@ -17,7 +17,7 @@ import {
   pmtDiagramFileVersion,
   remapDiagramSelectionClipboardPackageIds,
   serializeDiagramSelectionClipboardPackage
-} from "../../shared/diagram-contracts.js?v=20260731-diagram2-route-release-v15";
+} from "../../shared/diagram-contracts.js?v=20260731-rte-checkbox-layout-v2";
 
 export const diagram2CompatibilityFeatureName = "Diagram 2";
 

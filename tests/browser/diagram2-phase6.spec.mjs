@@ -87,8 +87,31 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   const readOnlyRow = page.locator("[data-diagram2-field-mapping-row]").first();
   await expect(readOnlyRow).toBeVisible();
   const readOnlyFullRenders = await diagnosticNumber(page, "full-render-count");
+  const readOnlyCanvas = page.locator("[data-diagram2-viewer-canvas]");
+  const readOnlyMenu = page.locator("[data-diagram2-canvas-context-menu]");
+  await readOnlyCanvas.click({ button: "right", position: { x: 40, y: 40 } });
+  await expect(readOnlyMenu).toBeVisible();
+  expect(await readOnlyMenu.locator("button").evaluateAll(buttons => buttons.map(button =>
+    button.querySelector(".dropdown-menu-label")?.textContent?.trim()
+  ))).toEqual([
+    "Entity Relationships",
+    "UI to DB Field Mapping Lines",
+    "Relationship Lines Only",
+    "Copy as SVG",
+    "Copy as PNG"
+  ]);
+  await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
+  await expect(page.locator("[data-diagram2-readonly-shell]")).toHaveClass(/is-field-mapping-lines-hidden/);
+  await expect(page.locator("[data-diagram2-object-id='table-phase6']")).toBeVisible();
+  await expect(page.locator("[data-diagram2-object-id='field-phase6']")).toBeVisible();
+  expect(await page.locator("[data-diagram2-field-relationship-plane]").evaluate(
+    node => getComputedStyle(node).display
+  )).toBe("none");
   await readOnlyRow.hover();
   await expect(page.locator("[data-diagram2-field-mapping-hover]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-field-mapping-active-relationship]")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-field-mapping-active-relationship-path]")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
   expect(await diagnosticNumber(page, "full-render-count")).toBe(readOnlyFullRenders);
   await readOnlyRow.press(" ");
   await readOnlyRow.dblclick();
@@ -98,7 +121,41 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "chromium-1920",
     "diagram2-phase6-readonly-mapping-highlight-1920x1080.png"
   );
+  await readOnlyCanvas.click({ button: "right", position: { x: 40, y: 40 } });
+  await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
+  await expect(page.locator("[data-diagram2-readonly-shell]")).not.toHaveClass(/is-field-mapping-lines-hidden/);
 
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram/601";
+  });
+  await expect(page).toHaveURL(/#\/diagram\/601$/);
+  const diagram1Canvas = page.locator("[data-diagram-viewport]");
+  const diagram1Menu = page.locator("[data-diagram-readonly-context-menu]");
+  await expect(diagram1Canvas).toBeVisible();
+  await expect(page.locator("[data-diagram-image]")).toBeVisible();
+  const diagram1CanvasBox = await diagram1Canvas.boundingBox();
+  expect(diagram1CanvasBox).toBeTruthy();
+  await diagram1Canvas.dispatchEvent("contextmenu", {
+    button: 2,
+    clientX: diagram1CanvasBox.x + 40,
+    clientY: diagram1CanvasBox.y + 40
+  });
+  await expect(diagram1Menu).toBeVisible();
+  await expect(diagram1Menu.locator("[data-diagram-toggle-field-mappings] .dropdown-menu-label"))
+    .toHaveText("UI to DB Field Mapping Lines");
+  await diagram1Menu.locator("[data-diagram-toggle-field-mappings]").click();
+  await expect(page.locator("[data-annotation-object-id='table-phase6']")).toBeVisible();
+  await expect(page.locator("[data-annotation-object-id='field-phase6']")).toBeVisible();
+  const diagram1MappingRow = page.locator("[data-annotation-field-mapping-row]").first();
+  await diagram1MappingRow.hover();
+  await expect(page.locator("[data-annotation-field-mapping-active-relationships]")).toHaveCount(1);
+  await expect(page.locator("[data-annotation-field-mapping-attention-arrow]")).toHaveCount(2);
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/601";
+  });
+  await expect(page).toHaveURL(/#\/diagram-2\/601$/);
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
   await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
@@ -906,8 +963,8 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
   }
 
   const d1Evidence = await page.evaluate(async state => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260731-diagram2-route-release-v15");
-    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260731-diagram2-route-release-v15");
+    const annotation = await import("/js/components/image-annotation.js?v=20260731-rte-checkbox-layout-v2");
+    const interactions = await import("/js/components/diagram-field-mapping-interactions.js?v=20260731-rte-checkbox-layout-v2");
     document.body.innerHTML = `<main class="phase6-closure-canvas" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
     const host = document.querySelector(".phase6-closure-canvas");
     const svgMarkup = annotation.buildAnnotationSvg(state, {
@@ -924,10 +981,35 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
       svg.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
     );
     window.__phase6D1HighlightFingerprint = () => highlightFingerprint(svg);
+    const fieldMappingRelationship = annotation.annotationEntityRelationshipRenderModel(
+      state.objects,
+      state.relationshipStyle
+    ).renderedRelationships.find(item =>
+      item.relationship.source?.entityKind === "field-rectangle"
+      || item.relationship.target?.entityKind === "field-rectangle");
+    const hiddenMarkup = annotation.buildAnnotationSvg(state, {
+      hideFieldRectangleRelationships: true,
+      interactiveFieldMapping: true
+    });
+    const hiddenSvg = new DOMParser().parseFromString(hiddenMarkup, "image/svg+xml").documentElement;
+    const activeMarkup = annotation.annotationFieldMappingActiveRelationshipsSvg(
+      state,
+      new Set(fieldMappingRelationship ? [fieldMappingRelationship.relationship.id] : [])
+    );
+    const activeSvg = new DOMParser().parseFromString(
+      `<svg xmlns="http://www.w3.org/2000/svg">${activeMarkup}</svg>`,
+      "image/svg+xml"
+    ).documentElement;
     return {
       table: window.__phase6D1TableFingerprint,
       uiCellCount: table.querySelectorAll("[data-annotation-field-mapping-cell-kind='ui']").length,
-      databaseCellCount: table.querySelectorAll("[data-annotation-field-mapping-cell-kind='database']").length
+      databaseCellCount: table.querySelectorAll("[data-annotation-field-mapping-cell-kind='database']").length,
+      tableVisibleWithLinesHidden: Boolean(hiddenSvg.querySelector("[data-annotation-object-id='table-phase6']")),
+      fieldRectangleVisibleWithLinesHidden: Boolean(hiddenSvg.querySelector("[data-annotation-object-id='field-phase6']")),
+      relationshipCountWithLinesHidden: hiddenSvg.querySelectorAll(".image-annotation-entity-relationship").length,
+      activeRelationshipCount: activeSvg.querySelectorAll(
+        "[data-annotation-field-mapping-active-relationships] .image-annotation-entity-relationship"
+      ).length
     };
 
     function positionOracleSvg(target, diagramState) {
@@ -1123,6 +1205,10 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
   }, canonicalState);
   expect(d1Evidence.uiCellCount).toBe(1);
   expect(d1Evidence.databaseCellCount).toBe(1);
+  expect(d1Evidence.tableVisibleWithLinesHidden).toBe(true);
+  expect(d1Evidence.fieldRectangleVisibleWithLinesHidden).toBe(true);
+  expect(d1Evidence.relationshipCountWithLinesHidden).toBe(0);
+  expect(d1Evidence.activeRelationshipCount).toBe(1);
   await capturePhase6ClosureScreenshot(page, "field-mapping-table-d1-idle-1920x1080.png");
 
   const d1UiCell = page.locator("[data-annotation-field-mapping-cell-kind='ui']").first();
@@ -1140,8 +1226,8 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
 
   const d2Evidence = await page.evaluate(async ({ state, mappingId: activeMappingId }) => {
     document.body.innerHTML = `<main id="phase6D2Host" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-route-release-v15");
-    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260731-diagram2-route-release-v15");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
+    const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260731-rte-checkbox-layout-v2");
     const host = document.querySelector("#phase6D2Host");
     const renderer = createDiagram2Renderer({ host });
     renderer.render(state, { reason: "Phase 6 D1/D2 closure oracle" });
@@ -1322,22 +1408,40 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
 
   const d2UiResult = await page.evaluate(() => {
     const renderer = window.__phase6D2Renderer;
+    renderer.setFieldMappingLinesVisible(false);
     renderer.pinFieldMapping(window.__phase6D2MappingId, {
       tableId: "table-phase6",
       cellKind: "ui"
     });
+    const fieldRelationshipPlane = document.querySelector("[data-diagram2-field-relationship-plane]");
+    const table = document.querySelector("[data-diagram2-object-id='table-phase6']");
+    const fieldRectangle = document.querySelector("[data-diagram2-object-id='field-phase6']");
     return {
       arrows: window.__phase6D2ArrowFingerprint(
         document.querySelectorAll("[data-diagram2-field-mapping-attention-arrows]")
       ),
       highlight: window.__phase6D2HighlightFingerprint(),
-      diagnostics: renderer.diagnostics()
+      diagnostics: renderer.diagnostics(),
+      fieldRelationshipPlaneDisplay: getComputedStyle(fieldRelationshipPlane).display,
+      tableDisplay: getComputedStyle(table).display,
+      fieldRectangleDisplay: getComputedStyle(fieldRectangle).display,
+      activeRelationshipCount: document.querySelectorAll(
+        "[data-diagram2-field-mapping-active-relationship]"
+      ).length,
+      activeRelationshipPathCount: document.querySelectorAll(
+        "[data-diagram2-field-mapping-active-relationship-path]"
+      ).length
     };
   });
   expectArrowParity(d2UiResult.arrows, d1UiArrows);
   expectHighlightParity(d2UiResult.highlight, d1Highlight);
   expect(d2UiResult.diagnostics.fullRenderCount).toBe(d2Evidence.fullRenderCount);
   expect(d2UiResult.diagnostics.selectiveRoutingRelationshipsRerouted).toBe(d2Evidence.relationshipRerouteCount);
+  expect(d2UiResult.fieldRelationshipPlaneDisplay).toBe("none");
+  expect(d2UiResult.tableDisplay).not.toBe("none");
+  expect(d2UiResult.fieldRectangleDisplay).not.toBe("none");
+  expect(d2UiResult.activeRelationshipCount).toBe(1);
+  expect(d2UiResult.activeRelationshipPathCount).toBe(1);
   await capturePhase6ClosureScreenshot(page, "field-mapping-table-d2-ui-cell-arrows-1920x1080.png");
 
   const d2DatabaseResult = await page.evaluate(() => {

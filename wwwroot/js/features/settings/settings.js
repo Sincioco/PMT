@@ -16,7 +16,7 @@ import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
+import { sectionHead } from "../../components/sections.js?v=20260731-diagram1-overflow-v1";
 import { api } from "../../core/api.js";
 import {
   beginImpersonation,
@@ -30,7 +30,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260726-diagram2-nav-icon-v1";
+} from "../../core/navigation-preferences.js?v=20260731-diagram1-overflow-v1";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -45,7 +45,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=20260726-diagram2-nav-icon-v1";
+} from "../../core/router.js?v=20260731-diagram1-overflow-v1";
 import { state } from "../../core/store.js";
 import {
   formatDate,

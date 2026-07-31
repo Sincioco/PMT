@@ -2,25 +2,25 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationFieldMappingImages
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2CropNumericAdjustmentScheduler,
   diagram2CropOptionsPatch,
   diagram2ImageHasReversibleCrop,
   diagram2ResetCropPatch
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
 import {
   isDiagram2ImageFile,
   loadDiagram2ImageDimensions
-} from "./diagram2-editor-images.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 import {
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
 import {
   openDiagram2EntityAnnotationEditor,
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;

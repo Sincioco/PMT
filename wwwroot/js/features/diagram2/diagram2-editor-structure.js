@@ -3,12 +3,12 @@ import {
   compactAnnotationGroupLayers,
   filterAnnotationObjectTree,
   reorderAnnotationObjectTree
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-diagram2-route-release-v15";
-import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260731-diagram2-route-release-v15";
+} from "./diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2";
+import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {
   const state = normalizeDiagram2CanonicalState(stateInput);

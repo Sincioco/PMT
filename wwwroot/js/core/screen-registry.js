@@ -9,7 +9,6 @@ export const screenRegistry = Object.freeze([
   { view: "Bugs", label: "Bug Tracking", feature: "bugs", showInNavigation: true },
   { view: "Scrum", label: "Scrum", feature: "scrum", showInNavigation: true },
   { view: "Documentation", label: "Documentation", feature: "documentation", showInNavigation: true },
-  { view: "Diagram", label: "Diagram", feature: "diagram", showInNavigation: true },
   { view: "Diagram 2", label: "Diagram 2", feature: "diagram-2", showInNavigation: true },
   { view: "Log", label: "Log", feature: "log", showInNavigation: true },
   { view: "Backlog", label: "Backlog", feature: "backlog", showInNavigation: true },
@@ -17,7 +16,8 @@ export const screenRegistry = Object.freeze([
   { view: "Release Notes", label: "Release Notes", feature: "release-notes", showInNavigation: true },
   { view: "Suggestions", label: "Suggestions", feature: "suggestions", showInNavigation: true },
   { view: "About", label: "About", feature: "about", showInNavigation: true },
-  { view: "Settings", label: "Settings", feature: "settings", showInNavigation: true }
+  { view: "Settings", label: "Settings", feature: "settings", showInNavigation: true },
+  { view: "Diagram", label: "Diagram 1", feature: "diagram", showInNavigation: true }
 ]);
 
 const screenHandlers = new Map();

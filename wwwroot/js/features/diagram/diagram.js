@@ -8,6 +8,7 @@ import {
   annotationSvgPlaneMetrics,
   annotationEntityFieldBounds,
   annotationEntityFieldLabelPoint,
+  annotationFieldMappingActiveRelationshipsSvg,
   annotationFieldMappingAttentionHighlightSvg,
   buildAnnotationSvg,
   buildPortableAnnotationState,
@@ -25,7 +26,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260731-diagram2-route-release-v15";
+} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -53,9 +54,9 @@ import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   captureTreeNavState,
   restoreTreeNavState
-} from "../../shared/tree-nav-state.js?v=20260731-diagram2-route-release-v15";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260731-diagram2-route-release-v15";
-import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260731-diagram2-route-release-v15";
+} from "../../shared/tree-nav-state.js?v=20260731-rte-checkbox-layout-v2";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260731-rte-checkbox-layout-v2";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260731-rte-checkbox-layout-v2";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramTreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -581,7 +582,7 @@ export function createDiagramFeature({
     return `
       <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Diagram viewer options" hidden>
         <button type="button" class="dropdown-menu-item" data-diagram-toggle-entity-relationships role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Entity Relationships</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
-        <button type="button" class="dropdown-menu-item" data-diagram-toggle-field-mappings role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8863;</span><span class="dropdown-menu-label">UI to DB Field Mapping</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram-toggle-field-mappings role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8863;</span><span class="dropdown-menu-label">UI to DB Field Mapping Lines</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
         <button type="button" class="dropdown-menu-item" data-diagram-toggle-relationship-lines-only role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#9472;</span><span class="dropdown-menu-label">Relationship Lines Only</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
         <div class="rich-image-menu-separator" role="separator"></div>
         <button type="button" class="dropdown-menu-item" data-diagram-copy-format="svg" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128203;</span><span class="dropdown-menu-label">Copy as SVG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
@@ -1813,7 +1814,6 @@ export function createDiagramFeature({
             if (!readonlyEntityRelationshipsVisible) clearReadonlyRelationshipSelection();
           } else if (toggleButton.matches("[data-diagram-toggle-field-mappings]")) {
             readonlyFieldMappingsVisible = !readonlyFieldMappingsVisible;
-            if (!readonlyFieldMappingsVisible) clearReadonlyFieldMappingSelection();
           } else {
             readonlyRelationshipLinesOnly = !readonlyRelationshipLinesOnly;
           }
@@ -1879,22 +1879,13 @@ export function createDiagramFeature({
       ...readonlyVisibilityRenderOptions(),
       interactiveEntityHeaders: true,
       interactiveRelationships: true,
-      interactiveFieldMapping: readonlyFieldMappingsVisible,
+      interactiveFieldMapping: true,
       fieldMappingHoverIds: new Set(),
       selectedRelationshipIds: readonlyEntityRelationshipsVisible && readonlySelectedRelationshipId
         ? new Set([readonlySelectedRelationshipId])
         : null
     });
-    const readonlyDisplayState = (stateInput = readonlyState) => {
-      if (readonlyFieldMappingsVisible) return stateInput;
-      return {
-        ...stateInput,
-        objects: (Array.isArray(stateInput?.objects) ? stateInput.objects : []).map(object =>
-          diagramObjectIsFieldRectangle(object) || object?.type === "field-mapping-table"
-            ? { ...object, visible: false }
-            : object)
-      };
-    };
+    const readonlyDisplayState = (stateInput = readonlyState) => stateInput;
 
     const viewportSize = () => ({
       width: Math.max(1, viewport.clientWidth),
@@ -1953,7 +1944,7 @@ export function createDiagramFeature({
       imageHeight = Number.parseFloat(image.getAttribute("height")) || viewBox?.height || imageHeight;
       drawStage(renderedZoom, stageMetrics(renderedZoom));
       syncReadonlyContextMenu();
-      if (readonlyFieldMappingsVisible) applyReadonlyFieldMappingHighlight();
+      applyReadonlyFieldMappingHighlight();
     };
 
     const readonlyFieldMappingCellSelector = "[data-annotation-field-mapping-cell]";
@@ -2267,6 +2258,21 @@ export function createDiagramFeature({
         .forEach(element => element.remove());
       image.querySelectorAll("[data-annotation-field-mapping-attention-highlight]")
         .forEach(element => element.remove());
+      image.querySelectorAll("[data-annotation-field-mapping-active-relationships]")
+        .forEach(element => element.remove());
+      if (!readonlyFieldMappingsVisible) {
+        const relationship = annotationFieldMappingActiveRelationshipsSvg(
+          readonlyState,
+          readonlyFieldMappingActiveIds,
+          {
+            zoom: renderedZoom,
+            relationshipStyleOverride: {
+              showSymbols: readonlyRelationshipLinesOnly !== true
+            }
+          }
+        );
+        if (relationship) image.insertAdjacentHTML("beforeend", relationship);
+      }
       const highlight = annotationFieldMappingAttentionHighlightSvg(readonlyState, readonlyFieldMappingActiveIds, renderedZoom);
       if (highlight) image.insertAdjacentHTML("beforeend", highlight);
       renderReadonlyFieldMappingAttentionArrow();

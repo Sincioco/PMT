@@ -1,6 +1,6 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260726-diagram2-nav-icon-v1";
-import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day4-v1";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260731-diagram1-overflow-v1";
+import { screenRegistry } from "./screen-registry.js?v=20260731-diagram1-overflow-v1";
 import { canReadView, firstReadableView } from "../shared/security.js?v=20260725-diagram2-day1-v1";
 
 const legacyViews = Object.freeze({

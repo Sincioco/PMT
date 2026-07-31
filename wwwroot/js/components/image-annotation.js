@@ -8,7 +8,7 @@ import {
   parseDiagramSelectionClipboardPackage,
   remapDiagramSelectionClipboardPackageIds,
   serializeDiagramSelectionClipboardPackage
-} from "../shared/diagram-contracts.js?v=20260731-diagram2-route-release-v15";
+} from "../shared/diagram-contracts.js?v=20260731-rte-checkbox-layout-v2";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const annotationVersion = 1;
@@ -10192,6 +10192,43 @@ export function annotationFieldMappingSelectionSvg(inputState, selectedIdInput, 
     : "";
 }
 
+export function annotationFieldMappingActiveRelationshipsSvg(inputState, selectedIdInput, options = {}) {
+  const state = normalizeAnnotationState(inputState);
+  const selectedIds = selectedIdInput instanceof Set
+    ? selectedIdInput
+    : new Set(selectedIdInput || []);
+  if (!selectedIds.size || state.hideAllEntityRelationships === true) return "";
+
+  const visibleObjects = annotationVisibleObjects(state);
+  const relationshipStyle = {
+    ...(state.relationshipStyle || {}),
+    ...(options.relationshipStyleOverride || {})
+  };
+  const relationshipRenderModel = annotationEntityRelationshipRenderModel(visibleObjects, relationshipStyle, {
+    allowOverlappingLines: state.allowOverlappingEntityLines,
+    manualRoutes: state.manualEntityRelationshipRoutes,
+    compactRouting: state.compactEntityRelationshipRouting
+  });
+  const renderedRelationships = relationshipRenderModel.renderedRelationships.filter(item =>
+    selectedIds.has(item.relationship.id)
+    && annotationRelationshipUsesFieldRectangle(item.relationship));
+  if (!renderedRelationships.length) return "";
+
+  const relationships = annotationEntityRelationshipsSvg(visibleObjects, relationshipStyle, {
+    relationshipRenderModel: {
+      ...relationshipRenderModel,
+      renderedRelationships
+    },
+    fieldRectangleRelationships: "only",
+    zoom: options.zoom,
+    manualRoutes: state.manualEntityRelationshipRoutes,
+    compactRouting: state.compactEntityRelationshipRouting
+  });
+  return relationships
+    ? `<g data-annotation-field-mapping-active-relationships="true" pointer-events="none">${relationships}</g>`
+    : "";
+}
+
 export function annotationFieldMappingAttentionHighlightSvg(inputState, selectedIdInput, zoomInput = 1, relationshipRenderModelInput = null) {
   const state = normalizeAnnotationState(inputState);
   const selectedIds = selectedIdInput instanceof Set
@@ -13037,6 +13074,12 @@ function annotationRichTextSvgStyles(objects) {
 .image-annotation-rich-text-surface th,.image-annotation-rich-text-surface td{min-width:80px;padding:6px;border:1px solid #cbd5e1;vertical-align:top;}
 .image-annotation-rich-text-surface th{background:#f1f5f9;font-weight:700;}
 .image-annotation-rich-text-surface img{max-width:100%;height:auto;border:0;}
+.image-annotation-rich-text-surface .rich-check-list{box-sizing:border-box;max-width:100%;margin:0 0 12px;border:0;}
+.image-annotation-rich-text-surface .rich-check-list-items{display:block;}
+.image-annotation-rich-text-surface .rich-check-item{display:flex;align-items:flex-start;gap:8px;margin:0 0 12px;}
+.image-annotation-rich-text-surface .rich-check-item:last-child{margin-bottom:0;}
+.image-annotation-rich-text-surface .rich-check-item input[type="checkbox"]{flex:0 0 auto;margin-top:.2em;}
+.image-annotation-rich-text-surface .rich-check-item>span,.image-annotation-rich-text-surface .rich-check-label{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
 .image-annotation-rich-text-surface .rich-code-block{margin:10px 0;overflow:hidden;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;}
 .image-annotation-rich-text-surface .rich-code-block summary{display:block;padding:5px 8px;color:#172b4d;font-weight:600;cursor:default;}
 .image-annotation-rich-text-surface .rich-code-block pre{margin:0;padding:10px;overflow:hidden;border-top:1px solid #cbd5e1;background:#ffffff;}
