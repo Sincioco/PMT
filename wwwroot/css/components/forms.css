@@ -61,7 +61,8 @@
 .filter-row input:not([type="checkbox"]),
 .task-filter-row select,
 .task-filter-row input:not([type="checkbox"]),
-.section-head input {
+.section-head input,
+.rich-checkbox-dialog-row > [data-rich-checkbox-row-text] {
   width: 100%;
   min-height: var(--control-height-md);
   border: var(--border-width) solid var(--color-border-control);
@@ -83,7 +84,8 @@
 .filter-row input:not([type="checkbox"]):focus,
 .task-filter-row select:focus,
 .task-filter-row input:not([type="checkbox"]):focus,
-.section-head input:focus {
+.section-head input:focus,
+.rich-checkbox-dialog-row > [data-rich-checkbox-row-text]:focus {
   border-color: var(--color-focus-ring);
   box-shadow: var(--shadow-focus);
 }
@@ -97,7 +99,8 @@
 .filter-row input:not([type="checkbox"]):hover:not(:disabled),
 .task-filter-row select:hover:not(:disabled),
 .task-filter-row input:not([type="checkbox"]):hover:not(:disabled),
-.section-head input:hover:not(:disabled) {
+.section-head input:hover:not(:disabled),
+.rich-checkbox-dialog-row > [data-rich-checkbox-row-text]:hover:not(:disabled) {
   border-color: var(--color-border-strong);
   background-color: var(--color-control-hover);
 }
@@ -110,7 +113,8 @@
 .filter-row input:not([type="checkbox"]):disabled,
 .task-filter-row select:disabled,
 .task-filter-row input:not([type="checkbox"]):disabled,
-.section-head input:disabled {
+.section-head input:disabled,
+.rich-checkbox-dialog-row > [data-rich-checkbox-row-text]:disabled {
   border-color: var(--color-border-subtle);
   background-color: var(--color-control-disabled);
   color: var(--color-text-disabled);
@@ -122,7 +126,8 @@
 .dialog .filter-row select,
 .dialog .filter-row input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .dialog .task-filter-row select,
-.dialog .task-filter-row input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+.dialog .task-filter-row input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dialog .rich-checkbox-dialog-row > [data-rich-checkbox-row-text] {
   height: var(--control-height-md);
   min-height: var(--control-height-md);
   padding-top: 0;
@@ -858,7 +863,7 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .log-content .rich-check-item,
 .scrum-content .rich-check-item {
   color: inherit;
-  cursor: pointer;
+  cursor: text;
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;

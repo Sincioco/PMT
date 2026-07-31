@@ -105,6 +105,21 @@ test("RTE checkbox lists support dialog editing, ordering, sizing, and read-mode
 
   let rows = listDialog.locator("[data-rich-checkbox-dialog-row]");
   await expect(rows).toHaveCount(1);
+  const checkboxTextInputStyle = await rows.first().locator("[data-rich-checkbox-row-text]").evaluate(input => {
+    const style = getComputedStyle(input);
+    return {
+      minHeight: parseFloat(style.minHeight),
+      borderStyle: style.borderStyle,
+      borderRadius: parseFloat(style.borderRadius),
+      paddingLeft: parseFloat(style.paddingLeft),
+      backgroundColor: style.backgroundColor
+    };
+  });
+  expect(checkboxTextInputStyle.minHeight).toBeGreaterThan(20);
+  expect(checkboxTextInputStyle.borderStyle).toBe("solid");
+  expect(checkboxTextInputStyle.borderRadius).toBeGreaterThan(0);
+  expect(checkboxTextInputStyle.paddingLeft).toBeGreaterThan(0);
+  expect(checkboxTextInputStyle.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(await rows.first().evaluate(row => [...row.children].map(child =>
     child.hasAttribute("data-rich-checkbox-row-checked") ? "state"
       : child.hasAttribute("data-rich-checkbox-row-text") ? "text"
@@ -290,6 +305,10 @@ test("RTE checkbox lists support dialog editing, ordering, sizing, and read-mode
   const readonlyCheckbox = readonlyList.locator("input[type='checkbox']").first();
   await expect(readonlyCheckbox).not.toBeChecked();
   await readonlyList.locator(".rich-check-label").first().click();
+  await expect(readonlyCheckbox).not.toBeChecked();
+  await page.waitForTimeout(450);
+  expect(calls.filter(call => call.method === "PUT")).toHaveLength(1);
+  await readonlyCheckbox.click();
   await expect(readonlyCheckbox).toBeChecked();
   await expect.poll(() => calls.filter(call => call.method === "PUT")).toHaveLength(2);
   const savedHtml = appState.blogs.find(item => item.id === 102).bodyHtml;

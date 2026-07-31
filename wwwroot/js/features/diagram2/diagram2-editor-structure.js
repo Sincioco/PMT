@@ -7,7 +7,7 @@ import {
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
 import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {

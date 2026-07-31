@@ -2,7 +2,7 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
 import {
   createDiagram2EmbeddedImage
 } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";

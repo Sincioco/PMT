@@ -5,6 +5,7 @@ import { performance } from "node:perf_hooks";
 import { Worker as NodeWorker } from "node:worker_threads";
 
 import {
+  annotationCompactEntityRelationshipRouteStateKey,
   annotationEntityRelationshipRenderModel,
   annotationOutputBounds,
   autoFormatAnnotationEntitiesOrgTree,
@@ -21,6 +22,7 @@ import {
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-relationships.js";
 import {
   diagram2CanonicalRelationships,
+  diagram2ReadonlyRendererState,
   normalizeDiagram2CanonicalState
 } from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
 import {
@@ -81,6 +83,35 @@ test("Diagram 2 Compact repairs saved routes when no Entity needs to move", asyn
     savedState.compactEntityRelationshipRouteKey,
     result.plan.nextState.compactEntityRelationshipRouteKey
   );
+});
+
+test("Diagram 2 read-only display preserves exact saved Compact routes", async () => {
+  const fixture = graphFixture("compact-readonly-routes", 5, [
+    { source: 1, target: 0 },
+    { source: 2, target: 0 },
+    { source: 3, target: 1 },
+    { source: 4, target: 1 }
+  ]);
+  const result = await runDiagram2CompactEngine({
+    state: structuredClone(fixture.state),
+    preferredRootId: fixture.preferredRootId,
+    selectionAfter: [fixture.preferredRootId]
+  });
+  const savedState = parseAnnotationSvg(buildAnnotationSvg(result.plan.nextState));
+  const savedRouteKey = savedState.compactEntityRelationshipRouteKey;
+  const savedRoutes = structuredClone(savedState.compactEntityRelationshipRoutes);
+  const readonlyState = diagram2ReadonlyRendererState(savedState);
+
+  assert.equal(savedState.relationshipStyle.showSymbols, false);
+  assert.equal(readonlyState.relationshipStyle.showSymbols, true);
+  assert.notEqual(readonlyState.compactEntityRelationshipRouteKey, savedRouteKey);
+  assert.equal(
+    readonlyState.compactEntityRelationshipRouteKey,
+    annotationCompactEntityRelationshipRouteStateKey(readonlyState)
+  );
+  assert.deepEqual(readonlyState.compactEntityRelationshipRoutes, savedRoutes);
+  assert.equal(savedState.compactEntityRelationshipRouteKey, savedRouteKey);
+  assert.deepEqual(savedState.compactEntityRelationshipRoutes, savedRoutes);
 });
 
 test("Diagram 2 Compact enforces D1 selection, Entity-count, and locked-Entity gates", async () => {

@@ -17,7 +17,6 @@ import {
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
-  diagram2ImageHasCropInspector,
   diagram2ImageHasReversibleCrop
 } from "./diagram2-editor-crop.js?v=20260731-rte-checkbox-layout-v2";
 import {
@@ -1778,7 +1777,7 @@ function syncDiagram2InspectorTabVisibility(root, selectedObjects = []) {
   const visibleTabs = {
     format: true,
     rectangle: type === "rectangle",
-    crop: type === "embedded-image" && diagram2ImageHasCropInspector(single),
+    crop: type === "embedded-image",
     "field-mapping-table": type === "field-mapping-table",
     entity: type === "entity" || fieldRectangle || type === "entity-relationship" || type === "entity-relationships"
   };
@@ -1895,7 +1894,7 @@ function syncDiagram2CropControls(root, image, options = {}) {
   const reversible = image ? diagram2ImageHasReversibleCrop(image) : false;
   root.querySelectorAll("[data-diagram2-crop-inset]").forEach(control => {
     control.value = diagram2DimensionText(insets[control.dataset.diagram2CropInset] || 0);
-    control.disabled = !canUse || !reversible;
+    control.disabled = !canUse;
   });
   root.querySelectorAll("[data-diagram2-crop-corner]").forEach(control => {
     control.value = diagram2DimensionText(corners[control.dataset.diagram2CropCorner] || 0);

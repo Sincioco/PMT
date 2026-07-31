@@ -158,8 +158,11 @@ body.diagram2-edit-mode-active #app {
 }
 
 .diagram2-readonly-shell.is-entity-relationships-hidden [data-diagram2-relationship-plane],
+.diagram2-editor-shell.is-entity-relationships-hidden [data-diagram2-relationship-plane],
 .diagram2-readonly-shell.is-field-mapping-lines-hidden [data-diagram2-field-relationship-plane],
-.diagram2-readonly-shell.is-relationship-lines-only [data-diagram2-relationship-symbols] {
+.diagram2-editor-shell.is-field-mapping-lines-hidden [data-diagram2-field-relationship-plane],
+.diagram2-readonly-shell.is-relationship-lines-only [data-diagram2-relationship-symbols],
+.diagram2-editor-shell.is-relationship-lines-only [data-diagram2-relationship-symbols] {
   display: none;
 }
 

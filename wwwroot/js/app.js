@@ -77,8 +77,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-30-day-39-a7ae5029a77f";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260731-rte-checkbox-layout-v2";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260731-rte-checkbox-layout-v2";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-rte-checkbox-layout-v2";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260731-checkbox-d2-view-options-v4";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-checkbox-d2-view-options-v4";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -4231,20 +4231,6 @@ function bindGlobalRichCheckboxSync() {
 
   document.body.dataset.richCheckboxSyncBound = "true";
   document.addEventListener("click", event => {
-    const readOnlyItem = event.target.closest?.([
-      ".rich-readonly [data-rich-check-list] .rich-check-item",
-      ".log-content [data-rich-check-list] .rich-check-item",
-      ".scrum-content [data-rich-check-list] .rich-check-item"
-    ].join(","));
-    if (readOnlyItem && !event.target.closest?.("input, button, a")) {
-      const checkbox = readOnlyItem.querySelector("input[type='checkbox']");
-      if (checkbox && !checkbox.disabled) {
-        event.preventDefault();
-        checkbox.click();
-      }
-      return;
-    }
-
     const checkItem = event.target.closest?.(".rich-editor .rich-check-item");
     if (!checkItem || event.target.closest?.("input[type='checkbox']")) return;
     if (checkItem.closest("[data-rich-check-list]")) {

@@ -19,8 +19,9 @@ import {
 import {
   openDiagram2EntityAnnotationEditor,
   openDiagram2FieldMappingImageChooser,
-  openDiagram2FieldRectangleMappingEditor
-} from "./diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2";
+  openDiagram2FieldRectangleMappingEditor,
+  setDiagram2InspectorActiveTab
+} from "./diagram2-editor-shell.js?v=20260731-diagram2-field-focus-crop-routes-v3";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;
@@ -231,6 +232,7 @@ export function createDiagram2Phase6Host(options = {}) {
       cropModeImageId = image.id;
       renderer.setCropTarget?.(image.id);
       renderer.setSelectionChromeSuppressed?.(image.id, true);
+      setDiagram2InspectorActiveTab(root, "crop");
       notify("Drag the image crop handles inward. The crop cannot extend outside the image.");
       focusWorkspace();
       return true;

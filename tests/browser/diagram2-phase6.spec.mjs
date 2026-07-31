@@ -3,6 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  annotationEntityFieldBounds,
   buildAnnotationSvg,
   normalizeAnnotationState,
   parseAnnotationSvg
@@ -103,24 +104,49 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
   await expect(page.locator("[data-diagram2-readonly-shell]")).toHaveClass(/is-field-mapping-lines-hidden/);
   await expect(page.locator("[data-diagram2-object-id='table-phase6']")).toBeVisible();
-  await expect(page.locator("[data-diagram2-object-id='field-phase6']")).toBeVisible();
+  await expect(page.locator(
+    "[data-diagram2-field-rectangle-plane] [data-diagram2-object-id='field-phase6']"
+  )).toBeHidden();
   expect(await page.locator("[data-diagram2-field-relationship-plane]").evaluate(
     node => getComputedStyle(node).display
   )).toBe("none");
   await readOnlyRow.hover();
+  await expect(page.locator(
+    "[data-diagram2-field-rectangle-plane] [data-diagram2-object-id='field-phase6']"
+  )).toBeVisible();
   await expect(page.locator("[data-diagram2-field-mapping-hover]")).toBeVisible();
   await expect(page.locator("[data-diagram2-field-mapping-active-relationship]")).toHaveCount(1);
   await expect(page.locator("[data-diagram2-field-mapping-active-relationship-path]")).toHaveCount(1);
   await expect(page.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
   expect(await diagnosticNumber(page, "full-render-count")).toBe(readOnlyFullRenders);
   await readOnlyRow.press(" ");
-  await readOnlyRow.dblclick();
   await capturePhase6Screenshot(
     page,
     testInfo,
     "chromium-1920",
     "diagram2-phase6-readonly-mapping-highlight-1920x1080.png"
   );
+  const readOnlyFocusBefore = await prepareDiagram2FieldMappingFocus(page);
+  const readOnlyDatabaseCell = page.locator(
+    "[data-diagram2-field-mapping-cell][data-diagram2-field-mapping-cell-kind='database']"
+  ).first();
+  await expect(readOnlyDatabaseCell).toBeVisible();
+  await page.evaluate(() => {
+    window.__diagram2FieldFocusStartedAt = performance.now();
+  });
+  await readOnlyDatabaseCell.dblclick();
+  const readOnlyFocus = await diagram2FieldFocusEvidence(
+    page,
+    boundsCenter(annotationEntityFieldBounds(phase6TargetEntity(), "TaskId"))
+  );
+  expect(readOnlyFocus.scale).toBeGreaterThan(readOnlyFocusBefore.scale);
+  expect(readOnlyFocus.centerDeltaX).toBeLessThanOrEqual(1);
+  expect(readOnlyFocus.centerDeltaY).toBeLessThanOrEqual(1);
+  expect(Number(readOnlyFocus.zoomControlValue)).toBeCloseTo(readOnlyFocus.scale, 2);
+  expect(readOnlyFocus.reason).toBe("focus Field mapping database field");
+  expect(readOnlyFocus.fullRenderCount).toBe(readOnlyFocusBefore.fullRenderCount);
+  expect(readOnlyFocus.routesRecalculatedDuringSettle).toBe(0);
+  expect(readOnlyFocus.durationMs).toBeLessThan(500);
   await readOnlyCanvas.click({ button: "right", position: { x: 40, y: 40 } });
   await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
   await expect(page.locator("[data-diagram2-readonly-shell]")).not.toHaveClass(/is-field-mapping-lines-hidden/);
@@ -133,6 +159,7 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   const diagram1Menu = page.locator("[data-diagram-readonly-context-menu]");
   await expect(diagram1Canvas).toBeVisible();
   await expect(page.locator("[data-diagram-image]")).toBeVisible();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const diagram1CanvasBox = await diagram1Canvas.boundingBox();
   expect(diagram1CanvasBox).toBeTruthy();
   await diagram1Canvas.dispatchEvent("contextmenu", {
@@ -160,14 +187,66 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
   await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
 
+  const editCanvas = page.locator("[data-diagram2-viewer-canvas]");
+  const editMenu = page.locator("[data-diagram2-canvas-context-menu]");
+  const editCanvasBox = await editCanvas.boundingBox();
+  expect(editCanvasBox).toBeTruthy();
+  await editCanvas.dispatchEvent("contextmenu", {
+    button: 2,
+    clientX: editCanvasBox.x + 24,
+    clientY: editCanvasBox.y + 24
+  });
+  await expect(editMenu).toBeVisible();
+  expect(await editMenu.locator("button").evaluateAll(buttons => buttons.map(button =>
+    button.querySelector(".dropdown-menu-label")?.textContent?.trim()
+  ))).toEqual([
+    "Entity Relationships",
+    "UI to DB Field Mapping Lines",
+    "Relationship Lines Only",
+    "Copy as SVG",
+    "Copy as PNG"
+  ]);
+  await editMenu.locator("[data-diagram2-toggle-field-mappings]").click();
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveClass(/is-field-mapping-lines-hidden/);
+  const editFieldRectangle = page.locator(
+    "[data-diagram2-field-rectangle-plane] [data-diagram2-object-id='field-phase6']"
+  );
+  await expect(editFieldRectangle).toBeHidden();
+  await page.locator("[data-diagram2-field-mapping-row]").first().hover();
+  await expect(editFieldRectangle).toBeVisible();
+  await expect(page.locator("[data-diagram2-field-mapping-active-relationship]")).toHaveCount(1);
+  await page.evaluate(() => window.__pmtDiagram2Renderer.clearFieldMappingHover());
+  await expect(editFieldRectangle).toBeHidden();
+  await editCanvas.dispatchEvent("contextmenu", {
+    button: 2,
+    clientX: editCanvasBox.x + 24,
+    clientY: editCanvasBox.y + 24
+  });
+  await editMenu.locator("[data-diagram2-toggle-field-mappings]").click();
+  await expect(page.locator("[data-diagram2-editor-shell]")).not.toHaveClass(/is-field-mapping-lines-hidden/);
+
   const droppedImage = await assertDiagram2ImageDrop(page, pngBase64);
   expect(uploadedImageCount).toBe(1);
 
-  await page.locator("[data-diagram2-tool='crop']").click();
-  await createDiagram2ReversibleCropCommand(page, droppedImage.id);
-  await expect(page.locator("[data-diagram2-inspector-tab='crop']")).toBeVisible();
-  await page.locator("[data-diagram2-inspector-tab='crop']").click();
+  const cropTab = page.locator("[data-diagram2-inspector-tab='crop']");
+  const cropPanel = page.locator("[data-diagram2-inspector-panel='crop']");
   const cropLeft = page.locator("[data-diagram2-crop-inset='left']");
+  await expect(cropTab).toBeVisible();
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await expect(cropTab).toHaveAttribute("aria-selected", "true");
+  await expect(cropPanel).toBeVisible();
+  await expect(cropLeft).toBeEnabled();
+  await expect(page.locator("[data-diagram2-crop-corner-radius]")).toBeEnabled();
+  await cropLeft.fill("12");
+  await cropLeft.press("Tab");
+  await expect.poll(() => page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const selected = controller.getObjectById(controller.selectedObjectIds()[0]);
+    return selected?.imageClip?.x - selected?.x;
+  })).toBe(12);
+  await createDiagram2ReversibleCropCommand(page, droppedImage.id);
+  await expect(cropTab).toBeVisible();
+  await cropTab.click();
   await cropLeft.fill("24");
   await cropLeft.press("Tab");
   await expect.poll(() => page.evaluate(() => {
@@ -282,6 +361,31 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "chromium-1920",
     "diagram2-phase6-field-mapping-table-hover-1920x1080.png"
   );
+  const editFocusBefore = await prepareDiagram2FieldMappingFocus(page);
+  const editFocusHistoryBefore = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.historyStatus().entryCount);
+  const editDatabaseCell = page.locator(
+    "[data-diagram2-field-mapping-cell][data-diagram2-field-mapping-cell-kind='database']"
+  ).first();
+  await expect(editDatabaseCell).toBeVisible();
+  await page.evaluate(() => {
+    window.__diagram2FieldFocusStartedAt = performance.now();
+  });
+  await editDatabaseCell.dblclick();
+  const editFocus = await diagram2FieldFocusEvidence(
+    page,
+    boundsCenter(annotationEntityFieldBounds(phase6TargetEntity(), "Title"))
+  );
+  expect(editFocus.scale).toBeGreaterThan(editFocusBefore.scale);
+  expect(editFocus.centerDeltaX).toBeLessThanOrEqual(1);
+  expect(editFocus.centerDeltaY).toBeLessThanOrEqual(1);
+  expect(Number(editFocus.zoomControlValue)).toBeCloseTo(editFocus.scale, 2);
+  expect(editFocus.reason).toBe("focus Field mapping database field");
+  expect(editFocus.fullRenderCount).toBe(editFocusBefore.fullRenderCount);
+  expect(editFocus.routesRecalculatedDuringSettle).toBe(0);
+  expect(editFocus.durationMs).toBeLessThan(500);
+  expect(await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.historyStatus().entryCount)).toBe(editFocusHistoryBefore);
 
   const imageCacheMetrics = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
@@ -935,6 +1039,30 @@ test("Diagram 2 Phase 6 keeps a localized mapping editable in a 1,000-object Dia
     "chromium-1920",
     "diagram2-phase6-large-localized-mapping-1920x1080.png"
   );
+  const largeFocusBefore = await prepareDiagram2FieldMappingFocus(page, "large-table");
+  const largeFocusHistoryBefore = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.historyStatus().entryCount);
+  const largeDatabaseCell = page.locator(
+    "[data-diagram2-field-mapping-cell][data-diagram2-field-mapping-cell-kind='database']"
+  ).first();
+  await expect(largeDatabaseCell).toBeVisible();
+  await page.evaluate(() => {
+    window.__diagram2FieldFocusStartedAt = performance.now();
+  });
+  await largeDatabaseCell.dblclick();
+  const largeTarget = largeState.objects.find(object => object.id === "large-target");
+  const largeFocus = await diagram2FieldFocusEvidence(
+    page,
+    boundsCenter(annotationEntityFieldBounds(largeTarget, "Name"))
+  );
+  expect(largeFocus.scale).toBeGreaterThan(largeFocusBefore.scale);
+  expect(largeFocus.centerDeltaX).toBeLessThanOrEqual(1);
+  expect(largeFocus.centerDeltaY).toBeLessThanOrEqual(1);
+  expect(largeFocus.fullRenderCount).toBe(largeFocusBefore.fullRenderCount);
+  expect(largeFocus.routesRecalculatedDuringSettle).toBe(0);
+  expect(largeFocus.durationMs).toBeLessThan(500);
+  expect(await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.historyStatus().entryCount)).toBe(largeFocusHistoryBefore);
   expect(browserErrors).toEqual([]);
 });
 
@@ -1226,7 +1354,7 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
 
   const d2Evidence = await page.evaluate(async ({ state, mappingId: activeMappingId }) => {
     document.body.innerHTML = `<main id="phase6D2Host" style="position:fixed;inset:0;overflow:hidden;background:#fff"></main>`;
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4");
     const { createDiagram2FieldMappingIndexes } = await import("/js/features/diagram2/diagram2-editor-field-mappings.js?v=20260731-rte-checkbox-layout-v2");
     const host = document.querySelector("#phase6D2Host");
     const renderer = createDiagram2Renderer({ host });
@@ -1409,13 +1537,14 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
   const d2UiResult = await page.evaluate(() => {
     const renderer = window.__phase6D2Renderer;
     renderer.setFieldMappingLinesVisible(false);
+    const fieldRectangle = document.querySelector("[data-diagram2-object-id='field-phase6']");
+    const fieldRectangleDisplayBeforePin = getComputedStyle(fieldRectangle).display;
     renderer.pinFieldMapping(window.__phase6D2MappingId, {
       tableId: "table-phase6",
       cellKind: "ui"
     });
     const fieldRelationshipPlane = document.querySelector("[data-diagram2-field-relationship-plane]");
     const table = document.querySelector("[data-diagram2-object-id='table-phase6']");
-    const fieldRectangle = document.querySelector("[data-diagram2-object-id='field-phase6']");
     return {
       arrows: window.__phase6D2ArrowFingerprint(
         document.querySelectorAll("[data-diagram2-field-mapping-attention-arrows]")
@@ -1424,6 +1553,7 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
       diagnostics: renderer.diagnostics(),
       fieldRelationshipPlaneDisplay: getComputedStyle(fieldRelationshipPlane).display,
       tableDisplay: getComputedStyle(table).display,
+      fieldRectangleDisplayBeforePin,
       fieldRectangleDisplay: getComputedStyle(fieldRectangle).display,
       activeRelationshipCount: document.querySelectorAll(
         "[data-diagram2-field-mapping-active-relationship]"
@@ -1439,6 +1569,7 @@ test("D1 and D2 Field Mapping Tables share geometry, cells, highlights, and time
   expect(d2UiResult.diagnostics.selectiveRoutingRelationshipsRerouted).toBe(d2Evidence.relationshipRerouteCount);
   expect(d2UiResult.fieldRelationshipPlaneDisplay).toBe("none");
   expect(d2UiResult.tableDisplay).not.toBe("none");
+  expect(d2UiResult.fieldRectangleDisplayBeforePin).toBe("none");
   expect(d2UiResult.fieldRectangleDisplay).not.toBe("none");
   expect(d2UiResult.activeRelationshipCount).toBe(1);
   expect(d2UiResult.activeRelationshipPathCount).toBe(1);
@@ -1540,6 +1671,64 @@ async function loginAndOpenDiagram2(page, documentId) {
 async function diagnosticNumber(page, key) {
   const text = await page.locator(`[data-diagram2-diagnostic='${key}']`).textContent();
   return Number(text || 0);
+}
+
+async function prepareDiagram2FieldMappingFocus(page, tableId = "table-phase6") {
+  return page.evaluate(async id => {
+    const renderer = window.__pmtDiagram2Renderer;
+    renderer.focusObjectIds([id], {
+      scale: 0.25,
+      reason: "prepare Field mapping focus test"
+    });
+    await renderer.whenIdle();
+    const diagnostics = renderer.diagnostics();
+    return {
+      scale: renderer.viewportMatrix().scale,
+      fullRenderCount: diagnostics.fullRenderCount
+    };
+  }, tableId);
+}
+
+async function diagram2FieldFocusEvidence(page, worldPoint) {
+  return page.evaluate(async point => {
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    const diagnostics = renderer.diagnostics();
+    const surface = document.querySelector("[data-diagram2-renderer-surface]");
+    const surfaceRect = surface.getBoundingClientRect();
+    const main = document.querySelector("[data-diagram2-editor-main]");
+    const pane = main?.classList.contains("is-left-pane-open")
+      ? [...main.querySelectorAll("[data-diagram2-left-pane]")]
+        .find(candidate => candidate.dataset.diagram2LeftPaneName === main.dataset.diagram2LeftPaneMode)
+      : null;
+    const paneRect = pane?.getBoundingClientRect?.();
+    const leftInset = paneRect && paneRect.right > surfaceRect.left && paneRect.left < surfaceRect.right
+      ? Math.round(Math.min(surfaceRect.width - 1, Math.max(0, paneRect.right - surfaceRect.left)))
+      : 0;
+    const target = renderer.worldToScreen(point);
+    const viewportCenter = {
+      x: leftInset + ((Math.round(surfaceRect.width) - leftInset) / 2),
+      y: Math.round(surfaceRect.height) / 2
+    };
+    const scale = renderer.viewportMatrix().scale;
+    return {
+      scale,
+      centerDeltaX: Math.abs(target.x - viewportCenter.x),
+      centerDeltaY: Math.abs(target.y - viewportCenter.y),
+      zoomControlValue: document.querySelector("[data-filter='diagram2-zoom']")?.value || "",
+      reason: document.querySelector("[data-diagram2-svg]")?.dataset.diagram2ViewportReason || "",
+      fullRenderCount: diagnostics.fullRenderCount,
+      routesRecalculatedDuringSettle: Number(diagnostics.routesRecalculatedDuringSettle || 0),
+      durationMs: performance.now() - Number(window.__diagram2FieldFocusStartedAt || performance.now())
+    };
+  }, worldPoint);
+}
+
+function boundsCenter(bounds) {
+  return {
+    x: bounds.x + (bounds.width / 2),
+    y: bounds.y + (bounds.height / 2)
+  };
 }
 
 async function capturePhase6Screenshot(page, testInfo, projectName, fileName) {

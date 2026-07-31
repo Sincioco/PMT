@@ -65,8 +65,8 @@ import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
 } from "./diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-rte-checkbox-layout-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-rte-checkbox-layout-v2";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260731-diagram2-field-focus-crop-routes-v3";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260731-diagram2-field-focus-crop-routes-v3";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -88,7 +88,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-shell.js?v=20260731-diagram2-field-focus-crop-routes-v3";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -100,8 +100,9 @@ import {
 } from "./diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2Renderer,
+  diagram2ReadonlyRendererState,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -1125,7 +1126,7 @@ export function createDiagram2Feature({
           ${diagram2ViewerHtml(selectedDocument, selectedMissingId)}
         </section>
         ${diagram2TreeContextMenuHtml()}
-        ${diagram2CanvasContextMenuHtml({ viewerOptions: true })}
+        ${diagram2CanvasContextMenuHtml()}
       </div>
     `;
   }
@@ -1348,15 +1349,13 @@ export function createDiagram2Feature({
     `;
   }
 
-  function diagram2CanvasContextMenuHtml(options = {}) {
+  function diagram2CanvasContextMenuHtml() {
     return `
-      <div class="dropdown-menu documentation-tree-context-menu diagram2-canvas-context-menu" data-diagram2-canvas-context-menu role="menu" aria-label="${options.viewerOptions === true ? "Diagram viewer options" : "Diagram canvas actions"}" hidden>
-        ${options.viewerOptions === true ? `
-          <button type="button" class="dropdown-menu-item" data-diagram2-toggle-entity-relationships role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Entity Relationships</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
-          <button type="button" class="dropdown-menu-item" data-diagram2-toggle-field-mappings role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8863;</span><span class="dropdown-menu-label">UI to DB Field Mapping Lines</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
-          <button type="button" class="dropdown-menu-item" data-diagram2-toggle-relationship-lines-only role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#9472;</span><span class="dropdown-menu-label">Relationship Lines Only</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
-          <div class="rich-image-menu-separator" role="separator"></div>
-        ` : ""}
+      <div class="dropdown-menu documentation-tree-context-menu diagram2-canvas-context-menu" data-diagram2-canvas-context-menu role="menu" aria-label="Diagram canvas options" hidden>
+        <button type="button" class="dropdown-menu-item" data-diagram2-toggle-entity-relationships role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Entity Relationships</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram2-toggle-field-mappings role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8863;</span><span class="dropdown-menu-label">UI to DB Field Mapping Lines</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram2-toggle-relationship-lines-only role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#9472;</span><span class="dropdown-menu-label">Relationship Lines Only</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+        <div class="rich-image-menu-separator" role="separator"></div>
         ${diagram2TreeContextMenuItemHtml("copy-diagram2-svg", "Copy as SVG", "&#10697;", "data-diagram2-context-requires-export")}
         ${diagram2TreeContextMenuItemHtml("copy-diagram2-png", "Copy as PNG", "&#9635;", "data-diagram2-context-requires-export")}
       </div>
@@ -2394,6 +2393,7 @@ export function createDiagram2Feature({
         canMutate: diagram2CanMutateCurrentDocument,
         onStateChange: syncDiagram2InteractionState,
         onDiagnostics: updateDiagram2Diagnostics,
+        onViewportChange: syncDiagram2FocusedViewport,
         onSetTool: (tool, toolOptions) => diagram2Phase6Host?.setTool(tool, toolOptions),
         onSave: saveDiagram2Document,
         onUndo: undoDiagram2,
@@ -2532,10 +2532,14 @@ export function createDiagram2Feature({
         cell.dataset.diagram2FieldMappingId,
         mappingOptions(cell)
       );
-      diagram2Renderer?.focusFieldMappingTarget?.(
+      const diagnostics = diagram2Renderer?.focusFieldMappingTarget?.(
         cell.dataset.diagram2FieldMappingId,
         { cellKind: cell.dataset.diagram2FieldMappingCellKind }
       );
+      syncDiagram2FocusedViewport(diagnostics, {
+        mappingId: cell.dataset.diagram2FieldMappingId,
+        cellKind: cell.dataset.diagram2FieldMappingCellKind
+      });
     }, { signal });
     canvas.addEventListener("keydown", event => {
       if (event.key === "Escape" && diagram2Renderer?.clearFieldMappingSelection?.()) {
@@ -2550,10 +2554,14 @@ export function createDiagram2Feature({
         mappingOptions(cell)
       );
       if (event.key === "Enter") {
-        diagram2Renderer?.focusFieldMappingTarget?.(
+        const diagnostics = diagram2Renderer?.focusFieldMappingTarget?.(
           cell.dataset.diagram2FieldMappingId,
           { cellKind: cell.dataset.diagram2FieldMappingCellKind }
         );
+        syncDiagram2FocusedViewport(diagnostics, {
+          mappingId: cell.dataset.diagram2FieldMappingId,
+          cellKind: cell.dataset.diagram2FieldMappingCellKind
+        });
       }
     }, { signal });
   }
@@ -2562,16 +2570,6 @@ export function createDiagram2Feature({
     diagram2ReadonlyEntityRelationshipsVisible = true;
     diagram2ReadonlyFieldMappingLinesVisible = true;
     diagram2ReadonlyRelationshipLinesOnly = false;
-  }
-
-  function diagram2ReadonlyRendererState(stateInput) {
-    return {
-      ...stateInput,
-      relationshipStyle: {
-        ...(stateInput?.relationshipStyle || {}),
-        showSymbols: true
-      }
-    };
   }
 
   function diagram2ReadonlyVisibilityRenderOptions() {
@@ -2584,8 +2582,10 @@ export function createDiagram2Feature({
     };
   }
 
-  function applyDiagram2ReadonlyViewOptions(viewer) {
-    const shell = viewer?.querySelector?.("[data-diagram2-readonly-shell]");
+  function applyDiagram2ViewOptions(viewer) {
+    const shell = viewer?.querySelector?.(
+      "[data-diagram2-readonly-shell], [data-diagram2-editor-shell]"
+    );
     if (!shell) return;
     shell.classList.toggle(
       "is-entity-relationships-hidden",
@@ -2605,7 +2605,6 @@ export function createDiagram2Feature({
   function bindDiagram2CanvasContextMenu(viewer, canvas, signal, options = {}) {
     const menu = app.querySelector("[data-diagram2-canvas-context-menu]");
     if (!menu) return;
-    const viewerOptions = options.editMode !== true;
     const closeMenu = () => {
       menu.hidden = true;
       viewer?.classList?.remove("rich-image-menu-open");
@@ -2618,31 +2617,28 @@ export function createDiagram2Feature({
       button.querySelector(".dropdown-menu-check").innerHTML = checked ? "&#10003;" : "";
     };
     const syncMenu = () => {
-      if (viewerOptions) {
-        syncCheckbox(
-          "[data-diagram2-toggle-entity-relationships]",
-          diagram2ReadonlyEntityRelationshipsVisible
-        );
-        syncCheckbox(
-          "[data-diagram2-toggle-field-mappings]",
-          diagram2ReadonlyFieldMappingLinesVisible
-        );
-        syncCheckbox(
-          "[data-diagram2-toggle-relationship-lines-only]",
-          diagram2ReadonlyRelationshipLinesOnly
-        );
-      }
+      syncCheckbox(
+        "[data-diagram2-toggle-entity-relationships]",
+        diagram2ReadonlyEntityRelationshipsVisible
+      );
+      syncCheckbox(
+        "[data-diagram2-toggle-field-mappings]",
+        diagram2ReadonlyFieldMappingLinesVisible
+      );
+      syncCheckbox(
+        "[data-diagram2-toggle-relationship-lines-only]",
+        diagram2ReadonlyRelationshipLinesOnly
+      );
       const canExport = diagram2CurrentSecurity().canExport === true;
       menu.querySelectorAll("[data-diagram2-context-requires-export]").forEach(button => {
         button.disabled = !canExport;
       });
     };
-    if (viewerOptions) applyDiagram2ReadonlyViewOptions(viewer);
+    applyDiagram2ViewOptions(viewer);
     canvas.addEventListener("contextmenu", event => {
       const objectTarget = event.target.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]");
       if (options.editMode === true && objectTarget) return;
       if (!diagram2CurrentOutputState()) return;
-      if (!viewerOptions && !diagram2CurrentSecurity().canExport) return;
       event.preventDefault();
       event.stopPropagation();
       app.querySelector("[data-diagram2-tree-context-menu]")?.setAttribute("hidden", "");
@@ -2680,7 +2676,7 @@ export function createDiagram2Feature({
         diagram2ReadonlyRelationshipLinesOnly = !diagram2ReadonlyRelationshipLinesOnly;
         checked = diagram2ReadonlyRelationshipLinesOnly;
       }
-      applyDiagram2ReadonlyViewOptions(viewer);
+      applyDiagram2ViewOptions(viewer);
       syncMenu();
       closeMenu();
       notify?.(`${toggle.querySelector(".dropdown-menu-label")?.textContent || "Diagram option"} ${checked ? "on" : "off"}.`);
@@ -3706,6 +3702,27 @@ export function createDiagram2Feature({
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
+  }
+
+  function syncDiagram2FocusedViewport(diagnostics, focusTarget = {}) {
+    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    const scale = Number(diagram2Renderer?.viewportMatrix?.().scale || 0);
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    diagram2ViewerZoom = diagram2ZoomOptionValue(scale);
+    writePreference(preferenceKeys.diagram2ViewerZoom, diagram2ViewerZoom);
+    app.querySelector("[data-diagram2-renderer-surface]")?.classList.remove("is-fit");
+    syncDiagram2ReadonlyScrollbars({ reset: true });
+    if (app.querySelector(".diagram2-readonly-canvas[data-diagram2-viewer-canvas]")
+      && focusTarget.mappingId) {
+      const settledDiagnostics = diagram2Renderer.focusFieldMappingTarget?.(
+        focusTarget.mappingId,
+        { cellKind: focusTarget.cellKind }
+      );
+      if (settledDiagnostics) updateDiagram2Diagnostics(settledDiagnostics);
+    }
+    scheduleDiagram2ReadonlyScrollSync({ reset: true });
+    syncDiagram2ZoomControl();
+    scheduleDiagram2ZoomControlSync();
   }
 
   async function undoDiagram2() {

@@ -27,10 +27,25 @@ Task Completion:
 Checkboxes
 ---------
 
+In RTE's toolbar there is a checkbox option.  I would like to change that so it behaves like this:
+1.) When you click on it a dialog box appears which lets you add items, delete items and move them around;
+2.) You can look the Navigation section (in Settings) as a reference.  I like how there's already a checkbox on the left.  Put a textbox after that, and then a move handle so the user can drag it to re-order items.  Also provide a move up and move down button.
+3.) Basically, have a dialog box where the user can add, edit, delete and move around rows of text that will become the checkboxes and labels for them.
+4.) On the left of each row there is a checkbox that can be clicked to determine it's on/off state for the RTE.
+5.) When the save/close the dialog box, it will render in the RTE the checkboxes, the labels in the order that the user set them from the dialog box;
+6.) No need to draw a container border around all the checkboxes, but during edit mode, dynamic show an edit icon so the user can edit the checkboxes via the dialog box;
+7.) Or, if the user cursor is within the virtual container border of checkbox's boundary, and they click the Checkbox icon on the toolbar, let them edit the checkboxes again via the dialog box.
+8.) If the user enters long text or multi-line text, when they wrap around, they should not wrap under the checkbox.  Each checkbox should effectively function as a bullet point.  So the wrapping happens below the first letter of the label, not underneath the checkbox.
+9.) In edit mode, allow the user to resize the virtual container that holds the checkboxes so they can determine if they want the long text to wrap or expand.  Give them an option to use the width of the content area (auto-width).
+10.) If possible, put a pencil button/icon on each row that would allow for Rich Text Editing for each row as an option by bringing up a separate dialog box to edit that row's text.  That way, the label for each checkbox can be rich text.
+
+Diagram
+-------
+11.) In D1 and D2 in read-only mode, change the "UI to DB Field Mapping" to "UI to DB Field Mapping Lines" and let it be the toggle that still hides/shows the Field Mapping Lines except don't hide or show the Field Mapping Table.  Let the Field Mapping Table always be visible.  When the "UI to DB Field Mapping Lines" is turned off and the user hovers on a row on the Field Mapping Table, show the field mapping line for the highlighted row's UI Field and DB Field and the blue 3-second arrow--basically as if the UI to DB Field Mapping is enabled but only for that one row.  That way, we have an option of not showing all of the Field Mapping Lines, but when we hover a row on the Field Mapping Table the user can see just that one Field Mapping Line.
 
 What's New
 ---------------------------------
-For the What's New, I want you to highlight that users can now share Documents and Diagrams with people outside of PMT even if they have no PMT login.  In a separate login, highlight the new Suggestion feature.  Also highlight and mention that when exporting bug reports, you can now include the bug #, created by and date/time, and updated by and date/time.  On a separate section, highlight that PMT can now do UI to Database Field Mapping a revolutionary feature that does not exist anywhere.  Now we can combine PMT's Diagramming Prowess with its ERD Capabilities to produce a UI to Database Field Mapping.  Let the whole IT industry rejoice!  A new tool.  A new concept made and concept by AI (Actual Intelligence) of Sin.  Don't add anymore highlights after this.  Highlight only what I mention here.
+For the What's New, I want you to highlight that Diagram 2 is now fully functional and has all the features of Diagram 1.
 
 Database Migration Script Testing
 ---------------------------------

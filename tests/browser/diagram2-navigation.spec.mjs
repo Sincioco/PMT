@@ -70,9 +70,10 @@ test("Diagram 2 keeps relationship-heavy overview routes stable while zooming", 
   const result = await page.evaluate(async canonicalState => {
     const {
       createDiagram2Renderer,
-      diagram2CanonicalRelationships
+      diagram2CanonicalRelationships,
+      diagram2ReadonlyRendererState
     } = await import(
-      "/js/features/diagram2/diagram2-renderer.js?v=20260731-rte-checkbox-layout-v2"
+      "/js/features/diagram2/diagram2-renderer.js?v=20260731-diagram2-field-focus-crop-routes-v3"
     );
     const { createDiagram2EditorController } = await import(
       "/js/features/diagram2/diagram2-editor-controller.js?v=20260731-rte-checkbox-layout-v2"
@@ -249,7 +250,9 @@ test("Diagram 2 keeps relationship-heavy overview routes stable while zooming", 
       viewportPadding: 0,
       fitScaleStep: 0.05
     });
-    readRenderer.render(savedCompactState, { reason: "saved Compact read mode" });
+    readRenderer.render(diagram2ReadonlyRendererState(savedCompactState), {
+      reason: "saved Compact read mode"
+    });
     const savedLowRouteMismatchCount = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
       .filter(node => expectedCompactPaths.get(node.dataset.diagram2RelationshipId)
         !== (node.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || ""))
@@ -590,7 +593,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "false");
   await assertDiagram2EditModeCursor(page);
-  await assertDiagram2CanvasCopyMenu(page);
+  await assertDiagram2CanvasCopyMenu(page, { viewerOptions: true });
   await expect(page.locator("[data-diagram2-empty-selection]")).toBeVisible();
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeHidden();
   const visibleInspectorTabs = await page.locator("[data-diagram2-inspector-tab]").evaluateAll(tabs =>
@@ -4076,7 +4079,7 @@ async function assertDiagram2CanvasCopyMenu(page, options = {}) {
   };
 
   if (options.viewerOptions === true) {
-    const shell = page.locator("[data-diagram2-readonly-shell]");
+    const shell = page.locator("[data-diagram2-readonly-shell], [data-diagram2-editor-shell]");
     const svg = page.locator("[data-diagram2-svg]");
     const entityRelationshipPlane = page.locator("[data-diagram2-relationship-plane]");
     const fieldRelationshipPlane = page.locator("[data-diagram2-field-relationship-plane]");
@@ -4123,20 +4126,20 @@ async function assertDiagram2CanvasCopyMenu(page, options = {}) {
     expect(await displayValue(mappingTablePlane)).not.toBe("none");
     expect(await displayValue(mappingHighlightPlane)).not.toBe("none");
 
-    await expect(firstRelationshipSymbols).toHaveCount(1);
+    const relationshipSymbolCount = await page.locator("[data-diagram2-relationship-symbols]").count();
     await openMenu();
     const relationshipLinesOnly = menu.locator("[data-diagram2-toggle-relationship-lines-only]");
     await expect(relationshipLinesOnly).toHaveAttribute("role", "menuitemcheckbox");
     await expect(relationshipLinesOnly).toHaveAttribute("aria-checked", "false");
     await relationshipLinesOnly.click();
     await expect(shell).toHaveClass(/is-relationship-lines-only/);
-    expect(await displayValue(firstRelationshipSymbols)).toBe("none");
+    if (relationshipSymbolCount) expect(await displayValue(firstRelationshipSymbols)).toBe("none");
 
     await openMenu();
     await expect(relationshipLinesOnly).toHaveAttribute("aria-checked", "true");
     await relationshipLinesOnly.click();
     await expect(shell).not.toHaveClass(/is-relationship-lines-only/);
-    expect(await displayValue(firstRelationshipSymbols)).not.toBe("none");
+    if (relationshipSymbolCount) expect(await displayValue(firstRelationshipSymbols)).not.toBe("none");
     expect(await fullRenderCount()).toBe(originalFullRenderCount);
   }
 

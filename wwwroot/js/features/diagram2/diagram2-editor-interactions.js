@@ -310,7 +310,8 @@ export function bindDiagram2EditorInteractions(options = {}) {
         tableId: mappingCell.dataset.diagram2FieldMappingTableId,
         cellKind
       });
-      renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
+      const diagnostics = renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
+      options.onViewportChange?.(diagnostics, { mappingId, cellKind });
       options.onStateChange?.();
       return;
     }
@@ -559,7 +560,10 @@ export function bindDiagram2EditorInteractions(options = {}) {
         tableId: focusedMappingCell.dataset.diagram2FieldMappingTableId,
         cellKind
       });
-      if (event.key === "Enter") renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
+      if (event.key === "Enter") {
+        const diagnostics = renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
+        options.onViewportChange?.(diagnostics, { mappingId, cellKind });
+      }
       options.onStateChange?.();
       return;
     }

@@ -47,6 +47,9 @@ const defaultViewportPadding = 16;
 const minimumViewportScale = 0.05;
 const maximumViewportScale = 8;
 const maximumFitViewportScale = 2;
+const minimumFieldMappingFocusScale = 0.1;
+const maximumFieldMappingFocusScale = 3;
+const fieldMappingFocusScaleStep = 0.05;
 const allRelationshipsDirtyToken = "*";
 const diagram2RoutingSectorSize = 320;
 const diagram2ProtectedBoundsPadding = 18;
@@ -166,6 +169,22 @@ export function normalizeDiagram2CanonicalState(inputState) {
     height: defaultDiagram2Height,
     objects: []
   });
+}
+
+export function diagram2ReadonlyRendererState(inputState) {
+  const state = {
+    ...inputState,
+    relationshipStyle: {
+      ...(inputState?.relationshipStyle || {}),
+      showSymbols: true
+    }
+  };
+  if (state.compactEntityRelationshipRouting === true
+    && Array.isArray(state.compactEntityRelationshipRoutes)
+    && state.compactEntityRelationshipRoutes.length) {
+    state.compactEntityRelationshipRouteKey = annotationCompactEntityRelationshipRouteStateKey(state);
+  }
+  return state;
 }
 
 export function diagram2CanonicalSummary(inputState) {
@@ -665,6 +684,24 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       worldPointUnderCursor: null
     });
     return diagnostics();
+  }
+
+  function fieldMappingFocusScale(bounds) {
+    const viewport = viewportSize();
+    const visibleWidth = Math.max(1, viewport.width - viewportInset.left - viewportInset.right);
+    const visibleHeight = Math.max(1, viewport.height - viewportInset.top - viewportInset.bottom);
+    const width = positiveNumber(bounds?.width, 1);
+    const height = positiveNumber(bounds?.height, 1);
+    const readableScale = Math.max(96 / width, 30 / height);
+    const fitScale = Math.min((visibleWidth * 0.72) / width, (visibleHeight * 0.58) / height);
+    let scale = viewportTransform.scale;
+    if (scale < readableScale) scale = Math.min(readableScale, fitScale);
+    else if (scale > fitScale) scale = fitScale;
+    return Math.round(clampNumber(
+      scale,
+      minimumFieldMappingFocusScale,
+      maximumFieldMappingFocusScale
+    ) / fieldMappingFocusScaleStep) * fieldMappingFocusScaleStep;
   }
 
   function addObject(objectInput = {}) {
@@ -1231,6 +1268,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return fieldMappingLinesVisible;
   }
 
+  function syncFieldRectangleMappingVisibility() {
+    const activeSourceId = fieldMappingLinesVisible
+      ? ""
+      : String((mappingHoverState || mappingPinnedState)?.sourceId || "");
+    liveView.objectDataById.forEach((object, id) => {
+      if (!diagram2IsFieldRectangle(object)) return;
+      const node = liveView.objectNodesById.get(id);
+      if (node) node.style.display = fieldMappingLinesVisible || id === activeSourceId ? "" : "none";
+    });
+  }
+
   function focusFieldMappingTarget(mappingIdInput, options = {}) {
     const mappingId = String(mappingIdInput || "").trim();
     const mapping = fieldMappingIndexes.mappingsById.get(mappingId);
@@ -1241,6 +1289,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       : annotationEntityFieldBounds(mapping.target, mapping.targetField)
         || diagram2ObjectContentBounds(mapping.target);
     return focusBounds(bounds, {
+      scale: fieldMappingFocusScale(bounds),
       reason: cellKind === "ui"
         ? "focus Field mapping UI field"
         : "focus Field mapping database field"
@@ -1276,6 +1325,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       .forEach(group => group.remove());
     viewportPlane?.querySelectorAll?.("[data-diagram2-field-mapping-row].is-field-mapping-hover, [data-diagram2-field-mapping-row].is-pinned")
       .forEach(row => row.classList.remove("is-field-mapping-hover", "is-pinned"));
+    syncFieldRectangleMappingVisibility();
 
     const interaction = mappingHoverState || mappingPinnedState;
     if (!interaction || !planes.mappingHighlights) return;
@@ -1484,24 +1534,16 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     appendSvg(parent, "line", {
       "data-diagram2-field-mapping-attention-arrow": kind,
       class: "image-annotation-field-mapping-attention-arrow-line",
-      x1: geometry.start.x,
-      y1: geometry.start.y,
-      x2: geometry.lineEnd.x,
-      y2: geometry.lineEnd.y,
-      stroke: "var(--color-focus-ring)",
-      "stroke-width": 2,
-      "stroke-dasharray": "7 4",
-      "stroke-linecap": "round",
-      opacity: 0.92,
-      "vector-effect": "non-scaling-stroke",
+      x1: formatNumber(geometry.start.x),
+      y1: formatNumber(geometry.start.y),
+      x2: formatNumber(geometry.lineEnd.x),
+      y2: formatNumber(geometry.lineEnd.y),
       "pointer-events": "none"
     });
     appendSvg(parent, "polygon", {
       "data-diagram2-field-mapping-attention-arrow-head": kind,
       class: "image-annotation-field-mapping-attention-arrow-head",
       points: geometry.head.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" "),
-      fill: "var(--color-focus-ring)",
-      opacity: 0.92,
       "pointer-events": "none"
     });
   }
@@ -1712,6 +1754,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const overviewDetailResult = reconcileOverviewDetailLevel("dirty flush");
     objectPatchCount += overviewDetailResult.objectPatchCount;
     patchedNodeCount += overviewDetailResult.objectPatchCount + overviewDetailResult.relationshipPatchCount;
+    syncFieldRectangleMappingVisibility();
     routing.pendingCompactRelationshipRouteIds.clear();
 
     const endTime = now(performanceApi);
@@ -2356,6 +2399,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     liveView.mountedObjectIds.clear();
     desiredIds.forEach(id => liveView.mountedObjectIds.add(id));
+    syncFieldRectangleMappingVisibility();
     patchSelectionOverlays();
     return patchedCount;
   }
@@ -3071,6 +3115,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     const objectResult = patchViewportHaloObjects(plan.objects);
     const relationshipResult = patchViewportHaloRelationships(plan.relationships);
+    syncFieldRectangleMappingVisibility();
     if (relationshipResult.routed > 0) relationshipRouteRevision += relationshipResult.routed;
 
     viewportHalo.active = plan.active;
