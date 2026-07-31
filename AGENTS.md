@@ -24,6 +24,7 @@ PMT is an internal project-management tool for software teams, combining project
 
 - Start with `git status --short` and preserve unrelated changes.
 - At minimum run `dotnet build` and `git diff --check`.
+- Put agent-created build output under `$env:TEMP` whenever possible. After manual `dotnet`, MSBuild, or dev-server runs, stop spawned processes and remove repository-local build and test output before handoff. Preserve the local `.codex/config.toml` permission setting during cleanup.
 - For JavaScript changes, syntax-check changed modules and run the relevant browser smoke tests in Chrome or Chromium.
 - For behavioral changes, start the application and execute `docs/manual-smoke-test.md`.
 - Keep endpoint URLs, JSON payloads, `localStorage` keys, SQL procedure names/parameters, and ordered aggregate result sets stable unless a requirement explicitly changes them.
