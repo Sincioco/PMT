@@ -1,7 +1,7 @@
 import {
   buildAnnotationSvg,
   parseAnnotationSvg
-} from "../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { appUrl } from "./app-urls.js";
 import { escapeAttr } from "./text-and-links.js";
 

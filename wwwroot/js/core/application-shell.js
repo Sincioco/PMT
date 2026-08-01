@@ -114,7 +114,7 @@ export function createApplicationShell({
     return false;
   }
 
-  async function reloadState() {
+  async function reloadState(options = {}) {
     try {
       await loadState();
       refreshLookupOptions();
@@ -123,7 +123,9 @@ export function createApplicationShell({
       return true;
     } catch (error) {
       showToast(error.message);
-      elements.app.innerHTML = `<div class="empty">Database is not ready. Run the SQL scripts in order, then refresh this page.</div>`;
+      if (options.preserveViewOnError !== true) {
+        elements.app.innerHTML = `<div class="empty">Database is not ready. Run the SQL scripts in order, then refresh this page.</div>`;
+      }
       return false;
     }
   }

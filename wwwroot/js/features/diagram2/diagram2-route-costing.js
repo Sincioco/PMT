@@ -1,12 +1,12 @@
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-routing.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 export const diagram2CompactPhases = Object.freeze([
   "Analyzing Entities",

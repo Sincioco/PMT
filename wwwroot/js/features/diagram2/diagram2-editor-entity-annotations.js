@@ -1,7 +1,7 @@
 import {
   setAnnotationEntityAnnotation,
   syncAnnotationEntityAnnotationArrows
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 export function diagram2EntityAnnotationChildren(objectsInput, entityOrId) {
   const entityId = String(typeof entityOrId === "object" ? entityOrId?.id : entityOrId || "").trim();

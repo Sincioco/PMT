@@ -204,6 +204,10 @@ test("Diagram 2 download actions expose Diagram 1-style SVG and PNG options", as
     source.indexOf("async function exportDiagram2Svg"),
     source.indexOf("async function exportDiagram2Png")
   );
+  const pmtExportSource = source.slice(
+    source.indexOf("async function exportDiagram2Pmt"),
+    source.indexOf("async function exportDiagram2Svg")
+  );
   const pngExportSource = source.slice(
     source.indexOf("async function exportDiagram2Png"),
     source.indexOf("async function copyDiagram2Selection")
@@ -212,6 +216,9 @@ test("Diagram 2 download actions expose Diagram 1-style SVG and PNG options", as
   assert.match(source, /function openDiagram2DownloadOptionsDialog/);
   assert.match(source, /Background/);
   assert.match(source, /Margins/);
+  assert.match(pmtExportSource, /const portableState = await buildPortableAnnotationState\(stateForExport\)/);
+  assert.match(pmtExportSource, /state: portableState/);
+  assert.match(pmtExportSource, /svg: buildAnnotationSvg\(portableState\)/);
   assert.match(svgExportSource, /chooseDiagram2SvgDownloadOptions\(\)/);
   assert.match(svgExportSource, /const portableState = await buildPortableAnnotationState\(stateForExport\)/);
   assert.match(svgExportSource, /prepareDiagram2SvgForDownload\(buildAnnotationSvg\(portableState\), options\)/);
@@ -227,4 +234,129 @@ test("Diagram 2 import probe parses the existing PMT Diagram fixture through the
   );
 
   assert.equal(canDiagramFeatureReadPmtDiagramFile("Diagram 2", fixture), true);
+});
+
+test("Diagram 2 Save commits an active editor gesture before reading canonical state", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2.js", import.meta.url),
+    "utf8"
+  );
+  const saveSource = source.slice(
+    source.indexOf("async function saveDiagram2Document"),
+    source.indexOf("async function saveDiagram2ConflictCopy")
+  );
+
+  assert.match(source, /diagram2InteractionHost = bindDiagram2EditorInteractions\(/);
+  assert.match(saveSource, /await diagram2InteractionHost\?\.finishActiveGesture\?\.\(\)/);
+  assert.ok(
+    saveSource.indexOf("finishActiveGesture") < saveSource.indexOf("diagram2Controller.state()"),
+    "the interaction commit must complete before Save snapshots canonical state"
+  );
+});
+
+test("Diagram 2 RTE Apply commits an active editor gesture before reading canonical state", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2-rte-host-adapter.js", import.meta.url),
+    "utf8"
+  );
+  const saveSource = source.slice(
+    source.indexOf("const saveAndFinish"),
+    source.indexOf("dialog.addEventListener(\"cancel\"")
+  );
+
+  assert.match(source, /interactionHost = bindDiagram2RteHostEvents\(/);
+  assert.match(source, /return bindDiagram2EditorInteractions\(/);
+  assert.match(saveSource, /await interactionHost\?\.finishActiveGesture\?\.\(\)/);
+  assert.ok(
+    saveSource.indexOf("finishActiveGesture") < saveSource.indexOf("controller.state()"),
+    "the RTE interaction commit must complete before Apply snapshots canonical state"
+  );
+});
+
+test("Diagram 2 Objects tree binds once and exposes keyboard operations", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2.js", import.meta.url),
+    "utf8"
+  );
+  const bindingSource = source.slice(
+    source.indexOf("function bindDiagram2ObjectTreeControls"),
+    source.indexOf("function bindDiagram2ObjectTreeDragAndDrop")
+  );
+
+  assert.match(bindingSource, /dataset\.diagram2ObjectTreeControlsBound/);
+  assert.match(bindingSource, /\["ArrowUp", "ArrowDown", "Home", "End"\]/);
+  assert.match(bindingSource, /event\.key === "F2"/);
+  assert.match(bindingSource, /\["Delete", "Backspace"\]/);
+  assert.match(source, /eventRoot\.dataset\.diagram2ObjectTreeDragBound/);
+});
+
+test("Diagram 2 top-navigation dialogs are named and restore their trigger focus", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2.js", import.meta.url),
+    "utf8"
+  );
+  const unsavedSource = source.slice(
+    source.indexOf("function askDiagram2UnsavedCloseAction"),
+    source.indexOf("async function exportDiagram2Pmt")
+  );
+  const exportDialogSource = source.slice(
+    source.indexOf("function openDiagram2DownloadOptionsDialog"),
+    source.indexOf("function prepareDiagram2SvgForDownload")
+  );
+
+  assert.match(unsavedSource, /modal\.setAttribute\("aria-label", "Unsaved Changes"\)/);
+  assert.match(exportDialogSource, /modal\.setAttribute\("aria-label", title\)/);
+  assert.match(unsavedSource, /restoreFocus\?\.focus\?\.\(\{ preventScroll: true \}\)/);
+  assert.match(exportDialogSource, /restoreFocus\?\.focus\?\.\(\{ preventScroll: true \}\)/);
+});
+
+test("Diagram 2 stale-save handling preserves local work until an explicit user choice", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2.js", import.meta.url),
+    "utf8"
+  );
+  const conflictSource = source.slice(
+    source.indexOf("async function resolveDiagram2SaveConflict"),
+    source.indexOf("async function saveDiagram2ConflictCopy")
+  );
+
+  assert.match(source, /reloadState/);
+  assert.match(conflictSource, /askDiagram2SaveConflictAction/);
+  assert.match(conflictSource, /action !== "reload"/);
+  assert.match(conflictSource, /const reloaded = await reloadState\(\)/);
+  assert.match(conflictSource, /reloaded !== true/);
+  assert.match(conflictSource, /action === "copy"/);
+});
+
+test("Diagram 2 failed conflict reload preserves the open editor", async () => {
+  const [appSource, shellSource] = await Promise.all([
+    readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../../wwwroot/js/core/application-shell.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(appSource, /reloadState: reloadStatePreservingView/);
+  assert.match(appSource, /shell\.reloadState\(\{ preserveViewOnError: true \}\)/);
+  assert.match(shellSource, /options\.preserveViewOnError !== true/);
+});
+
+test("Diagram 2 canvas and TreeNav menus support keyboard invocation and complete menu navigation", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2.js", import.meta.url),
+    "utf8"
+  );
+  const canvasMenuSource = source.slice(
+    source.indexOf("function bindDiagram2CanvasContextMenu"),
+    source.indexOf("function closeDiagram2EditorContextMenu")
+  );
+  const treeMenuSource = source.slice(
+    source.indexOf("function bindDiagram2TreeContextMenu"),
+    source.indexOf("function bindDiagram2TreeDragAndDrop")
+  );
+
+  for (const menuSource of [canvasMenuSource, treeMenuSource]) {
+    assert.match(menuSource, /event\.key === "ContextMenu"/);
+    assert.match(menuSource, /event\.shiftKey && event\.key === "F10"/);
+    assert.match(menuSource, /event\.key === "Home"/);
+    assert.match(menuSource, /event\.key === "End"/);
+  }
 });

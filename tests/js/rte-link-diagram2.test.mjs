@@ -76,7 +76,7 @@ test("Diagram 2 public links use the production Linked Diagram 2 viewer", async 
   assert.ok(endpointSource.includes('app.MapGet("/public/diagram-2/{token:guid}"'));
   assert.ok(endpointSource.includes("useDiagram2Renderer: true"));
   assert.ok(endpointSource.includes("data-public-linked-diagram2"));
-  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260801-diagram2-readonly-trace-v2"));
+  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1"));
   assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-diagram2-readonly-trace-v2"));
   assert.match(diagram2Source, /appUrl\(`\/public\/diagram-2\/\$\{token\}`\)/);
   assert.match(publicViewerSource, /hydrateDiagram2LinkedViewer/);

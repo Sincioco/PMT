@@ -7,11 +7,11 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260801-diagram2-mapping-view-v3";
+} from "./components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
-} from "./components/diagram-field-mapping-interactions.js?v=20260731-rte-checkbox-layout-v2";
+} from "./components/diagram-field-mapping-interactions.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import {
   htmlWithoutUserMentionMarkup,
@@ -40,7 +40,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260722-rich-entity-mentions-v1";
-import { createApplicationShell } from "./core/application-shell.js?v=20260731-diagram1-overflow-v1";
+import { createApplicationShell } from "./core/application-shell.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -66,7 +66,7 @@ import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   diagramSharedDocumentContract,
   normalizeDiagramTemplateLibrary
-} from "./shared/diagram-contracts.js?v=20260731-rte-checkbox-layout-v2";
+} from "./shared/diagram-contracts.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createAboutAuthFlyby,
   createAboutFeature,
@@ -76,9 +76,9 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260801-d
 import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram2-mapping-view-v3";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-diagram2-mapping-view-v3";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-screen-capture-v2";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-screen-capture-v2";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2LinkedViewerViewport,
   disposeDiagram2LinkedViewer,
@@ -88,8 +88,8 @@ import {
   panDiagram2LinkedViewer,
   restoreDiagram2LinkedViewerViewport,
   zoomDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-linked-diagram2-controls-v3";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -582,6 +582,7 @@ const diagram2Feature = createDiagram2Feature({
   uploadEmbeddedImage: uploadRichTextCanvasImage,
   createDiagramDocument: options => createDiagramBackingDocument({ ...options, diagramOnly: true }),
   saveDiagramDocument: (document, payload) => updateDiagramBackingDocument(document, { ...payload, diagramOnly: true }),
+  reloadState: reloadStatePreservingView,
   openEditor,
   saveDiagramInfo: updateDiagramBackingInfo,
   moveDiagramDocument: moveDiagramBackingDocument,
@@ -664,6 +665,10 @@ function bindScreenEvents() {
 
 async function loadState() {
   return shell.reloadState();
+}
+
+async function reloadStatePreservingView() {
+  return shell.reloadState({ preserveViewOnError: true });
 }
 
 function render() {

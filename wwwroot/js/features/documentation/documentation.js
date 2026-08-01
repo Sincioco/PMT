@@ -58,7 +58,7 @@ import {
   normalizeRichHtml
 } from "../../shared/text-and-links.js?v=20260801-diagram2-mapping-view-v3";
 import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-html-images.js";
-import { diagramDocumentIsDiagramOnly } from "../../shared/diagram-documents.js?v=20260801-linked-diagram2-controls-v3";
+import { diagramDocumentIsDiagramOnly } from "../../shared/diagram-documents.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   captureTreeNavState,
   restoreTreeNavState

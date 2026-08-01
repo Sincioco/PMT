@@ -284,7 +284,12 @@ test("Diagram 2 PMT Diagram file adapter passes the Diagram 1 and Diagram 2 matr
   assert.deepEqual(diagram2InDiagram1.diagramExtensions, { futureDiagramData: { keep: true } });
   assert.deepEqual(diagram2InDiagram2.extensions, { futureFileData: { keep: true } });
   assert.deepEqual(diagram2InDiagram1.state, diagram2InDiagram2.state);
-  assert.deepEqual(newDiagram1InDiagram2.state, normalizeDiagramState(mixed));
+  assert.deepEqual(newDiagram1InDiagram2.state.pmtDiagramFileExtensions, {
+    diagram: { futureDiagramData: { keep: true } },
+    file: {}
+  });
+  const { pmtDiagramFileExtensions, ...newDiagram1State } = newDiagram1InDiagram2.state;
+  assert.deepEqual(newDiagram1State, normalizeDiagramState(mixed));
   assert.equal(diagram2InDiagram2.state.objects.find(object => object.id === "mixed-field-map-table").type, "field-mapping-table");
   assert.equal(diagram2InDiagram2.state.objects.find(object => object.id === "mixed-title-field").entityKind, "field-rectangle");
 });

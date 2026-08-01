@@ -8,10 +8,11 @@ import {
   parseDiagramSelectionClipboardPackage,
   remapDiagramSelectionClipboardPackageIds,
   serializeDiagramSelectionClipboardPackage
-} from "../shared/diagram-contracts.js?v=20260731-rte-checkbox-layout-v2";
+} from "../shared/diagram-contracts.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const annotationVersion = 1;
+export const pmtDiagramFileExtensionsStateKey = "pmtDiagramFileExtensions";
 const minimumObjectSize = 8;
 const minimumZoom = 0.1;
 const maximumZoom = 3;
@@ -521,12 +522,20 @@ function cleanAnnotationClipboardSvgMarkup(svg) {
 }
 
 export function parseAnnotationSvg(svgMarkup) {
+  const metadataState = parseAnnotationSvgMetadata(svgMarkup);
+  return metadataState ? normalizeAnnotationState(metadataState) : null;
+}
+
+export function parseAnnotationSvgMetadata(svgMarkup) {
   const source = String(svgMarkup || "");
   const match = source.match(/<metadata\b[^>]*data-pmt-image-annotation-state=(?:"true"|'true')[^>]*>([\s\S]*?)<\/metadata>/i);
   if (!match) return null;
 
   try {
-    return normalizeAnnotationState(JSON.parse(decodeXmlText(match[1])));
+    const metadataState = JSON.parse(decodeXmlText(match[1]));
+    return metadataState && typeof metadataState === "object" && !Array.isArray(metadataState)
+      ? metadataState
+      : null;
   } catch {
     return null;
   }
@@ -2512,6 +2521,9 @@ export function normalizeAnnotationState(input, fallback = {}) {
   const compactEntityRelationshipRouteKey = String(
     source.compactEntityRelationshipRouteKey || ""
   ).trim().slice(0, 128);
+  const pmtDiagramFileExtensions = normalizePmtDiagramFileExtensions(
+    source[pmtDiagramFileExtensionsStateKey]
+  );
 
   return {
     version: annotationVersion,
@@ -2530,6 +2542,9 @@ export function normalizeAnnotationState(input, fallback = {}) {
     groupNames,
     groupVisibility,
     objects,
+    ...(pmtDiagramFileExtensions
+      ? { [pmtDiagramFileExtensionsStateKey]: pmtDiagramFileExtensions }
+      : {}),
     ...(compactEntityRelationshipRoutes.length && compactEntityRelationshipRouteKey
       ? {
           compactEntityRelationshipRoutes,
@@ -2537,6 +2552,19 @@ export function normalizeAnnotationState(input, fallback = {}) {
         }
       : {})
   };
+}
+
+function normalizePmtDiagramFileExtensions(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const diagram = input.diagram && typeof input.diagram === "object" && !Array.isArray(input.diagram)
+    ? deepCopy(input.diagram)
+    : {};
+  const file = input.file && typeof input.file === "object" && !Array.isArray(input.file)
+    ? deepCopy(input.file)
+    : {};
+  return Object.keys(diagram).length || Object.keys(file).length
+    ? { diagram, file }
+    : null;
 }
 
 function normalizeAnnotationCompactRelationshipRoutes(routesInput) {

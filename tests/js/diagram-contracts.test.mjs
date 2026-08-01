@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  buildAnnotationSvg,
+  parseAnnotationSvg
+} from "../../wwwroot/js/components/image-annotation.js";
+import {
   canDiagramFeatureReadPmtDiagramFile,
   createDiagramSelectionClipboardPackage,
   createPmtDiagramFile,
@@ -10,6 +14,7 @@ import {
   diagramSelectionClipboardPlainTextHeader,
   diagramSelectionClipboardVersion,
   diagramSharedDocumentContract,
+  normalizeDiagramState,
   normalizeDiagramTemplateLibrary,
   parseDiagramSelectionClipboardPackage,
   parsePmtDiagramFile,
@@ -25,6 +30,22 @@ async function readFixture(name) {
     "utf8"
   );
   return JSON.parse(contents);
+}
+
+function pmtDiagramContents(editorState) {
+  return JSON.stringify({
+    format: pmtDiagramFileFormat,
+    formatVersion: pmtDiagramFileVersion,
+    minimumReaderVersion: 1,
+    generator: { name: "PMT", feature: "Diagram" },
+    diagram: {
+      title: "Validation fixture",
+      editorState,
+      svg: "",
+      extensions: {}
+    },
+    extensions: {}
+  });
 }
 
 test("shared PMT Diagram codec preserves extensions and treats generator.feature as advisory", async () => {
@@ -59,6 +80,320 @@ test("shared PMT Diagram codec preserves extensions and treats generator.feature
   assert.deepEqual(parsed.diagramExtensions, { futureDiagramMetadata: { keep: true } });
   assert.deepEqual(parsed.extensions, { futureTopLevelMetadata: { keep: true } });
   assert.equal(parsed.state.objects.find(object => object.id === "mixed-field-map-table").type, "field-mapping-table");
+});
+
+test("PMT Diagram import requires explicit non-empty unique object IDs", () => {
+  const state = {
+    width: 900,
+    height: 600,
+    objects: [
+      { id: "shape-a", type: "rectangle", x: 20, y: 30, width: 100, height: 60 },
+      { id: "shape-b", type: "circle", x: 180, y: 30, width: 60, height: 60 }
+    ]
+  };
+
+  assert.throws(
+    () => parsePmtDiagramFile(pmtDiagramContents({
+      ...state,
+      objects: [{ ...state.objects[0], id: "" }, state.objects[1]]
+    })),
+    /object 1 must have an explicit non-empty ID/i
+  );
+  assert.throws(
+    () => parsePmtDiagramFile(pmtDiagramContents({
+      ...state,
+      objects: [state.objects[0], { ...state.objects[1], id: "shape-a" }]
+    })),
+    /duplicate object ID "shape-a"/i
+  );
+  assert.throws(
+    () => parsePmtDiagramFile(pmtDiagramContents({
+      ...state,
+      objects: [{ ...state.objects[0], id: "not a safe id" }, state.objects[1]]
+    })),
+    /object ID "not a safe id" is not valid/i
+  );
+});
+
+test("PMT Diagram import rejects empty, invalid JSON, and wrong-root files", () => {
+  assert.throws(
+    () => parsePmtDiagramFile(""),
+    /not valid PMT Diagram JSON/i
+  );
+  assert.throws(
+    () => parsePmtDiagramFile("{not-json"),
+    /not valid PMT Diagram JSON/i
+  );
+  assert.throws(
+    () => parsePmtDiagramFile(JSON.stringify({ format: "not-pmt-diagram" })),
+    /not a PMT Diagram file/i
+  );
+});
+
+test("PMT Diagram import rejects invalid minimum reader versions", () => {
+  const raw = JSON.parse(pmtDiagramContents({
+    width: 320,
+    height: 180,
+    objects: [{ id: "shape-a", type: "rectangle", x: 20, y: 30, width: 100, height: 60 }]
+  }));
+
+  for (const minimumReaderVersion of [0, -1, 1.5, 2.5, "future"]) {
+    assert.throws(
+      () => parsePmtDiagramFile(JSON.stringify({ ...raw, minimumReaderVersion })),
+      /PMT Diagram file reader version .* is not supported\./
+    );
+  }
+
+  delete raw.minimumReaderVersion;
+  assert.equal(parsePmtDiagramFile(JSON.stringify(raw)).minimumReaderVersion, 1);
+});
+
+test("PMT Diagram import validates internal references but allows external Entity targets and missing remote assets", () => {
+  const validState = {
+    width: 1200,
+    height: 800,
+    groupNames: { "annotation-group": "Entity annotation" },
+    groupVisibility: { "annotation-group": true },
+    objects: [
+      {
+        id: "remote-image",
+        type: "embedded-image",
+        source: "https://assets.example.invalid/screens/missing.png",
+        x: 20,
+        y: 20,
+        width: 400,
+        height: 200
+      },
+      {
+        id: "entity-a",
+        type: "entity",
+        groupId: "annotation-group",
+        entityAnnotationGroupId: "annotation-group",
+        entitySchema: "pmt",
+        entityName: "LocalEntity",
+        x: 500,
+        y: 20,
+        width: 260,
+        height: 120,
+        fields: [{ name: "ExternalId", isForeignKey: true }],
+        foreignKeys: [{
+          name: "FK_External",
+          columns: ["ExternalId"],
+          referencedSchema: "external",
+          referencedTable: "RemoteEntityNotInThisDiagram",
+          referencedColumns: ["Id"]
+        }]
+      },
+      {
+        id: "annotation-a",
+        type: "textbox",
+        groupId: "annotation-group",
+        entityAnnotationOwnerId: "entity-a",
+        entityAnnotationRole: "callout",
+        x: 500,
+        y: 180,
+        width: 240,
+        height: 80,
+        text: "Callout"
+      },
+      {
+        id: "field-a",
+        type: "entity",
+        entityKind: "field-rectangle",
+        fieldRectangleName: "Name",
+        x: 120,
+        y: 100,
+        width: 140,
+        height: 34,
+        fields: [{ name: "Name", isForeignKey: false }]
+      },
+      {
+        id: "mapping-a",
+        type: "field-mapping-table",
+        sourceImageId: "remote-image",
+        x: 20,
+        y: 300,
+        width: 360,
+        height: 58,
+        rows: [{ uiEntityId: "field-a", uiField: "Name", databaseField: "external.RemoteEntity.Name" }]
+      }
+    ]
+  };
+
+  const parsed = parsePmtDiagramFile(pmtDiagramContents(validState));
+  assert.equal(parsed.state.objects.find(object => object.id === "remote-image").source, validState.objects[0].source);
+  assert.equal(
+    parsed.state.objects.find(object => object.id === "entity-a").foreignKeys[0].referencedTable,
+    "RemoteEntityNotInThisDiagram"
+  );
+
+  const invalidReferences = [
+    {
+      state: {
+        ...validState,
+        objects: validState.objects.map(object => object.id === "annotation-a"
+          ? { ...object, entityAnnotationOwnerId: "missing-entity" }
+          : object)
+      },
+      error: /entityAnnotationOwnerId.*missing-entity/i
+    },
+    {
+      state: {
+        ...validState,
+        objects: validState.objects.map(object => object.id === "annotation-a"
+          ? { ...object, entityAnnotationRole: "" }
+          : object)
+      },
+      error: /invalid Entity annotation role or type/i
+    },
+    {
+      state: {
+        ...validState,
+        objects: validState.objects.map(object => object.id === "entity-a"
+          ? {
+              ...object,
+              foreignKeys: [{ ...object.foreignKeys[0], columns: ["MissingSourceField"] }]
+            }
+          : object)
+      },
+      error: /relationship 1 references missing source field/i
+    },
+    {
+      state: {
+        ...validState,
+        objects: validState.objects.map(object => object.id === "mapping-a"
+          ? { ...object, sourceImageId: "missing-image" }
+          : object)
+      },
+      error: /sourceImageId.*missing-image/i
+    },
+    {
+      state: {
+        ...validState,
+        objects: validState.objects.map(object => object.id === "mapping-a"
+          ? { ...object, rows: [{ ...object.rows[0], uiEntityId: "missing-field" }] }
+          : object)
+      },
+      error: /uiEntityId.*missing-field/i
+    },
+    {
+      state: {
+        ...validState,
+        objects: validState.objects.map(object => object.id === "mapping-a"
+          ? { ...object, rows: [{ ...object.rows[0], uiField: "MissingUiField" }] }
+          : object)
+      },
+      error: /missing UI field/i
+    },
+    {
+      state: {
+        ...validState,
+        groupNames: { ...validState.groupNames, "missing-group": "Orphan" }
+      },
+      error: /groupNames.*missing-group/i
+    }
+  ];
+
+  invalidReferences.forEach(({ state, error }) => {
+    assert.throws(() => parsePmtDiagramFile(pmtDiagramContents(state)), error);
+  });
+
+  assert.throws(
+    () => parsePmtDiagramFile(pmtDiagramContents({
+      ...validState,
+      objects: validState.objects.map(object => object.id === "remote-image"
+        ? { ...object, source: "" }
+        : object)
+    })),
+    /invalid Diagram object/i
+  );
+});
+
+test("PMT Diagram extension bags survive canonical SVG persistence and implicit re-export", () => {
+  const raw = JSON.parse(createPmtDiagramFile({
+    title: "Extension persistence",
+    state: {
+      width: 900,
+      height: 600,
+      objects: [{ id: "shape-a", type: "rectangle", x: 20, y: 30, width: 100, height: 60 }]
+    },
+    exportedAt: "2026-07-25T00:00:00.000Z"
+  }));
+  assert.equal(Object.hasOwn(raw.diagram.editorState, "pmtDiagramFileExtensions"), false);
+  assert.doesNotMatch(raw.diagram.svg, /pmtDiagramFileExtensions/);
+  raw.diagram.extensions = {
+    futureDiagramMetadata: { keep: true, values: [1, 2, 3] }
+  };
+  raw.extensions = {
+    futureTopLevelMetadata: { keep: true, nested: { value: "opaque" } }
+  };
+
+  const imported = parsePmtDiagramFile(JSON.stringify(raw));
+  const reopenedState = parseAnnotationSvg(imported.svg);
+  const canonicalSvg = buildAnnotationSvg(reopenedState);
+  const persistedState = parseAnnotationSvg(canonicalSvg);
+  const reexported = JSON.parse(createPmtDiagramFile({
+    title: imported.title,
+    state: persistedState,
+    svg: canonicalSvg,
+    exportedAt: raw.exportedAt
+  }));
+
+  assert.deepEqual(reexported.diagram.extensions, raw.diagram.extensions);
+  assert.deepEqual(reexported.extensions, raw.extensions);
+});
+
+test("ordinary Version 1.27 Diagram 1 exports keep the original byte contract", () => {
+  const state = {
+    width: 900,
+    height: 600,
+    objects: [{ id: "shape-a", type: "rectangle", x: 20, y: 30, width: 100, height: 60 }]
+  };
+  const normalizedState = normalizeDiagramState(state);
+  const svg = buildAnnotationSvg(normalizedState);
+  const exportedAt = "2026-07-28T00:00:00.000Z";
+  const expected = JSON.stringify({
+    format: pmtDiagramFileFormat,
+    formatVersion: pmtDiagramFileVersion,
+    minimumReaderVersion: 1,
+    exportedAt,
+    generator: { name: "PMT", feature: "Diagram" },
+    diagram: {
+      title: "Version 1.27 Diagram",
+      editorState: normalizedState,
+      svg,
+      extensions: {}
+    },
+    extensions: {}
+  }, null, 2);
+
+  assert.equal(createPmtDiagramFile({
+    title: "Version 1.27 Diagram",
+    state,
+    svg,
+    exportedAt
+  }), expected);
+});
+
+test("large valid PMT Diagram imports validate and normalize once within the cold-path budget", () => {
+  const objects = Array.from({ length: 1000 }, (_, index) => ({
+    id: `large-object-${index + 1}`,
+    type: "rectangle",
+    x: (index % 25) * 48,
+    y: Math.floor(index / 25) * 32,
+    width: 40,
+    height: 24
+  }));
+  const startedAt = performance.now();
+  const parsed = parsePmtDiagramFile(pmtDiagramContents({
+    width: 1400,
+    height: 1400,
+    objects
+  }));
+  const durationMs = performance.now() - startedAt;
+
+  assert.equal(parsed.state.objects.length, 1000);
+  assert.ok(durationMs < 1000, `large import took ${durationMs.toFixed(2)} ms`);
 });
 
 test("PMT Diagram file compatibility matrix is reader neutral for Diagram and Diagram 2", async () => {
@@ -168,6 +503,17 @@ test("Diagram selection clipboard rejects newer packages with a clear version er
     })),
     /PMT Diagram selection reader version 2 is not supported\./
   );
+
+  for (const minimumReaderVersion of [0, -1, 1.5, 2.5, "future"]) {
+    assert.throws(
+      () => parseDiagramSelectionClipboardPackage(JSON.stringify({
+        ...futurePackage,
+        formatVersion: diagramSelectionClipboardVersion,
+        minimumReaderVersion
+      })),
+      /PMT Diagram selection reader version .* is not supported\./
+    );
+  }
 });
 
 test("Diagram selection clipboard preserves rectangle, text, and rich text objects through remap", () => {

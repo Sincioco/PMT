@@ -8,7 +8,7 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import {
   downloadCsv,
@@ -20,28 +20,48 @@ import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-entities.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
   diagram2ImageHasReversibleCrop
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-crop.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-rectangles.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingExportRows,
   diagram2FieldMappingPaneGroups
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
 const diagram2LastColorStoragePrefix = "pmt-rich-last-color-";
 const diagram2StoredColorLimit = 10;
 const diagram2RecentColorLimit = 6;
+const diagram2EditorShortcutKeys = new Set([
+  "escape",
+  "delete",
+  "backspace",
+  "arrowleft",
+  "arrowright",
+  "arrowup",
+  "arrowdown",
+  "v",
+  "h",
+  "r",
+  "o",
+  "a",
+  "l",
+  "t",
+  "y",
+  "e",
+  "c"
+]);
+const diagram2EditorModifiedShortcutKeys = new Set(["s", "z", "y", "a", "g", "c", "v", "d"]);
 const defaultDiagram2ShellStyles = {
   fill: "#5aa315",
   stroke: "#3f7f0d",
@@ -124,7 +144,7 @@ export function diagram2EditorShellHtml(options = {}) {
           </div>
           <div class="image-annotation-head-actions">
             ${options.allowMaximize ? `<button type="button" class="icon-btn dialog-maximize-button" data-action="maximize-diagram2-editor" title="Maximize" aria-label="Maximize">Maximize</button>` : ""}
-            <button type="button" class="icon-btn" data-action="cancel-diagram2-editor" title="Close" aria-label="Close">Close</button>
+            <button type="button" class="icon-btn" data-action="cancel-diagram2-editor" title="Close" aria-label="Close" aria-description="Closing is unavailable while Diagram 2 is saving.">Close</button>
           </div>
         </div>
       ` : ""}
@@ -160,6 +180,20 @@ export function diagram2EditorShellHtml(options = {}) {
       ${includeFooter ? diagram2FooterHtml(options.applyLabel || "Save") : ""}
     </div>
   `;
+}
+
+export function bindDiagram2DialogShortcutIsolation(root, options = {}) {
+  if (!root?.addEventListener) return;
+  root.addEventListener("keydown", event => {
+    if (options.controlsOnly === true && !event.target?.closest?.(
+      "button, input, textarea, select, [contenteditable], [role='treeitem'], [role='tab'], [role='separator']"
+    )) return;
+    const key = String(event.key || "").toLowerCase();
+    if (options.allowEscape === true && key === "escape") return;
+    const modifiedShortcut = (event.ctrlKey || event.metaKey) && diagram2EditorModifiedShortcutKeys.has(key);
+    if (!modifiedShortcut && !diagram2EditorShortcutKeys.has(key)) return;
+    event.stopPropagation();
+  }, options.signal ? { signal: options.signal } : undefined);
 }
 
 export function diagram2ObjectsPaneHtml(state, selectedObjectIds = [], options = {}) {
@@ -209,6 +243,8 @@ export function openDiagram2TextEditor(options = {}) {
   dialog.className = richText
     ? "dialog image-annotation-rich-text-dialog diagram2-text-editor-dialog"
     : "dialog diagram2-text-editor-dialog";
+  dialog.setAttribute("aria-label", richText ? "Edit Rich Text" : "Edit Text");
+  bindDiagram2DialogShortcutIsolation(dialog);
   dialog.innerHTML = `
     <form method="dialog" data-diagram2-text-editor-form>
       <div class="dialog-head">
@@ -277,6 +313,8 @@ export function openDiagram2EntityEditor(options = {}) {
   const defaults = diagram2EntityDialogDefaults(object);
   const dialog = document.createElement("dialog");
   dialog.className = "dialog diagram2-entity-editor-dialog";
+  dialog.setAttribute("aria-label", object ? "Edit Entity" : "Add Entity");
+  bindDiagram2DialogShortcutIsolation(dialog);
   dialog.innerHTML = `
     <form method="dialog" data-diagram2-entity-editor-form>
       <div class="dialog-head">
@@ -289,14 +327,14 @@ export function openDiagram2EntityEditor(options = {}) {
       <div class="dialog-body diagram2-entity-editor-body">
         <label class="field">
           <span>Entity Name</span>
-          <input type="text" maxlength="240" autocomplete="off" data-diagram2-entity-name value="${escapeAttr(defaults.entityName || "Entity")}">
+          <input type="text" maxlength="240" autocomplete="off" data-diagram2-entity-name aria-describedby="diagram2EntityStatus" value="${escapeAttr(defaults.entityName || "Entity")}">
         </label>
         <label class="field full">
           <span>SQL or Fields</span>
-          <textarea rows="14" data-diagram2-entity-source>${escapeHtml(defaults.sourceText || "Id")}</textarea>
+          <textarea rows="14" data-diagram2-entity-source aria-describedby="diagram2EntityStatus">${escapeHtml(defaults.sourceText || "Id")}</textarea>
         </label>
         <label class="inline-check"><input type="checkbox" data-diagram2-entity-fk-top ${defaults.foreignKeysAtTop ? "checked" : ""}><span>FK at the Top</span></label>
-        <p class="image-annotation-format-status" data-diagram2-entity-status role="status" aria-live="polite"></p>
+        <p id="diagram2EntityStatus" class="image-annotation-format-status" data-diagram2-entity-status role="status" aria-live="polite"></p>
       </div>
       <div class="dialog-actions">
         <button type="button" class="secondary" data-diagram2-entity-cancel>Cancel</button>
@@ -305,6 +343,16 @@ export function openDiagram2EntityEditor(options = {}) {
     </form>
   `;
   document.body.appendChild(dialog);
+  const nameInput = dialog.querySelector("[data-diagram2-entity-name]");
+  const sourceInput = dialog.querySelector("[data-diagram2-entity-source]");
+  const status = dialog.querySelector("[data-diagram2-entity-status]");
+  const clearValidation = () => {
+    nameInput?.removeAttribute("aria-invalid");
+    sourceInput?.removeAttribute("aria-invalid");
+    if (status) status.textContent = "";
+  };
+  nameInput?.addEventListener("input", clearValidation);
+  sourceInput?.addEventListener("input", clearValidation);
   return new Promise(resolve => {
     let result = null;
     const finish = value => {
@@ -316,14 +364,18 @@ export function openDiagram2EntityEditor(options = {}) {
     });
     dialog.querySelector("[data-diagram2-entity-editor-form]")?.addEventListener("submit", event => {
       event.preventDefault();
-      const source = String(dialog.querySelector("[data-diagram2-entity-source]")?.value || "");
-      const name = String(dialog.querySelector("[data-diagram2-entity-name]")?.value || "");
+      clearValidation();
+      const source = String(sourceInput?.value || "");
+      const name = String(nameInput?.value || "");
       const foreignKeysAtTop = dialog.querySelector("[data-diagram2-entity-fk-top]")?.checked === true;
       try {
         finish(parseDiagram2EntityDefinition(source, name, { foreignKeysAtTop }));
       } catch (error) {
-        const status = dialog.querySelector("[data-diagram2-entity-status]");
-        if (status) status.textContent = error?.message || "The Entity definition could not be parsed.";
+        const message = error?.message || "The Entity definition could not be parsed.";
+        const invalidInput = message === "Enter an Entity Name." ? nameInput : sourceInput;
+        invalidInput?.setAttribute("aria-invalid", "true");
+        invalidInput?.focus();
+        if (status) status.textContent = message;
       }
     });
     dialog.addEventListener("cancel", event => {
@@ -350,6 +402,8 @@ export function openDiagram2RelationshipEditor(options = {}) {
     `<option value="${escapeAttr(entity.id)}" ${entity.id === selectedEntityId ? "selected" : ""}>${escapeHtml(entityLabel(entity))}</option>`).join("");
   const dialog = document.createElement("dialog");
   dialog.className = "dialog diagram2-relationship-editor-dialog";
+  dialog.setAttribute("aria-label", "Add Relationship");
+  bindDiagram2DialogShortcutIsolation(dialog);
   dialog.innerHTML = `
     <form method="dialog" data-diagram2-relationship-editor-form>
       <div class="dialog-head">
@@ -367,7 +421,7 @@ export function openDiagram2RelationshipEditor(options = {}) {
           </label>
           <label class="field">
             <span>Source Field</span>
-            <select data-diagram2-relationship-source-field></select>
+            <select data-diagram2-relationship-source-field aria-describedby="diagram2RelationshipStatus"></select>
           </label>
           <label class="field">
             <span>Target Entity</span>
@@ -375,7 +429,7 @@ export function openDiagram2RelationshipEditor(options = {}) {
           </label>
           <label class="field">
             <span>Target Field</span>
-            <select data-diagram2-relationship-target-field></select>
+            <select data-diagram2-relationship-target-field aria-describedby="diagram2RelationshipStatus"></select>
           </label>
           <label class="field image-annotation-wide">
             <span>Relationship type</span>
@@ -387,7 +441,7 @@ export function openDiagram2RelationshipEditor(options = {}) {
             </select>
           </label>
         </div>
-        <p class="image-annotation-format-status" data-diagram2-relationship-status role="status" aria-live="polite"></p>
+        <p id="diagram2RelationshipStatus" class="image-annotation-format-status" data-diagram2-relationship-status role="status" aria-live="polite"></p>
       </div>
       <div class="dialog-actions">
         <button type="button" class="secondary" data-diagram2-relationship-cancel>Cancel</button>
@@ -401,6 +455,12 @@ export function openDiagram2RelationshipEditor(options = {}) {
   const targetEntity = dialog.querySelector("[data-diagram2-relationship-target-entity]");
   const sourceField = dialog.querySelector("[data-diagram2-relationship-source-field]");
   const targetField = dialog.querySelector("[data-diagram2-relationship-target-field]");
+  const status = dialog.querySelector("[data-diagram2-relationship-status]");
+  const clearValidation = () => {
+    sourceField.removeAttribute("aria-invalid");
+    targetField.removeAttribute("aria-invalid");
+    if (status) status.textContent = "";
+  };
   const fieldOptions = entityId => {
     const entity = entityById.get(String(entityId || "")) || entities[0];
     return (Array.isArray(entity?.fields) ? entity.fields : [])
@@ -410,9 +470,12 @@ export function openDiagram2RelationshipEditor(options = {}) {
   const refreshFields = () => {
     sourceField.innerHTML = fieldOptions(sourceEntity.value);
     targetField.innerHTML = fieldOptions(targetEntity.value);
+    clearValidation();
   };
   sourceEntity.addEventListener("change", refreshFields);
   targetEntity.addEventListener("change", refreshFields);
+  sourceField.addEventListener("change", clearValidation);
+  targetField.addEventListener("change", clearValidation);
   refreshFields();
 
   return new Promise(resolve => {
@@ -426,9 +489,12 @@ export function openDiagram2RelationshipEditor(options = {}) {
     });
     dialog.querySelector("[data-diagram2-relationship-editor-form]")?.addEventListener("submit", event => {
       event.preventDefault();
+      clearValidation();
       if (!sourceField.value || !targetField.value) {
-        const status = dialog.querySelector("[data-diagram2-relationship-status]");
+        if (!sourceField.value) sourceField.setAttribute("aria-invalid", "true");
+        if (!targetField.value) targetField.setAttribute("aria-invalid", "true");
         if (status) status.textContent = "Choose a source and target field.";
+        (sourceField.value ? targetField : sourceField).focus();
         return;
       }
       finish({
@@ -456,6 +522,8 @@ export function openDiagram2EntityAnnotationEditor(options = {}) {
   const object = options.object && typeof options.object === "object" ? options.object : {};
   const dialog = document.createElement("dialog");
   dialog.className = "dialog mini-dialog diagram2-entity-annotation-dialog";
+  dialog.setAttribute("aria-label", "Entity Annotation");
+  bindDiagram2DialogShortcutIsolation(dialog);
   dialog.innerHTML = `
     <form method="dialog" data-diagram2-entity-annotation-form>
       <div class="dialog-head">
@@ -505,6 +573,8 @@ export function openDiagram2FieldRectangleMappingEditor(options = {}) {
   }).join("");
   const dialog = document.createElement("dialog");
   dialog.className = "dialog image-annotation-foreign-key-dialog diagram2-field-mapping-dialog";
+  dialog.setAttribute("aria-label", "Map Field Rectangle");
+  bindDiagram2DialogShortcutIsolation(dialog);
   dialog.innerHTML = `
     <form method="dialog" data-diagram2-field-mapping-form>
       <div class="dialog-head">
@@ -517,11 +587,11 @@ export function openDiagram2FieldRectangleMappingEditor(options = {}) {
       <div class="dialog-body image-annotation-foreign-key-dialog-body">
         <label class="field">
           <span>Referenced Entity</span>
-          <select data-diagram2-field-mapping-entity>${entityOptions}</select>
+          <select data-diagram2-field-mapping-entity aria-describedby="diagram2FieldMappingStatus">${entityOptions}</select>
         </label>
         <label class="field">
           <span>Referenced Field</span>
-          <select data-diagram2-field-mapping-field></select>
+          <select data-diagram2-field-mapping-field aria-describedby="diagram2FieldMappingStatus"></select>
         </label>
         <label class="field">
           <span>Relationship</span>
@@ -532,7 +602,7 @@ export function openDiagram2FieldRectangleMappingEditor(options = {}) {
             <option value="many-to-one" ${current?.relationshipType === "many-to-one" ? "selected" : ""}>Many-to-one</option>
           </select>
         </label>
-        <p class="image-annotation-format-status" data-diagram2-field-mapping-status role="status" aria-live="polite"></p>
+        <p id="diagram2FieldMappingStatus" class="image-annotation-format-status" data-diagram2-field-mapping-status role="status" aria-live="polite"></p>
       </div>
       <div class="dialog-actions">
         ${current ? `<button type="button" class="secondary" data-diagram2-field-mapping-remove>Remove Mapping</button>` : ""}
@@ -544,7 +614,13 @@ export function openDiagram2FieldRectangleMappingEditor(options = {}) {
   document.body.appendChild(dialog);
   const entityInput = dialog.querySelector("[data-diagram2-field-mapping-entity]");
   const fieldInput = dialog.querySelector("[data-diagram2-field-mapping-field]");
+  const status = dialog.querySelector("[data-diagram2-field-mapping-status]");
   const entityById = new Map(entities.map(entity => [String(entity.id), entity]));
+  const clearValidation = () => {
+    entityInput.removeAttribute("aria-invalid");
+    fieldInput.removeAttribute("aria-invalid");
+    if (status) status.textContent = "";
+  };
   const refreshFields = () => {
     const entity = entityById.get(String(entityInput.value || "")) || entities[0];
     const selected = entity && diagram2EntityReferenceValue(entity).toLowerCase() === currentReference
@@ -553,8 +629,10 @@ export function openDiagram2FieldRectangleMappingEditor(options = {}) {
     fieldInput.innerHTML = (Array.isArray(entity?.fields) ? entity.fields : [])
       .map(field => `<option value="${escapeAttr(field?.name || "")}" ${sameDiagram2Identifier(field?.name, selected) ? "selected" : ""}>${escapeHtml(field?.name || "Field")}</option>`)
       .join("");
+    clearValidation();
   };
   entityInput.addEventListener("change", refreshFields);
+  fieldInput.addEventListener("change", clearValidation);
   refreshFields();
 
   return new Promise(resolve => {
@@ -571,9 +649,13 @@ export function openDiagram2FieldRectangleMappingEditor(options = {}) {
     });
     dialog.querySelector("[data-diagram2-field-mapping-form]")?.addEventListener("submit", event => {
       event.preventDefault();
+      clearValidation();
       const entity = entityById.get(String(entityInput.value || ""));
       if (!entity || !fieldInput.value) {
-        dialog.querySelector("[data-diagram2-field-mapping-status]").textContent = "Choose a referenced Entity and field.";
+        if (!entity) entityInput.setAttribute("aria-invalid", "true");
+        if (!fieldInput.value) fieldInput.setAttribute("aria-invalid", "true");
+        if (status) status.textContent = "Choose a referenced Entity and field.";
+        (entity ? fieldInput : entityInput).focus();
         return;
       }
       finish({
@@ -604,6 +686,8 @@ export function openDiagram2FieldMappingImageChooser(imagesInput = []) {
   if (images.length === 1) return Promise.resolve(images[0]);
   const dialog = document.createElement("dialog");
   dialog.className = "dialog mini-dialog diagram2-field-mapping-image-dialog";
+  dialog.setAttribute("aria-label", "Field Mapping Table");
+  bindDiagram2DialogShortcutIsolation(dialog);
   dialog.innerHTML = `
     <form method="dialog" data-diagram2-field-mapping-image-form>
       <div class="dialog-head"><h2>Field Mapping Table</h2></div>
@@ -889,6 +973,7 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   syncDiagram2ColorPickerControls(root, selectedObjects, { busy: status.busy === true, canEdit });
   syncDiagram2InspectorTabVisibility(root, selectedObjects);
   syncDiagram2ContextMenu(root, selectedObjects, { busy: status.busy === true, canEdit, canExport });
+  syncDiagram2DisabledStateExplanations(root, status);
 }
 
 export function updateDiagram2RouteCommitShellStatus(root, status = {}) {
@@ -923,6 +1008,115 @@ export function updateDiagram2RouteCommitShellStatus(root, status = {}) {
     selectedObjects: status.selectedRelationships || [],
     state: status.state || {}
   }, { busy, canEdit });
+  syncDiagram2DisabledStateExplanations(root, {
+    ...status,
+    selectedObjects: status.selectedRelationships || []
+  });
+}
+
+function syncDiagram2DisabledStateExplanations(root, status = {}) {
+  root.querySelectorAll("[data-diagram2-disabled-explanation]").forEach(control => {
+    if (control.disabled) return;
+    const enabledTitle = control.dataset.diagram2EnabledTitle || "";
+    const previousReason = control.getAttribute("aria-description") || "";
+    const explainedTitle = enabledTitle ? `${enabledTitle} — ${previousReason}` : previousReason;
+    if ((control.getAttribute("title") || "") === explainedTitle) {
+      if (enabledTitle) control.setAttribute("title", enabledTitle);
+      else control.removeAttribute("title");
+    }
+    control.removeAttribute("aria-description");
+    delete control.dataset.diagram2DisabledExplanation;
+    delete control.dataset.diagram2EnabledTitle;
+  });
+
+  root.querySelectorAll("button:disabled, input:disabled, select:disabled, textarea:disabled").forEach(control => {
+    if (control.hasAttribute("data-diagram2-static-disabled-explanation")) return;
+    const reason = diagram2DisabledStateReason(control, status);
+    if (control.hasAttribute("data-diagram2-disabled-explanation")) {
+      const enabledTitle = control.dataset.diagram2EnabledTitle || "";
+      const previousReason = control.getAttribute("aria-description") || "";
+      const explainedTitle = enabledTitle ? `${enabledTitle} — ${previousReason}` : previousReason;
+      const currentTitle = control.getAttribute("title") || "";
+      if (currentTitle !== explainedTitle) control.dataset.diagram2EnabledTitle = currentTitle;
+    } else {
+      control.dataset.diagram2EnabledTitle = control.getAttribute("title") || "";
+      control.dataset.diagram2DisabledExplanation = "true";
+    }
+    const enabledTitle = control.dataset.diagram2EnabledTitle || "";
+    control.setAttribute("aria-description", reason);
+    control.setAttribute("title", enabledTitle ? `${enabledTitle} — ${reason}` : reason);
+  });
+}
+
+function diagram2DisabledStateReason(control, status = {}) {
+  const selectedObjects = Array.isArray(status.selectedObjects)
+    ? status.selectedObjects
+    : Array.isArray(status.selectedRelationships)
+      ? status.selectedRelationships
+      : [];
+  const selectedCount = Number.isFinite(Number(status.selectedCount))
+    ? Number(status.selectedCount)
+    : selectedObjects.length;
+  const canEdit = status.canEdit !== false;
+  const canCreate = status.canCreate !== false && status.security?.canCreate !== false;
+  const canExport = status.canExport !== false;
+  const hasDocument = status.hasDocument !== false && status.canRead !== false;
+
+  if (status.busy === true) return "Wait for the current Diagram 2 operation to finish.";
+  if (control.hasAttribute("data-diagram2-pending-command")) {
+    return "Wait for the current Diagram 2 command to finish.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-document") && !hasDocument) {
+    return "No Diagram 2 document is available.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-export") && !canExport) {
+    return "You do not have permission to export this Diagram 2 document.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-create") && !canCreate) {
+    return "You do not have permission to create Diagram 2 content.";
+  }
+  if (!canEdit && (
+    control.hasAttribute("data-diagram2-requires-update")
+    || control.closest("[data-diagram2-inspector]")
+  )) {
+    return "You do not have permission to edit this Diagram 2 document.";
+  }
+  if (control.dataset.diagram2ScreenCaptureBusy === "true") {
+    return "Screen capture is already in progress.";
+  }
+  if (control.hasAttribute("data-diagram2-screen-capture")
+    && control.dataset.diagram2ScreenCaptureSupported !== "true") {
+    return "Screen capture is not supported in this browser.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-dirty")) {
+    if (status.canSave === false) return "Saving is not available for this Diagram 2 document.";
+    if (status.dirty !== true) return "There are no unsaved changes.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-undo") && status.history?.canUndo !== true) {
+    return "There is nothing to undo.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-redo") && status.history?.canRedo !== true) {
+    return "There is nothing to redo.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-multi-selection") && selectedCount < 2) {
+    return "Select at least two objects first.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-selection") && selectedCount < 1) {
+    return "Select an object first.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-image")) {
+    return "Select an unlocked image first.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-field-rectangle")) {
+    return "Select an unlocked Field Rectangle first.";
+  }
+  if (control.hasAttribute("data-diagram2-requires-mapping-image")) {
+    return "Add an image before generating a Field Mapping Table.";
+  }
+  if (selectedObjects.some(object => object?.locked === true)) {
+    return "Unlock the selected object to use this control.";
+  }
+  return "This control is unavailable for the current Diagram 2 state.";
 }
 
 export function setDiagram2ToolsPaneOpen(root, open) {
@@ -1652,7 +1846,7 @@ function diagram2ToolsPaneHtml({ canUse }) {
           ${diagram2ToolPaneButton("select", "Select", "Select (V)", true, disabled)}
           ${diagram2ToolPaneButton("pan", "Pan", "Pan (H)", false, disabled)}
           ${diagram2ToolPaneButton("format-painter", "Format Painter", "Format Painter", false, `${disabled} data-diagram2-requires-selection data-diagram2-requires-update`)}
-          ${diagram2ToolPaneActionButton("capture", "Capture", "capture-diagram2-screen", `disabled data-diagram2-screen-capture data-diagram2-screen-capture-supported="false" data-diagram2-screen-capture-busy="false" data-diagram2-requires-update`, "Capture screen, window, or tab", "Capture screen, window, or tab")}
+          ${diagram2ToolPaneActionButton("capture", "Capture", "capture-diagram2-screen", `disabled data-diagram2-screen-capture data-diagram2-screen-capture-supported="false" data-diagram2-screen-capture-busy="false" data-diagram2-requires-update data-diagram2-static-disabled-explanation aria-description="Screen capture is unavailable without browser support, edit permission, or while another capture is running."`, "Capture screen, window, or tab", "Capture screen, window, or tab")}
           ${diagram2ToolPaneButton("crop", "Crop", "Crop (C)", false, `${disabled} data-diagram2-requires-image data-diagram2-requires-update`)}
           <div class="diagram2-tools-divider" role="separator" aria-hidden="true"></div>
           ${diagram2ToolPaneActionButton("image", "Add Image", "add-diagram2-image", `${disabled} data-diagram2-requires-update`)}
@@ -1850,7 +2044,7 @@ function diagram2FooterHtml(applyLabel) {
     <div class="dialog-actions image-annotation-actions diagram2-editor-actions">
       <span class="image-annotation-status" data-diagram2-shell-save-state aria-hidden="true">Saved</span>
       <div class="dialog-action-group">
-        <button type="button" class="secondary text-icon-button" data-action="cancel-diagram2-editor"><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
+        <button type="button" class="secondary text-icon-button" data-action="cancel-diagram2-editor" aria-description="Closing is unavailable while Diagram 2 is saving."><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
         <button type="button" class="primary text-icon-button" data-action="save-diagram2-document"><span class="button-icon" aria-hidden="true">&#10003;</span><span>${escapeHtml(applyLabel)}</span></button>
       </div>
     </div>
@@ -2294,13 +2488,17 @@ function diagram2BoundsIntersect(left, right) {
 function syncDiagram2EntityFieldEditor(root, entity, state = {}, canUse = true) {
   const container = root.querySelector("[data-diagram2-entity-fields]");
   if (!container) return;
-  if (!entity) {
-    container.innerHTML = `<p class="image-annotation-object-tree-empty">Select one Entity to edit fields.</p>`;
-    return;
-  }
-  const entities = (Array.isArray(state.objects) ? state.objects : [])
-    .filter(object => object?.type === "entity" && object.entityKind !== "field-rectangle");
-  container.innerHTML = diagram2EntityFieldRowsHtml(entity, entities, canUse && entity.locked !== true);
+  const html = entity
+    ? diagram2EntityFieldRowsHtml(
+        entity,
+        (Array.isArray(state.objects) ? state.objects : [])
+          .filter(object => object?.type === "entity" && object.entityKind !== "field-rectangle"),
+        canUse && entity.locked !== true
+      )
+    : `<p class="image-annotation-object-tree-empty">Select one Entity to edit fields.</p>`;
+  if (container.__diagram2EntityFieldsHtml === html) return;
+  container.innerHTML = html;
+  container.__diagram2EntityFieldsHtml = html;
 }
 
 function diagram2EntityFieldRowsHtml(entity, entities, canEdit) {

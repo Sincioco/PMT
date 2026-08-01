@@ -4,15 +4,15 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationFieldMappingTableStyle,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2FieldRectangleMapping,
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-rectangles.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2NormalizeEntityReference
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const defaultMappingTableStyle = {
   headerTextColor: "#000000",

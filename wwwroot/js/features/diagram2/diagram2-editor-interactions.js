@@ -1,14 +1,14 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-controller.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-routing.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   resizeDiagram2CropClip
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-crop.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -30,17 +30,70 @@ export function bindDiagram2EditorInteractions(options = {}) {
     renderer,
     signal
   } = options;
-  if (!canvas || !controller || !renderer || !signal) return () => {};
+  if (!canvas || !controller || !renderer || !signal) {
+    const inactiveHost = () => {};
+    inactiveHost.finishActiveGesture = async () => {};
+    return inactiveHost;
+  }
 
   const eventWindow = canvas.ownerDocument?.defaultView || globalThis.window;
   const contextMenu = options.root?.querySelector?.("[data-diagram2-context-menu]") || null;
   let gesture = null;
   let lastObjectPointerDown = { id: "", time: 0 };
+  let contextMenuRestoreTarget = null;
 
   const closeContextMenu = () => {
-    if (!contextMenu || contextMenu.hidden) return;
-    contextMenu.hidden = true;
-    options.root?.classList?.remove("rich-image-menu-open");
+    if (contextMenu && !contextMenu.hidden) {
+      contextMenu.hidden = true;
+      options.root?.classList?.remove("rich-image-menu-open");
+    }
+    contextMenuRestoreTarget = null;
+  };
+
+  const closeContextMenuAndRestoreFocus = () => {
+    const restoreTarget = contextMenuRestoreTarget;
+    closeContextMenu();
+    const focusTarget = restoreTarget?.isConnected ? restoreTarget : canvas;
+    focusTarget?.focus?.({ preventScroll: true });
+  };
+
+  const openObjectContextMenu = (objectIdInput, position, restoreTarget = canvas) => {
+    if (!contextMenu) return false;
+    const objectId = String(objectIdInput || "").trim();
+    if (!objectId) return false;
+    closeContextMenu();
+    contextMenuRestoreTarget = restoreTarget;
+    if (!controller.selectedObjectIds().includes(objectId)) {
+      controller.setSelection([objectId]);
+      options.onStateChange?.();
+    }
+    controller.setActiveTool("select");
+    options.onStateChange?.();
+    contextMenu.hidden = false;
+    contextMenu.style.position = "fixed";
+    options.root?.classList?.add("rich-image-menu-open");
+    const margin = 8;
+    const maximumLeft = Math.max(margin, eventWindow.innerWidth - contextMenu.offsetWidth - margin);
+    const maximumTop = Math.max(margin, eventWindow.innerHeight - contextMenu.offsetHeight - margin);
+    const clientX = finiteNumber(position?.clientX, margin);
+    const clientY = finiteNumber(position?.clientY, margin);
+    contextMenu.style.left = `${Math.round(Math.max(margin, Math.min(clientX, maximumLeft)))}px`;
+    contextMenu.style.top = `${Math.round(Math.max(margin, Math.min(clientY, maximumTop)))}px`;
+    const renderedRect = contextMenu.getBoundingClientRect();
+    const correctionX = renderedRect.left < margin
+      ? margin - renderedRect.left
+      : renderedRect.right > eventWindow.innerWidth - margin
+        ? (eventWindow.innerWidth - margin) - renderedRect.right
+        : 0;
+    const correctionY = renderedRect.top < margin
+      ? margin - renderedRect.top
+      : renderedRect.bottom > eventWindow.innerHeight - margin
+        ? (eventWindow.innerHeight - margin) - renderedRect.bottom
+        : 0;
+    if (correctionX) contextMenu.style.left = `${Math.round(Number.parseFloat(contextMenu.style.left) + correctionX)}px`;
+    if (correctionY) contextMenu.style.top = `${Math.round(Number.parseFloat(contextMenu.style.top) + correctionY)}px`;
+    contextMenu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    return true;
   };
 
   const restoreGestureSelectionChrome = active => {
@@ -175,6 +228,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
   const cancelGesture = () => {
     void finishGesture(false);
   };
+  cancelGesture.finishActiveGesture = () => finishGesture(true);
   signal.addEventListener("abort", cancelGesture, { once: true });
 
   canvas.addEventListener("wheel", event => {
@@ -425,35 +479,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
     if (!objectId) return;
     event.preventDefault();
     event.stopPropagation();
-    closeContextMenu();
-    if (objectId && !controller.selectedObjectIds().includes(objectId)) {
-      controller.setSelection([objectId]);
-      options.onStateChange?.();
-    }
-    controller.setActiveTool("select");
-    options.onStateChange?.();
-    contextMenu.hidden = false;
-    contextMenu.style.position = "fixed";
-    options.root?.classList?.add("rich-image-menu-open");
-    const margin = 8;
-    const maximumLeft = Math.max(margin, eventWindow.innerWidth - contextMenu.offsetWidth - margin);
-    const maximumTop = Math.max(margin, eventWindow.innerHeight - contextMenu.offsetHeight - margin);
-    contextMenu.style.left = `${Math.round(Math.max(margin, Math.min(event.clientX, maximumLeft)))}px`;
-    contextMenu.style.top = `${Math.round(Math.max(margin, Math.min(event.clientY, maximumTop)))}px`;
-    const renderedRect = contextMenu.getBoundingClientRect();
-    const correctionX = renderedRect.left < margin
-      ? margin - renderedRect.left
-      : renderedRect.right > eventWindow.innerWidth - margin
-        ? (eventWindow.innerWidth - margin) - renderedRect.right
-        : 0;
-    const correctionY = renderedRect.top < margin
-      ? margin - renderedRect.top
-      : renderedRect.bottom > eventWindow.innerHeight - margin
-        ? (eventWindow.innerHeight - margin) - renderedRect.bottom
-        : 0;
-    if (correctionX) contextMenu.style.left = `${Math.round(Number.parseFloat(contextMenu.style.left) + correctionX)}px`;
-    if (correctionY) contextMenu.style.top = `${Math.round(Number.parseFloat(contextMenu.style.top) + correctionY)}px`;
-    contextMenu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    openObjectContextMenu(objectId, event, canvas);
   }, { signal });
 
   eventWindow.addEventListener("pointerdown", event => {
@@ -468,15 +494,14 @@ export function bindDiagram2EditorInteractions(options = {}) {
   options.root?.querySelector?.("[data-diagram2-workspace]")?.addEventListener("scroll", closeContextMenu, { signal });
 
   eventWindow.addEventListener("keydown", event => {
-    if (options.isActive?.() === false) return;
+    if (options.isActive?.() === false || event.defaultPrevented) return;
     const key = String(event.key || "").toLowerCase();
     const command = event.ctrlKey || event.metaKey;
 
     if (contextMenu && !contextMenu.hidden) {
       if (event.key === "Escape" || event.key === "Tab") {
         event.preventDefault();
-        closeContextMenu();
-        canvas.focus?.({ preventScroll: true });
+        closeContextMenuAndRestoreFocus();
         return;
       }
       const items = [...contextMenu.querySelectorAll("button:not(:disabled)")];
@@ -497,14 +522,83 @@ export function bindDiagram2EditorInteractions(options = {}) {
       cancelGesture();
       return;
     }
-    if (event.key === "Escape" && controller.activeTool() === "format-painter") {
+
+    const focusedMappingCell = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-field-mapping-cell]");
+    if (focusedMappingCell && canvas.contains(focusedMappingCell)
+      && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
+      const mappingId = String(focusedMappingCell.dataset.diagram2FieldMappingId || "").trim();
+      const cellKind = focusedMappingCell.dataset.diagram2FieldMappingCellKind;
+      controller.selectFieldMapping?.(mappingId);
+      renderer.pinFieldMapping?.(mappingId, {
+        tableId: focusedMappingCell.dataset.diagram2FieldMappingTableId,
+        cellKind
+      });
+      if (event.key === "Enter") {
+        const diagnostics = renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
+        options.onViewportChange?.(diagnostics, { mappingId, cellKind });
+        (options.root?.querySelector?.("[data-diagram2-workspace]") || canvas)
+          ?.focus?.({ preventScroll: true });
+      }
+      options.onStateChange?.();
+      return;
+    }
+
+    const step = controller.keyboardNudgeStep(event.shiftKey);
+    const focusedCropHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-crop-handle]");
+    if (focusedCropHandle && canvas.contains(focusedCropHandle)) {
+      const nudged = nudgeCropHandle(focusedCropHandle, event, step);
+      if (nudged) {
+        event.preventDefault();
+        return;
+      }
+    }
+    const focusedRouteHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-relationship-route-handle]");
+    if (focusedRouteHandle && canvas.contains(focusedRouteHandle)) {
+      const nudged = nudgeRelationshipRouteHandle(focusedRouteHandle, event, step);
+      if (nudged) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    const keyboardContextMenu = event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
+    if (keyboardContextMenu && !event.target?.closest?.(
+      "input, textarea, select, button, a[href], summary, [contenteditable='true'], [contenteditable='']"
+    )) {
+      const focusTarget = canvas.ownerDocument.activeElement;
+      if (focusTarget && (focusTarget === canvas || canvas.contains(focusTarget))) {
+        const objectId = String(
+          focusTarget.closest?.("[data-diagram2-object-id]")?.dataset?.diagram2ObjectId
+          || focusTarget.closest?.("[data-diagram2-selection-id]")?.dataset?.diagram2SelectionId
+          || (controller.selectedObjectIds().length === 1 ? controller.selectedObjectIds()[0] : "")
+        ).trim();
+        const objectNode = canvas.querySelector?.(`[data-diagram2-object-id="${cssEscapeSelector(objectId)}"]`)
+          || canvas.querySelector?.(`[data-diagram2-selection-id="${cssEscapeSelector(objectId)}"]`);
+        if (objectId && objectNode) {
+          const bounds = objectNode.getBoundingClientRect();
+          event.preventDefault();
+          event.stopPropagation();
+          openObjectContextMenu(objectId, {
+            clientX: bounds.left + Math.min(24, bounds.width / 2),
+            clientY: bounds.top + Math.min(24, bounds.height / 2)
+          }, focusTarget);
+          return;
+        }
+      }
+    }
+
+    const editorOwnsEvent = event.target === canvas || options.root?.contains?.(event.target);
+    if (editorOwnsEvent && event.key === "Escape" && controller.activeTool() === "format-painter") {
+      event.preventDefault();
+      event.stopPropagation();
       controller.cancelFormatPainter();
       options.onStateChange?.();
       return;
     }
-    if (event.key === "Escape" && controller.activeTool() === "crop") {
+    if (editorOwnsEvent && event.key === "Escape" && controller.activeTool() === "crop") {
       event.preventDefault();
+      event.stopPropagation();
       if (typeof options.onSetTool === "function") void options.onSetTool("select", { reason: "Escape" });
       else {
         controller.setActiveTool("select");
@@ -513,13 +607,21 @@ export function bindDiagram2EditorInteractions(options = {}) {
       options.onStateChange?.();
       return;
     }
-    if (event.key === "Escape" && renderer.clearFieldMappingSelection?.()) {
+    if (editorOwnsEvent && event.key === "Escape" && renderer.clearFieldMappingSelection?.()) {
       event.preventDefault();
+      event.stopPropagation();
       controller.setSelection([]);
       options.onStateChange?.();
       return;
     }
-    if (editableEventTarget(event.target)) return;
+    if (editorOwnsEvent && event.key === "Escape" && controller.selectedObjectIds().length) {
+      event.preventDefault();
+      event.stopPropagation();
+      controller.setSelection([]);
+      options.onStateChange?.();
+      return;
+    }
+    if (interactiveEventTarget(event.target) && !canvasObjectEventTarget(event.target, canvas)) return;
     if (command && key === "s") {
       event.preventDefault();
       void options.onSave?.();
@@ -568,43 +670,6 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
-    const focusedMappingCell = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-field-mapping-cell]");
-    if (focusedMappingCell && canvas.contains(focusedMappingCell)
-      && (event.key === "Enter" || event.key === " ")) {
-      event.preventDefault();
-      const mappingId = String(focusedMappingCell.dataset.diagram2FieldMappingId || "").trim();
-      const cellKind = focusedMappingCell.dataset.diagram2FieldMappingCellKind;
-      controller.selectFieldMapping?.(mappingId);
-      renderer.pinFieldMapping?.(mappingId, {
-        tableId: focusedMappingCell.dataset.diagram2FieldMappingTableId,
-        cellKind
-      });
-      if (event.key === "Enter") {
-        const diagnostics = renderer.focusFieldMappingTarget?.(mappingId, { cellKind });
-        options.onViewportChange?.(diagnostics, { mappingId, cellKind });
-      }
-      options.onStateChange?.();
-      return;
-    }
-
-    const step = controller.keyboardNudgeStep(event.shiftKey);
-    const focusedCropHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-crop-handle]");
-    if (focusedCropHandle && canvas.contains(focusedCropHandle)) {
-      const nudged = nudgeCropHandle(focusedCropHandle, event, step);
-      if (nudged) {
-        event.preventDefault();
-        return;
-      }
-    }
-    const focusedRouteHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-relationship-route-handle]");
-    if (focusedRouteHandle && canvas.contains(focusedRouteHandle)) {
-      const nudged = nudgeRelationshipRouteHandle(focusedRouteHandle, event, step);
-      if (nudged) {
-        event.preventDefault();
-        return;
-      }
-    }
-
     const shortcutTool = diagram2ShortcutTools[key];
     if (shortcutTool && !command && !event.altKey) {
       event.preventDefault();
@@ -637,7 +702,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
 
   if (typeof options.onPasteEvent === "function") {
     eventWindow.addEventListener("paste", event => {
-      if (options.isActive?.() === false || editableEventTarget(event.target)) return;
+      if (options.isActive?.() === false || event.defaultPrevented || interactiveEventTarget(event.target)) return;
       void options.onPasteEvent(event);
     }, { signal });
   }
@@ -1063,7 +1128,11 @@ export function bindDiagram2EditorInteractions(options = {}) {
     }).then(applied => {
       if (!applied) return null;
       renderer.setCropTarget?.(objectId);
-      return afterMutation(options);
+      return afterMutation(options).then(() => {
+        canvas.querySelector?.(
+          `[data-diagram2-crop-handle="${cssEscapeSelector(direction)}"][data-diagram2-crop-object-id="${cssEscapeSelector(objectId)}"]`
+        )?.focus({ preventScroll: true });
+      });
     });
     return true;
   }
@@ -1216,8 +1285,46 @@ function pointerSelection(controller, objectId, event) {
   return [...selected];
 }
 
-function editableEventTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], [contenteditable='']"));
+function interactiveEventTarget(target) {
+  return Boolean(target?.closest?.([
+    "input",
+    "textarea",
+    "select",
+    "button",
+    "a[href]",
+    "summary",
+    "[contenteditable='true']",
+    "[contenteditable='']",
+    "[role='button']",
+    "[role='treeitem']",
+    "[role='menuitem']",
+    "[role='menuitemcheckbox']",
+    "[role='tab']",
+    "[role='slider']",
+    "[role='checkbox']",
+    "[role='radio']",
+    "[role='switch']",
+    "[role='textbox']",
+    "[role='combobox']"
+  ].join(", ")));
+}
+
+function canvasObjectEventTarget(target, canvas) {
+  if (!target || !canvas?.contains?.(target)) return false;
+  if (target.closest?.([
+    "input",
+    "textarea",
+    "select",
+    "button",
+    "a[href]",
+    "summary",
+    "[contenteditable='true']",
+    "[contenteditable='']",
+    "[data-diagram2-field-mapping-cell]",
+    "[data-diagram2-crop-handle]",
+    "[data-diagram2-relationship-route-handle]"
+  ].join(", "))) return false;
+  return Boolean(target.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]"));
 }
 
 function finiteNumber(value, fallback = 0) {

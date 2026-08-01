@@ -3,4 +3,4 @@ export {
   parsePmtDiagramFile,
   pmtDiagramFileFormat,
   pmtDiagramFileVersion
-} from "../../shared/diagram-contracts.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../shared/diagram-contracts.js?v=20260802-diagram2-phase7-roundtrip-v1";

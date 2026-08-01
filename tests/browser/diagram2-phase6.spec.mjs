@@ -563,9 +563,73 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
 
   await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["entity-phase6"]));
   await expect(page.locator("[data-diagram2-selection-outline]")).toHaveCount(1);
-  await page.locator(
+  await editMappingButton.focus();
+  await editMappingButton.press("Delete");
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.__pmtDiagram2EditorCore.getObjectById("entity-phase6")
+  ))).toBe(true);
+  expect(await editCanvas.evaluate(canvas => {
+    const event = new KeyboardEvent("keydown", {
+      key: "Delete",
+      bubbles: true,
+      cancelable: true
+    });
+    event.preventDefault();
+    canvas.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.__pmtDiagram2EditorCore.getObjectById("entity-phase6")
+  ))).toBe(true);
+
+  const selectedEntity = page.locator(
+    "[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']"
+  );
+  await selectedEntity.evaluate(node => node.setAttribute("tabindex", "0"));
+  await selectedEntity.focus();
+  await selectedEntity.press("Shift+F10");
+  const objectMenu = page.locator("[data-diagram2-context-menu]");
+  await expect(objectMenu).toBeVisible();
+  await expect(objectMenu.locator("button:not(:disabled)").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(objectMenu).toBeHidden();
+  await expect(selectedEntity).toBeFocused();
+
+  await editCanvas.focus();
+  await editCanvas.press("Escape");
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.selectedObjectIds().length
+  )).toBe(0);
+  await expect(page.locator("[data-diagram2-selection-outline]")).toHaveCount(0);
+
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["entity-phase6"]));
+  const editCanvasUiCell = page.locator(
     "[data-diagram2-mapping-table-plane] [data-diagram2-field-mapping-cell-kind='ui']"
-  ).first().click();
+  ).first();
+  await editCanvasUiCell.click();
+  await expect(editCanvasUiCell).toHaveAttribute("aria-pressed", "true");
+  await expect(editCanvasMappingRow.locator(
+    "[data-diagram2-field-mapping-cell][data-diagram2-field-mapping-cell-kind='database']"
+  )).toHaveAttribute("aria-pressed", "false");
+  const pinnedCellReconciled = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const before = document.querySelector(
+      "[data-diagram2-mapping-table-plane] [data-diagram2-field-mapping-cell-kind='ui']"
+    );
+    controller.setSelection(["table-phase6"], { expandGroups: false });
+    await controller.updateSelectedObjectsStyle("databaseFill", "#fff7ed", { coalesce: false });
+    await renderer.whenIdle();
+    return before !== document.querySelector(
+      "[data-diagram2-mapping-table-plane] [data-diagram2-field-mapping-cell-kind='ui']"
+    );
+  });
+  expect(pinnedCellReconciled).toBe(true);
+  await expect(editCanvasUiCell).toHaveAttribute("aria-pressed", "true");
+  await expect(editCanvasMappingRow).toHaveClass(/is-pinned/);
+  await editCanvasUiCell.focus();
+  await editCanvasUiCell.press("Enter");
+  await expect(page.locator("[data-diagram2-workspace]")).toBeFocused();
   await expect.poll(() => page.evaluate(() =>
     window.__pmtDiagram2EditorCore.selectedObjectIds().length)).toBe(0);
   await expect(page.locator("[data-diagram2-selection-outline]")).toHaveCount(0);
@@ -1378,6 +1442,18 @@ test("Diagram 2 save conflicts offer the next numbered name and preserve the ori
     await controller.moveObjects(["z-red"], 120, 0, { reason: "save conflict test" });
   });
   await page.locator("[data-action='save-diagram2-document']").click();
+  let conflictDialog = page.getByRole("dialog", { name: "Diagram Save Conflict" });
+  await expect(conflictDialog).toBeVisible();
+  await expect(conflictDialog.getByRole("button", { name: "Reload Latest" })).toBeEnabled();
+  await conflictDialog.getByRole("button", { name: "Keep Editing" }).click();
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
+  expect(await page.evaluate(() => window.__pmtDiagram2EditorCore
+    .getObjectById("z-red")?.x)).toBe(260);
+
+  await page.locator("[data-action='save-diagram2-document']").click();
+  conflictDialog = page.getByRole("dialog", { name: "Diagram Save Conflict" });
+  await expect(conflictDialog).toBeVisible();
+  await conflictDialog.getByRole("button", { name: "Save a Copy" }).click();
   const dialog = page.locator("dialog", { has: page.getByRole("heading", { name: "Save Diagram As" }) });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("[name='dialogText']")).toHaveValue("Conflict Diagram 4");
@@ -1388,7 +1464,326 @@ test("Diagram 2 save conflicts offer the next numbered name and preserve the ori
   expect(createdPayload?.title).toBe("Conflict Diagram 4");
   expect(createdPayload?.projectId).toBe(apiState.blogs[0].projectId);
   expect(apiState.blogs.find(blog => blog.id === 610)?.title).toBe("Conflict Diagram 2");
-  expect(uploadCount).toBe(2);
+  expect(uploadCount).toBe(3);
+});
+
+test("Diagram 2 Edit Info metadata, duplicate, delete, and card selection persist across reopen", async ({ page }) => {
+  let apiState = appState(620, "Metadata Diagram", zOrderState());
+  apiState.projects.push({
+    id: 2,
+    code: "OPS",
+    title: "Operations",
+    name: "Operations",
+    isActive: true
+  });
+  apiState.sprints.push({
+    id: 21,
+    projectId: 2,
+    code: "OPS-1",
+    title: "Planning",
+    name: "Planning",
+    isActive: true
+  });
+  apiState.blogs.push({
+    ...appState(621, "Metadata Parent", zOrderState()).blogs[0],
+    projectId: 2,
+    sprintId: 21,
+    isPrivate: true,
+    updatedAt: "2026-07-29T05:00:00Z",
+    rowVersion: "metadata-parent-row-1"
+  });
+  let infoPayload = null;
+  let duplicatePayload = null;
+  let uploadedSvg = "";
+  let deleteCount = 0;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadedSvg = extractMultipartSvg(route.request().postDataBuffer()) || uploadedSvg;
+    return route.fulfill(jsonResponse({ url: "/uploads/phase7-document-workflow.svg" }));
+  });
+  await page.route("**/uploads/phase7-document-workflow.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: uploadedSvg
+  }));
+  await page.route("**/api/blogs/620", route => {
+    infoPayload = route.request().postDataJSON();
+    const updated = {
+      ...apiState.blogs.find(blog => blog.id === 620),
+      ...infoPayload,
+      updatedAt: "2026-08-02T04:00:00Z",
+      rowVersion: "metadata-row-2"
+    };
+    apiState = {
+      ...apiState,
+      blogs: apiState.blogs.map(blog => blog.id === 620 ? updated : blog)
+    };
+    return route.fulfill(jsonResponse(updated));
+  });
+  await page.route("**/api/blogs", route => {
+    duplicatePayload = route.request().postDataJSON();
+    const created = {
+      ...duplicatePayload,
+      id: 622,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      createdAt: "2026-08-02T04:05:00Z",
+      updatedAt: "2026-08-02T04:05:00Z",
+      rowVersion: "metadata-copy-row-1"
+    };
+    apiState = { ...apiState, blogs: [...apiState.blogs, created] };
+    return route.fulfill(jsonResponse(created));
+  });
+  await page.route("**/api/blogs/622", route => {
+    deleteCount += 1;
+    apiState = { ...apiState, blogs: apiState.blogs.filter(blog => blog.id !== 622) };
+    return route.fulfill(jsonResponse({}));
+  });
+
+  await loginAndOpenDiagram2(page, 620);
+  await page.getByRole("button", { name: "Edit Info", exact: true }).click();
+  const editorDialog = page.locator("#editorDialog");
+  await expect(editorDialog).toBeVisible();
+  await editorDialog.locator("[name='title']").fill("Metadata Diagram Updated");
+  await editorDialog.locator("[name='visibility']").selectOption("private");
+  await editorDialog.locator("[name='projectId']").selectOption("2");
+  await editorDialog.locator("[name='sprintId']").selectOption("21");
+  await editorDialog.locator("[name='parentBlogId']").selectOption("621");
+  await editorDialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(editorDialog).not.toBeVisible();
+  await expect(page.locator("[data-diagram2-page-document-head] h2"))
+    .toHaveText("Metadata Diagram Updated");
+  expect(infoPayload).toMatchObject({
+    id: 620,
+    title: "Metadata Diagram Updated",
+    projectId: 2,
+    sprintId: 21,
+    parentBlogId: 621,
+    isPrivate: true,
+    isPinned: false,
+    expectedRowVersion: "phase6-row-1"
+  });
+
+  await page.getByRole("button", { name: "Cards", exact: true }).click();
+  const targetCard = page.locator("[data-action='select-diagram2-card'][data-id='620']");
+  const parentCard = page.locator("[data-action='select-diagram2-card'][data-id='621']");
+  await expect(targetCard).toHaveClass(/is-selected/);
+  await parentCard.click();
+  await expect(page).toHaveURL(/#\/diagram-2\/621$/);
+  await expect(parentCard).toHaveClass(/is-selected/);
+  await expect(targetCard).not.toHaveClass(/is-selected/);
+  await targetCard.click();
+  await expect(page).toHaveURL(/#\/diagram-2\/620$/);
+  await expect(targetCard).toHaveClass(/is-selected/);
+
+  await page.getByRole("button", { name: "Treeview", exact: true }).click();
+  const targetRow = page.locator("[data-diagram2-tree-row][data-id='620']");
+  await expect(targetRow).toHaveClass(/is-selected/);
+  await targetRow.click({ button: "right" });
+  let treeMenu = page.locator("[data-diagram2-tree-context-menu]");
+  await expect(treeMenu).toBeVisible();
+  await treeMenu.locator("[data-action='duplicate-diagram2']").click();
+  await expect(page).toHaveURL(/#\/diagram-2\/622$/);
+  const duplicateRow = page.locator("[data-diagram2-tree-row][data-id='622']");
+  await expect(duplicateRow).toHaveClass(/is-selected/);
+  await expect(page.locator("[data-diagram2-page-document-head] h2"))
+    .toHaveText("Metadata Diagram Updated Copy");
+  expect(duplicatePayload).toMatchObject({
+    title: "Metadata Diagram Updated Copy",
+    projectId: 2,
+    sprintId: 21,
+    parentBlogId: 621,
+    isPrivate: true,
+    isPinned: false
+  });
+
+  treeMenu = page.locator("[data-diagram2-tree-context-menu]");
+  await expect(async () => {
+    await duplicateRow.click({ button: "right" });
+    await expect(treeMenu).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 10000 });
+  await treeMenu.locator("[data-action='delete-diagram2']").click();
+  const deleteDialog = page.locator("dialog.mini-dialog", { hasText: "Delete this Diagram?" });
+  await expect(deleteDialog).toBeVisible();
+  await deleteDialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(duplicateRow).toHaveCount(0);
+  expect(deleteCount).toBe(1);
+  const selectedRow = page.locator("[data-diagram2-tree-row].is-selected");
+  await expect(selectedRow).toHaveCount(1);
+  const selectedId = await selectedRow.getAttribute("data-id");
+  expect(["620", "621"]).toContain(selectedId);
+  await expect(page).toHaveURL(new RegExp(`#\\/diagram-2\\/${selectedId}$`));
+  await expect(page.locator("[data-diagram2-live-viewer]")).toHaveAttribute("data-id", selectedId);
+
+  await targetRow.locator("[data-action='select-diagram2-document']").click();
+  await page.getByRole("button", { name: "Edit Info", exact: true }).click();
+  await expect(editorDialog.locator("[name='title']")).toHaveValue("Metadata Diagram Updated");
+  await expect(editorDialog.locator("[name='visibility']")).toHaveValue("private");
+  await expect(editorDialog.locator("[name='projectId']")).toHaveValue("2");
+  await expect(editorDialog.locator("[name='sprintId']")).toHaveValue("21");
+  await expect(editorDialog.locator("[name='parentBlogId']")).toHaveValue("621");
+  await editorDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("Diagram 2 Reload Latest keeps stale local work until confirmation and renders the newest server state", async ({ page }) => {
+  const originalState = zOrderState();
+  const latestState = zOrderState();
+  const latestRectangle = latestState.objects.find(object => object.id === "z-red");
+  latestRectangle.x = 420;
+  latestRectangle.fill = "#22c55e";
+  let apiState = appState(630, "Reload Latest Diagram", originalState);
+  let uploadCount = 0;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadCount += 1;
+    return route.fulfill(jsonResponse({ url: `/uploads/reload-latest-local-${uploadCount}.svg` }));
+  });
+  await page.route("**/api/blogs/630", route => route.fulfill(jsonResponse({
+    error: "A newer version of this item exists. Your changes were not applied."
+  }, 409)));
+
+  await loginAndOpenDiagram2(page, 630);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.moveObjects(["z-red"], 120, 0, {
+      reason: "stale reload confirmation test"
+    });
+  });
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("z-red")?.x
+  )).toBe(260);
+
+  apiState = appState(630, "Reload Latest Diagram", latestState);
+  apiState.blogs[0].rowVersion = "reload-latest-row-2";
+  apiState.blogs[0].updatedAt = "2026-08-02T05:00:00Z";
+  await page.locator("[data-action='save-diagram2-document']").click();
+  const conflictDialog = page.getByRole("dialog", { name: "Diagram Save Conflict" });
+  await expect(conflictDialog).toBeVisible();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("z-red")?.x
+  )).toBe(260);
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='z-red']"))
+    .toHaveAttribute("data-diagram2-object-transform-x", "260");
+
+  await conflictDialog.getByRole("button", { name: "Reload Latest", exact: true }).click();
+  await expect(conflictDialog).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore?.getObjectById("z-red")?.x
+  )).toBe(420);
+  const reloadedObject = page.locator(
+    "[data-diagram2-object-plane] [data-diagram2-object-id='z-red']"
+  );
+  await expect(reloadedObject).toHaveAttribute("data-diagram2-object-transform-x", "420");
+  const reloadedRectangle = reloadedObject.locator(".diagram2-renderer-rectangle");
+  await expect(reloadedRectangle).toHaveAttribute("fill", "#22c55e");
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Saved");
+  await expect(page.locator("#toast")).toContainText("The latest Diagram was loaded");
+  expect(uploadCount).toBe(1);
+});
+
+test("Diagram 2 failed Reload Latest keeps the local editor and dirty state open", async ({ page }) => {
+  const originalState = zOrderState();
+  const apiState = appState(631, "Reload Failure Diagram", originalState);
+  let reloadShouldFail = false;
+  let uploadCount = 0;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/state", route => reloadShouldFail
+    ? route.fulfill(jsonResponse({ error: "The latest state is temporarily unavailable." }, 500))
+    : route.fallback());
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadCount += 1;
+    return route.fulfill(jsonResponse({ url: `/uploads/reload-failure-local-${uploadCount}.svg` }));
+  });
+  await page.route("**/api/blogs/631", route => route.fulfill(jsonResponse({
+    error: "A newer version of this item exists. Your changes were not applied."
+  }, 409)));
+
+  await loginAndOpenDiagram2(page, 631);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(async () => {
+    window.__diagram2Phase7ReloadController = window.__pmtDiagram2EditorCore;
+    await window.__pmtDiagram2EditorCore.moveObjects(["z-red"], 120, 0, {
+      reason: "failed stale reload preservation test"
+    });
+  });
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("z-red")?.x
+  )).toBe(260);
+
+  reloadShouldFail = true;
+  await page.locator("[data-action='save-diagram2-document']").click();
+  const conflictDialog = page.getByRole("dialog", { name: "Diagram Save Conflict" });
+  await expect(conflictDialog).toBeVisible();
+  await conflictDialog.getByRole("button", { name: "Reload Latest", exact: true }).click();
+
+  await expect(conflictDialog).not.toBeVisible();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => ({
+    sameController: window.__pmtDiagram2EditorCore === window.__diagram2Phase7ReloadController,
+    x: window.__pmtDiagram2EditorCore?.getObjectById("z-red")?.x,
+    dirty: window.__pmtDiagram2EditorCore?.statusSnapshot?.().dirty
+  }))).toEqual({ sameController: true, x: 260, dirty: true });
+  await expect(page.locator("#toast")).toContainText("local changes remain open");
+  await expect(page.locator("#app .empty")).toHaveCount(0);
+  expect(uploadCount).toBe(1);
+});
+
+test("Diagram 2 Save preflight permits only one concurrent save", async ({ page }) => {
+  let apiState = appState(632, "Single Save Diagram", zOrderState());
+  let uploadCount = 0;
+  let saveCount = 0;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadCount += 1;
+    return route.fulfill(jsonResponse({ url: `/uploads/single-save-${uploadCount}.svg` }));
+  });
+  await page.route("**/api/blogs/632", route => {
+    saveCount += 1;
+    const payload = route.request().postDataJSON();
+    apiState = {
+      ...apiState,
+      blogs: apiState.blogs.map(blog => blog.id === 632
+        ? { ...blog, ...payload, rowVersion: `single-save-row-${saveCount + 1}` }
+        : blog)
+    };
+    return route.fulfill(jsonResponse(apiState.blogs[0]));
+  });
+
+  await loginAndOpenDiagram2(page, 632);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.moveObjects(["z-red"], 20, 0, {
+      reason: "single concurrent save test"
+    });
+    const button = document.querySelector("[data-action='save-diagram2-document']");
+    button.click();
+    button.click();
+  });
+
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Saved");
+  await expect.poll(() => ({ uploadCount, saveCount })).toEqual({ uploadCount: 1, saveCount: 1 });
+  await page.waitForTimeout(200);
+  expect({ uploadCount, saveCount }).toEqual({ uploadCount: 1, saveCount: 1 });
 });
 
 test("Diagram 2 Crop Radius debounces focused input without requiring Tab", async ({ page }, testInfo) => {
@@ -1540,6 +1935,15 @@ test("Diagram 2 Crop numeric controls flush, cancel, normalize, and Undo as one 
   const northwestCropHandle = page.locator("[data-diagram2-crop-handle='nw']");
   await expect(northwestCropHandle).toHaveAttribute("cx", String(image.imageClip.x));
   await expect(northwestCropHandle).toHaveAttribute("cy", String(image.imageClip.y));
+  await expect(northwestCropHandle).toHaveAttribute("aria-valuemin", String(image.x));
+  await expect(northwestCropHandle).toHaveAttribute("aria-valuemax", String(image.x + image.width));
+  await expect(northwestCropHandle).toHaveAttribute("aria-valuenow", String(image.imageClip.x));
+  const cropValueBeforeKeyboardNudge = await northwestCropHandle.getAttribute("aria-valuenow");
+  await northwestCropHandle.focus();
+  await northwestCropHandle.press("ArrowRight");
+  await expect(northwestCropHandle).toBeFocused();
+  await expect.poll(async () => northwestCropHandle.getAttribute("aria-valuenow"))
+    .not.toBe(cropValueBeforeKeyboardNudge);
   await page.locator("[data-diagram2-tool='crop']").click();
   await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.activeTool())).toBe("select");
   await page.locator("[data-diagram2-inspector-tab='crop']").click();
@@ -1973,6 +2377,9 @@ test("Diagram 2 Phase 6 keeps a localized mapping editable in a 1,000-object Dia
   await loginAndOpenDiagram2(page, 602);
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.__pmtDiagram2EditorCore && window.__pmtDiagram2Renderer
+  ))).toBe(true);
   await page.evaluate(state => {
     const controller = window.__pmtDiagram2EditorCore;
     const renderer = window.__pmtDiagram2Renderer;

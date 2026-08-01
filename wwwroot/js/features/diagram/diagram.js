@@ -26,7 +26,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -55,8 +55,8 @@ import {
   captureTreeNavState,
   restoreTreeNavState
 } from "../../shared/tree-nav-state.js?v=20260731-rte-checkbox-layout-v2";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260731-rte-checkbox-layout-v2";
-import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260731-rte-checkbox-layout-v2";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramTreeGroups = new Set(["all", "project", "project-sprint"]);

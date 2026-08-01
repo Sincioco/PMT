@@ -7,11 +7,11 @@ import {
   resolveAnnotationEntitySizeChangeLayout,
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const defaultDiagram2EntityWidth = 520;
 const defaultDiagram2EntityFill = "#ffffff";

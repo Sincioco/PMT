@@ -1,7 +1,7 @@
 import {
   disposeDiagram2LinkedViewer,
   hydrateDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 document.querySelectorAll("[data-public-linked-diagram2]").forEach(block => {
   void hydratePublicLinkedDiagram2(block);

@@ -2,18 +2,18 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationFieldMappingImages
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2CropNumericAdjustmentScheduler,
   diagram2CropOptionsPatch,
   diagram2ImageHasReversibleCrop,
   diagram2ResetCropPatch,
   diagram2ResetCropRadiusPatch
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-crop.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   isDiagram2ImageFile,
   loadDiagram2ImageDimensions
-} from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-images.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2ScreenCaptureService,
   diagram2ScreenCaptureErrorMessage,
@@ -22,13 +22,13 @@ import {
 } from "./diagram2-screen-capture.js?v=20260801-diagram2-screen-capture-v2";
 import {
   isDiagram2FieldRectangle
-} from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-rectangles.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   openDiagram2EntityAnnotationEditor,
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor,
   setDiagram2InspectorActiveTab
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
+} from "./diagram2-editor-shell.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;

@@ -1,9 +1,9 @@
-import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260801-diagram2-mapping-view-v3";
+import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   bindDiagram2EditorLeftPaneResize,
   diagram2MappingPaneHtml,
@@ -11,7 +11,7 @@ import {
   setDiagram2MappingPaneOpen,
   syncDiagram2MappingPaneColumnWidth,
   syncDiagram2RendererViewportInset
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
+} from "./diagram2-editor-shell.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const linkedDiagram2Records = new WeakMap();
 const linkedDiagram2LiveRecords = new Set();

@@ -265,7 +265,7 @@ internal static class ContentEndpoints
 
         if (useDiagram2Renderer)
         {
-            return $"  <script type=\"module\" src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram2-viewer.js?v=20260801-diagram2-readonly-trace-v2"))}\"></script>";
+            return $"  <script type=\"module\" src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram2-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1"))}\"></script>";
         }
 
         return $"  <script src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram-viewer.js?v=20260728-public-field-mapping-v1"))}\"></script>";

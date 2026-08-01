@@ -7,7 +7,7 @@ import {
   annotationFieldMappingAttentionHighlightSvg,
   buildAnnotationSvg,
   parseAnnotationSvg
-} from "./image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "./image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 export function buildInteractiveDiagramViewerSvg(svgMarkup) {
   const diagramState = parseAnnotationSvg(svgMarkup);

@@ -1,8 +1,8 @@
-import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260801-diagram2-readonly-trace-v2";
+import { diagram2AutoFormatCompactPlan } from "./diagram2-editor-relationships.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2CompactDiagnostics,
   diagram2CompactPhases
-} from "./diagram2-route-costing.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-route-costing.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 export async function runDiagram2CompactEngine(input = {}) {
   const startedAt = performanceNow();

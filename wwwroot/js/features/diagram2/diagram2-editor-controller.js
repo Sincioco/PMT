@@ -2,18 +2,18 @@ import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=202
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2EmbeddedImage
-} from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-images.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2ImageEffectiveClip,
   permanentlyCropDiagram2Image
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-crop.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2EntityAnnotationIndexes,
   createDiagram2EntityAnnotationPlan
-} from "./diagram2-editor-entity-annotations.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-entity-annotations.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2FieldRectangle,
   diagram2FieldRectangleMapping,
@@ -21,22 +21,22 @@ import {
   renameDiagram2FieldRectangle,
   setDiagram2FieldRectangleConnectionSide,
   setDiagram2FieldRectangleMapping
-} from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-rectangles.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2FieldMappingIndexes,
   patchDiagram2FieldMappingIndexes
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2FieldMappingTable,
   planDiagram2FieldMappingTableSync,
   syncDiagram2FieldMappingTableForFieldRectangle,
   syncDiagram2FieldMappingTableForImage
-} from "./diagram2-editor-field-mapping-tables.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
-} from "./diagram2-compatibility.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-compatibility.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2EntityObject,
   diagram2AddEntityFieldPlan,
@@ -47,7 +47,7 @@ import {
   diagram2SetEntityFieldReferencePlan,
   diagram2SetEntityOptionPlan,
   diagram2UpdateEntityFieldPlan
-} from "./diagram2-editor-entities.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-entities.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2StructureStateCommand,
   diagram2GroupSelectionPlan,
@@ -59,15 +59,15 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-structure.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
   diagram2DrawingDefaultFromObject,
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
-} from "./diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2";
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-templates.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2AddRelationshipPlan,
   diagram2ClearRelationshipRoutePlan,
@@ -80,18 +80,18 @@ import {
   diagram2SetRelationshipStylePlan,
   diagram2SetRelationshipTypePlan,
   diagram2UseCurrentRelationshipRoutePlan
-} from "./diagram2-editor-relationships.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-relationships.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   compactDiagram2RelationshipPoints,
   diagram2RelationshipPath
-} from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-routing.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260801-diagram2-readonly-trace-v2";
+const diagram2CompactWorkerModuleUrl = "./diagram2-compact-worker.js?v=20260802-diagram2-phase7-roundtrip-v1";
 const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",

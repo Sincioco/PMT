@@ -2,21 +2,22 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { appUrl } from "../../shared/app-urls.js";
-import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260731-rte-checkbox-layout-v2";
+import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260801-diagram2-screen-capture-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-controller.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   bindDiagram2EditorColorPickers,
+  bindDiagram2DialogShortcutIsolation,
   bindDiagram2EditorFormatControls,
   bindDiagram2EditorInspectorResize,
   bindDiagram2EditorLeftPaneResize,
@@ -36,7 +37,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
+} from "./diagram2-editor-shell.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -45,7 +46,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-templates.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -76,6 +77,7 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
     const dialog = document.createElement("dialog");
     dialog.className = "dialog image-annotation-dialog diagram2-rte-dialog";
     dialog.dataset.diagram2RteHost = "true";
+    dialog.setAttribute("aria-label", "Image Annotation 2.0");
 
     const hostAdapter = {
       kind: "rte-annotation",
@@ -138,6 +140,7 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
 
     const abortController = new AbortController();
     const { signal } = abortController;
+    bindDiagram2DialogShortcutIsolation(dialog, { controlsOnly: true, allowEscape: true, signal });
     controller.onChange(event => {
       if (event.reason === "relationship-route") {
         updateDiagram2RouteCommitShellStatus(dialog, {
@@ -150,7 +153,8 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
       updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller, event.status));
       updateDiagram2ObjectTreeSelection(dialog, event.status.selectedObjectIds);
     });
-    bindDiagram2RteHostEvents({
+    let interactionHost = null;
+    interactionHost = bindDiagram2RteHostEvents({
       dialog,
       editor,
       image,
@@ -183,7 +187,11 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
 
     const saveAndFinish = async () => {
       if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
+      if (controller.statusSnapshot().busy === true) return;
+      await interactionHost?.finishActiveGesture?.();
+      if (controller.statusSnapshot().busy === true) return;
       controller.setBusy(true);
+      setDiagram2RteCancelDisabled(dialog, true);
       try {
         await renderer.whenIdle();
         const currentState = controller.state();
@@ -204,12 +212,16 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
         controller.markSaved();
         finish(payload);
       } finally {
-        controller.setBusy(false);
+        if (!finished) {
+          controller.setBusy(false);
+          setDiagram2RteCancelDisabled(dialog, false);
+        }
       }
     };
 
     dialog.addEventListener("cancel", event => {
       event.preventDefault();
+      if (controller.statusSnapshot().busy === true) return;
       finish(null);
     }, { signal });
 
@@ -394,6 +406,7 @@ function bindDiagram2RteHostEvents(options = {}) {
 
   dialog.addEventListener("pointerdown", event => {
     if (!event.target.closest("[data-action='cancel-diagram2-editor']")) return;
+    if (controller.statusSnapshot().busy === true) return;
     void phase6Host.cancelCropAdjustment("editor canceled");
   }, { signal });
 
@@ -402,6 +415,7 @@ function bindDiagram2RteHostEvents(options = {}) {
     if (!actionElement) return;
     const action = actionElement.dataset.action || "";
     if (action === "cancel-diagram2-editor") {
+      if (controller.statusSnapshot().busy === true) return;
       dialog.__diagram2Finish?.(null);
       return;
     }
@@ -731,9 +745,61 @@ function bindDiagram2RteHostEvents(options = {}) {
     void focusDiagram2RteStructureNode(dialog, controller, renderer, row);
   }, { signal });
 
+  dialog.addEventListener("keydown", event => {
+    const row = event.target?.closest?.("[data-diagram2-object-tree-row]");
+    if (!row || event.target !== row || !row.closest?.("[data-diagram2-objects-pane]")) return;
+    const rows = [...dialog.querySelectorAll("[data-diagram2-object-tree-row]")];
+    const currentIndex = rows.indexOf(row);
+    if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+      const nextIndex = event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? rows.length - 1
+          : Math.max(0, Math.min(rows.length - 1, currentIndex + (event.key === "ArrowDown" ? 1 : -1)));
+      event.preventDefault();
+      event.stopPropagation();
+      rows[nextIndex]?.focus({ preventScroll: true });
+      return;
+    }
+
+    const target = diagram2RteStructureTarget(controller, row);
+    if (["Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (selectDiagram2RteStructureNode(dialog, controller, row)) {
+        diagram2RteObjectTreeRow(dialog, target)?.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (event.key === "F2") {
+      event.preventDefault();
+      event.stopPropagation();
+      void renameDiagram2RteStructureNode(
+        dialog,
+        controller,
+        renderer,
+        row,
+        options.askForText,
+        notify
+      ).then(renamed => {
+        if (renamed) diagram2RteObjectTreeRow(dialog, target)?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    if (["Delete", "Backspace"].includes(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      const nextRow = rows[currentIndex + 1] || rows[currentIndex - 1] || null;
+      const nextTarget = diagram2RteStructureTarget(controller, nextRow);
+      void deleteDiagram2RteStructureNode(dialog, controller, renderer, row, notify).then(deleted => {
+        if (deleted) diagram2RteObjectTreeRow(dialog, nextTarget)?.focus({ preventScroll: true });
+      });
+    }
+  }, { signal });
+
   bindDiagram2RteObjectTreeDragAndDrop(dialog, controller, renderer, signal);
 
-  bindDiagram2EditorInteractions({
+  return bindDiagram2EditorInteractions({
     root: dialog,
     canvas,
     controller,
@@ -768,6 +834,12 @@ function bindDiagram2RteHostEvents(options = {}) {
     onDelete: () => deleteDiagram2RteSelection(dialog, controller, renderer),
     onGroup: () => groupDiagram2RteSelection(dialog, controller, renderer, notify),
     onUngroup: () => ungroupDiagram2RteSelection(dialog, controller, renderer, notify)
+  });
+}
+
+function setDiagram2RteCancelDisabled(dialog, disabled) {
+  dialog.querySelectorAll("[data-action='cancel-diagram2-editor']").forEach(button => {
+    button.disabled = disabled === true;
   });
 }
 
@@ -1543,6 +1615,14 @@ function diagram2RteStructureTarget(controller, element) {
     kind: String(element?.dataset?.nodeKind || "object").trim() || "object",
     id: String(element?.dataset?.objectId || selectedIds[0] || "").trim()
   };
+}
+
+function diagram2RteObjectTreeRow(dialog, target) {
+  if (!target?.id) return null;
+  return [...dialog.querySelectorAll("[data-diagram2-object-tree-row]")].find(row =>
+    String(row.dataset.nodeKind || "object") === target.kind
+    && String(row.dataset.objectId || "") === target.id
+  ) || null;
 }
 
 function diagram2RteStructureNodeName(controller, kind, id) {

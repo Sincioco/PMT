@@ -768,7 +768,9 @@ async function assertDiagram2RtePhase5EntityEditing(page, testInfo) {
   await expect(dialog.locator("[data-diagram2-entity-field-row]")).toHaveCount(4);
   const addedFieldName = dialog.locator("[data-diagram2-entity-field-row][data-diagram2-entity-field-index='3'] [data-diagram2-entity-field-property='name']");
   await addedFieldName.fill("DisplayName");
-  await addedFieldName.dispatchEvent("change");
+  await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["rte-phase5-entity"]));
+  await expect(addedFieldName).toHaveValue("DisplayName");
+  await addedFieldName.press("Tab");
   await expect.poll(() =>
     page.evaluate(() => window.__pmtDiagram2EditorCore.getObjectById("rte-phase5-entity")?.fields?.[3]?.name || "")
   ).toBe("DisplayName2");
@@ -945,6 +947,7 @@ async function assertDiagram2RtePhase3CoreEditing(page, rectangleId) {
     window.__pmtDiagram2EditorCore.getObjectById(id)?.fill, circleId
   )).toBe("#0EA5E9");
   await page.keyboard.press("Escape");
+  await dialog.locator("[data-diagram2-workspace]").focus();
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
@@ -971,6 +974,7 @@ async function assertDiagram2RtePhase3CoreEditing(page, rectangleId) {
     window.__pmtDiagram2EditorCore.getObjectById(id)?.html.includes("RTE Phase 3"), richTextId
   )).toBe(true);
   await expect(dialog.locator(`[data-diagram2-object-id='${richTextId}'] .diagram2-renderer-rich-text-surface`)).toContainText("RTE Phase 3");
+  await dialog.locator("[data-diagram2-workspace]").focus();
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
@@ -1025,6 +1029,462 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   }));
   expect(after.applyCount).toBe(0);
   expect(after.html).toBe(before);
+});
+
+test("Annotate 2.0 blocks Escape and Cancel while Apply is pending", async ({ page }) => {
+  await page.route("**/uploads/original.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ffffff"/></svg>`
+  }));
+
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/original.svg" alt="Original"></p>
+    </div>
+  `);
+  await page.evaluate(async () => {
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
+    const image = document.querySelector("#targetImage");
+    window.__diagram2Phase7ApplyStarted = false;
+    window.__diagram2Phase7ReleaseApply = null;
+    window.__diagram2Phase7BusyPromise = openDiagram2RteAnnotationHost({
+      image,
+      editor: document.querySelector(".rich-editor"),
+      source: "/uploads/original.svg",
+      originalReference: "/uploads/original.svg",
+      originalUrl: "/uploads/original.svg",
+      originalFileName: "original.svg",
+      canEdit: true,
+      apply: async () => {
+        window.__diagram2Phase7ApplyStarted = true;
+        await new Promise(resolve => {
+          window.__diagram2Phase7ReleaseApply = resolve;
+        });
+      }
+    });
+  });
+
+  const dialog = page.getByRole("dialog", { name: "Image Annotation 2.0" });
+  await expect(dialog).toBeVisible();
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    await controller.addObject(controller.createDefaultObject("rectangle", { x: 80, y: 80 }, { id: "phase7-busy-rectangle" }));
+  });
+  await dialog.getByRole("button", { name: "Apply to RTE", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__diagram2Phase7ApplyStarted)).toBe(true);
+
+  const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
+  await expect(cancel).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await cancel.evaluate(button => button.click());
+  await expect(dialog).toBeVisible();
+
+  await page.evaluate(() => window.__diagram2Phase7ReleaseApply());
+  await page.evaluate(() => window.__diagram2Phase7BusyPromise);
+  await expect(dialog).toHaveCount(0);
+});
+
+test("Annotate 2.0 commits an active pointer move before Ctrl+S applies", async ({ page }) => {
+  await page.route("**/uploads/original.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ffffff"/></svg>`
+  }));
+
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/original.svg" alt="Original"></p>
+    </div>
+  `);
+  await page.evaluate(async () => {
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260802-diagram2-phase7-roundtrip-v1");
+    const image = document.querySelector("#targetImage");
+    window.__diagram2Phase7GesturePayload = null;
+    window.__diagram2Phase7GesturePromise = openDiagram2RteAnnotationHost({
+      image,
+      editor: document.querySelector(".rich-editor"),
+      source: "/uploads/original.svg",
+      originalReference: "/uploads/original.svg",
+      originalUrl: "/uploads/original.svg",
+      originalFileName: "original.svg",
+      canEdit: true,
+      apply: async payload => {
+        window.__diagram2Phase7GesturePayload = payload;
+      }
+    });
+  });
+
+  const dialog = page.getByRole("dialog", { name: "Image Annotation 2.0" });
+  await expect(dialog).toBeVisible();
+  const before = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await controller.addObject(controller.createDefaultObject("rectangle", { x: 80, y: 70 }, {
+      id: "phase7-rte-active-gesture"
+    }));
+    renderer.fit();
+    await renderer.whenIdle();
+    const object = controller.getObjectById("phase7-rte-active-gesture");
+    return { x: object.x, y: object.y };
+  });
+
+  const rectangle = dialog.locator(
+    "[data-diagram2-object-plane] [data-diagram2-object-id='phase7-rte-active-gesture']"
+  );
+  await expect(rectangle).toBeVisible();
+  const box = await rectangle.boundingBox();
+  await dialog.locator("[data-diagram2-workspace]").focus();
+  await page.evaluate(({ x, y }) => {
+    const canvas = document.querySelector("[data-diagram2-rte-host] [data-diagram2-viewer-canvas]");
+    const object = document.querySelector(
+      "[data-diagram2-rte-host] [data-diagram2-object-id='phase7-rte-active-gesture']"
+    );
+    canvas.setPointerCapture = () => {};
+    canvas.hasPointerCapture = () => false;
+    object.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      pointerId: 41,
+      pointerType: "mouse",
+      clientX: x,
+      clientY: y
+    }));
+    window.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      pointerId: 41,
+      pointerType: "mouse",
+      clientX: x + 48,
+      clientY: y + 32
+    }));
+  }, { x: box.x + (box.width / 2), y: box.y + (box.height / 2) });
+  const activeGesture = await page.evaluate(() => ({
+    moving: document.querySelector("[data-diagram2-rte-host] [data-diagram2-viewer-canvas]")
+      ?.classList.contains("is-moving-object"),
+    selectedIds: window.__pmtDiagram2EditorCore?.selectedObjectIds?.() || [],
+    canEdit: window.__pmtDiagram2EditorCore?.statusSnapshot?.().canEdit,
+    objectType: window.__pmtDiagram2EditorCore?.getObjectById?.("phase7-rte-active-gesture")?.type
+  }));
+  expect(activeGesture).toEqual({
+    moving: true,
+    selectedIds: ["phase7-rte-active-gesture"],
+    canEdit: true,
+    objectType: "rectangle"
+  });
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => page.evaluate(() => Boolean(window.__diagram2Phase7GesturePayload))).toBe(true);
+  await page.evaluate(() => window.__diagram2Phase7GesturePromise);
+
+  const saved = await page.evaluate(() => {
+    const object = window.__diagram2Phase7GesturePayload.state.objects
+      .find(candidate => candidate.id === "phase7-rte-active-gesture");
+    return { x: object.x, y: object.y };
+  });
+  expect(saved).not.toEqual(before);
+  await expect(dialog).toHaveCount(0);
+});
+
+test("Annotate 2.0 controls and object tree rows do not leak editor shortcuts", async ({ page }) => {
+  await page.route("**/uploads/original.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ffffff"/></svg>`
+  }));
+
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/original.svg" alt="Original"></p>
+    </div>
+  `);
+  await page.evaluate(async () => {
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1");
+    const image = document.querySelector("#targetImage");
+    window.__diagram2Phase7IsolationPromise = openDiagram2RteAnnotationHost({
+      image,
+      editor: document.querySelector(".rich-editor"),
+      source: "/uploads/original.svg",
+      originalReference: "/uploads/original.svg",
+      originalUrl: "/uploads/original.svg",
+      originalFileName: "original.svg",
+      canEdit: true,
+      apply: async () => {}
+    });
+  });
+
+  const dialog = page.getByRole("dialog", { name: "Image Annotation 2.0" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Rectangle (R)", exact: true }).click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects.find(object => object.type === "rectangle")?.id || ""
+  )).not.toBe("");
+  const rectangleId = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects.find(object => object.type === "rectangle").id
+  );
+  await dialog.getByRole("button", { name: "Objects", exact: true }).click();
+  const row = dialog.locator(`[data-diagram2-object-tree-row][data-diagram2-object-id='${rectangleId}']`);
+  await row.focus();
+  const beforeX = await page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id).x, rectangleId);
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id).x, rectangleId)).toBe(beforeX);
+
+  const rows = dialog.locator("[data-diagram2-object-tree-row]");
+  await page.keyboard.press("Home");
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(rows.last()).toBeFocused();
+  await row.focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.selectedObjectIds().includes(id), rectangleId
+  )).toBe(true);
+  await expect(row).toBeFocused();
+
+  page.once("dialog", prompt => prompt.accept("Keyboard Rectangle"));
+  await page.keyboard.press("F2");
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.name, rectangleId
+  )).toBe("Keyboard Rectangle");
+  await expect(row).toBeFocused();
+  await page.keyboard.press("Delete");
+  await expect.poll(() => page.evaluate(id =>
+    Boolean(window.__pmtDiagram2EditorCore.getObjectById(id)), rectangleId
+  )).toBe(false);
+  await expect(row).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).focus();
+  await page.keyboard.press("r");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.activeTool())).toBe("select");
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    window.__diagram2Phase7NestedDialogPromise = shell.openDiagram2EntityEditor({});
+  });
+  const nestedDialog = page.getByRole("dialog", { name: "Add Entity" });
+  await nestedDialog.getByRole("button", { name: "Cancel", exact: true }).focus();
+  await page.keyboard.press("r");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.activeTool())).toBe("select");
+  await nestedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7NestedDialogPromise);
+
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7IsolationPromise);
+});
+
+test("Diagram 2 dynamic dialogs expose names and validation state", async ({ page }) => {
+  await openDiagram2RteFixture(page);
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    window.__diagram2Phase7DialogPromise = shell.openDiagram2EntityEditor({});
+  });
+  let dialog = page.getByRole("dialog", { name: "Add Entity" });
+  await expect(dialog).toBeVisible();
+  const entityName = dialog.locator("[data-diagram2-entity-name]");
+  const entitySource = dialog.locator("[data-diagram2-entity-source]");
+  await entityName.fill("");
+  await entitySource.fill("");
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(entityName).toHaveAttribute("aria-invalid", "true");
+  await expect(entityName).toHaveAttribute("aria-describedby", "diagram2EntityStatus");
+  await expect(dialog.locator("#diagram2EntityStatus")).toContainText("Enter an Entity Name");
+  await entityName.fill("Customer");
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(entitySource).toHaveAttribute("aria-invalid", "true");
+  await expect(entitySource).toHaveAttribute("aria-describedby", "diagram2EntityStatus");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7DialogPromise);
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    window.__diagram2Phase7DialogPromise = shell.openDiagram2TextEditor({
+      object: { id: "phase7-text", type: "textbox", name: "Phase 7 Text", text: "Text" }
+    });
+  });
+  dialog = page.getByRole("dialog", { name: "Edit Text" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7DialogPromise);
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    const state = {
+      objects: [
+        { id: "phase7-entity-a", type: "entity", entityName: "Entity A", fields: [] },
+        { id: "phase7-entity-b", type: "entity", entityName: "Entity B", fields: [] }
+      ]
+    };
+    window.__diagram2Phase7DialogPromise = shell.openDiagram2RelationshipEditor({ state });
+  });
+  dialog = page.getByRole("dialog", { name: "Add Relationship" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  const sourceField = dialog.locator("[data-diagram2-relationship-source-field]");
+  const targetField = dialog.locator("[data-diagram2-relationship-target-field]");
+  await expect(sourceField).toHaveAttribute("aria-invalid", "true");
+  await expect(targetField).toHaveAttribute("aria-invalid", "true");
+  await expect(sourceField).toHaveAttribute("aria-describedby", "diagram2RelationshipStatus");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7DialogPromise);
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    window.__diagram2Phase7DialogPromise = shell.openDiagram2EntityAnnotationEditor({
+      object: { id: "phase7-entity", type: "entity", entityName: "Entity A" }
+    });
+  });
+  dialog = page.getByRole("dialog", { name: "Entity Annotation" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7DialogPromise);
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    const fieldRectangle = {
+      id: "phase7-field",
+      type: "entity",
+      entityKind: "field-rectangle",
+      entityName: "CustomerId",
+      fieldRectangleName: "CustomerId",
+      fields: [{ name: "CustomerId" }],
+      foreignKeys: []
+    };
+    const entity = { id: "phase7-customer", type: "entity", entityName: "Customer", fields: [] };
+    window.__diagram2Phase7DialogPromise = shell.openDiagram2FieldRectangleMappingEditor({
+      object: fieldRectangle,
+      state: { objects: [fieldRectangle, entity] }
+    });
+  });
+  dialog = page.getByRole("dialog", { name: "Map Field Rectangle" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Save Mapping", exact: true }).click();
+  const mappingField = dialog.locator("[data-diagram2-field-mapping-field]");
+  await expect(mappingField).toHaveAttribute("aria-invalid", "true");
+  await expect(mappingField).toHaveAttribute("aria-describedby", "diagram2FieldMappingStatus");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7DialogPromise);
+
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    window.__diagram2Phase7DialogPromise = shell.openDiagram2FieldMappingImageChooser([
+      { id: "phase7-image-a", type: "embedded-image", name: "Image A" },
+      { id: "phase7-image-b", type: "embedded-image", name: "Image B" }
+    ]);
+  });
+  dialog = page.getByRole("dialog", { name: "Field Mapping Table" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2Phase7DialogPromise);
+});
+
+test("Diagram 2 disabled controls explain why they are unavailable", async ({ page }) => {
+  await openDiagram2RteFixture(page);
+  await page.setContent(`<div id="phase7-disabled-shell"></div>`);
+  await page.evaluate(async () => {
+    const shell = await import("/js/features/diagram2/diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2");
+    const root = document.querySelector("#phase7-disabled-shell");
+    const state = {
+      version: 1,
+      width: 1600,
+      height: 900,
+      objects: [],
+      relationships: []
+    };
+    root.innerHTML = shell.diagram2EditorShellHtml({
+      includeHeader: true,
+      state,
+      selectedObjectIds: [],
+      status: { hostKind: "rte-annotation" }
+    });
+    window.__diagram2Phase7DisabledShell = shell;
+    window.__diagram2Phase7DisabledRoot = root;
+    window.__diagram2Phase7DisabledState = state;
+    shell.updateDiagram2ShellStatus(root, {
+      state,
+      canEdit: true,
+      canCreate: true,
+      canExport: true,
+      canSave: true,
+      dirty: false,
+      busy: false,
+      selectedCount: 0,
+      selectedObjects: [],
+      history: { canUndo: false, canRedo: false }
+    });
+  });
+
+  const root = page.locator("#phase7-disabled-shell");
+  const save = root.locator("[data-action='save-diagram2-document']").first();
+  const undo = root.locator("[data-action='undo-diagram2']").first();
+  const deleteSelection = root.locator("[data-action='delete-diagram2-selection']").first();
+  const capture = root.locator("[data-diagram2-screen-capture]").first();
+  await expect(save).toHaveAttribute("aria-description", "There are no unsaved changes.");
+  await expect(save).toHaveAttribute("title", /There are no unsaved changes\./);
+  await expect(undo).toHaveAttribute("aria-description", "There is nothing to undo.");
+  await expect(deleteSelection).toHaveAttribute("aria-description", "Select an object first.");
+  await expect(capture).toHaveAttribute("aria-description", "Screen capture is unavailable without browser support, edit permission, or while another capture is running.");
+  await expect(capture).toHaveAttribute("title", "Capture screen, window, or tab");
+  await expect(root.locator(
+    "button:disabled:not([aria-description]), input:disabled:not([aria-description]), select:disabled:not([aria-description]), textarea:disabled:not([aria-description])"
+  )).toHaveCount(0);
+
+  await page.evaluate(() => {
+    window.__diagram2Phase7DisabledShell.updateDiagram2ShellStatus(window.__diagram2Phase7DisabledRoot, {
+      state: window.__diagram2Phase7DisabledState,
+      canEdit: true,
+      canCreate: true,
+      canExport: true,
+      canSave: true,
+      dirty: true,
+      busy: true,
+      selectedCount: 0,
+      selectedObjects: [],
+      history: { canUndo: true, canRedo: false }
+    });
+  });
+  await expect(save).toHaveAttribute("aria-description", "Wait for the current Diagram 2 operation to finish.");
+
+  await page.evaluate(() => {
+    window.__diagram2Phase7DisabledShell.updateDiagram2ShellStatus(window.__diagram2Phase7DisabledRoot, {
+      state: window.__diagram2Phase7DisabledState,
+      canEdit: false,
+      canCreate: true,
+      canExport: true,
+      canSave: true,
+      dirty: true,
+      busy: false,
+      selectedCount: 0,
+      selectedObjects: [],
+      history: { canUndo: true, canRedo: false }
+    });
+  });
+  await expect(save).toHaveAttribute("aria-description", "You do not have permission to edit this Diagram 2 document.");
+
+  await page.evaluate(() => {
+    window.__diagram2Phase7DisabledShell.updateDiagram2ShellStatus(window.__diagram2Phase7DisabledRoot, {
+      state: window.__diagram2Phase7DisabledState,
+      canEdit: true,
+      canCreate: true,
+      canExport: true,
+      canSave: true,
+      dirty: true,
+      busy: false,
+      selectedCount: 0,
+      selectedObjects: [],
+      history: { canUndo: true, canRedo: false }
+    });
+  });
+  await expect(save).toBeEnabled();
+  await expect(save).not.toHaveAttribute("aria-description", /.+/);
+  await expect(undo).toBeEnabled();
+  await expect(undo).toHaveAttribute("title", "Undo (Ctrl+Z)");
+  await expect(undo).not.toHaveAttribute("aria-description", /.+/);
 });
 
 test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", async ({ page }) => {

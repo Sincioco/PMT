@@ -1,4 +1,4 @@
-import { normalizeAnnotationState } from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+import { normalizeAnnotationState } from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 let diagram2ImageSequence = 0;
 

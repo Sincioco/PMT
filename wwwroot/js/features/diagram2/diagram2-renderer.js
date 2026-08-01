@@ -11,32 +11,32 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageEffectiveClip
-} from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-crop.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingIndexDiagnostics,
   patchDiagram2FieldMappingIndexes,
   setDiagram2FieldMappingRouteIndex,
   diagram2MappingAttentionTargets
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   diagram2FieldMappingTableRowKey
-} from "./diagram2-editor-field-mapping-tables.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2ImageResourceManager
-} from "./diagram2-image-resources.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-image-resources.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   compactDiagram2RelationshipPoints,
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteKey,
   diagram2RelationshipRouteFromModel,
   normalizeDiagram2RelationshipGeometry
-} from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-routing.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -1285,6 +1285,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
     const radius = 5 / Math.max(minimumViewportScale, committedViewportTransform.scale);
     diagram2SelectionHandlePoints(image, clip).forEach(handle => {
+      const horizontalValue = /[ew]/.test(handle.direction);
       appendSvg(overlay, "circle", {
         "data-diagram2-crop-handle": handle.direction,
         "data-diagram2-crop-object-id": image.id,
@@ -1297,7 +1298,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         "pointer-events": "all",
         tabindex: 0,
         role: "slider",
-        "aria-label": `Crop ${handle.direction.toUpperCase()} handle`
+        "aria-label": `Crop ${handle.direction.toUpperCase()} handle`,
+        "aria-orientation": horizontalValue ? "horizontal" : "vertical",
+        "aria-valuemin": horizontalValue ? image.x : image.y,
+        "aria-valuemax": horizontalValue ? image.x + image.width : image.y + image.height,
+        "aria-valuenow": horizontalValue ? handle.x : handle.y,
+        "aria-valuetext": `X ${handle.x}, Y ${handle.y}`
       });
     });
   }
@@ -1449,6 +1455,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       .forEach(group => group.remove());
     viewportPlane?.querySelectorAll?.("[data-diagram2-field-mapping-row].is-field-mapping-hover, [data-diagram2-field-mapping-row].is-pinned")
       .forEach(row => row.classList.remove("is-field-mapping-hover", "is-pinned"));
+    viewportPlane?.querySelectorAll?.("[data-diagram2-field-mapping-cell][aria-pressed='true']")
+      .forEach(cell => cell.setAttribute("aria-pressed", "false"));
+    if (mappingPinnedState) {
+      fieldMappingRow(mappingPinnedState.mappingId, mappingPinnedState.tableId)
+        ?.querySelector(`[data-diagram2-field-mapping-cell-kind="${mappingPinnedState.cellKind}"]`)
+        ?.setAttribute("aria-pressed", "true");
+    }
     syncFieldRectangleMappingVisibility();
 
     const interaction = mappingHoverState || mappingPinnedState;
@@ -1908,7 +1921,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const overviewDetailResult = reconcileOverviewDetailLevel("dirty flush");
     objectPatchCount += overviewDetailResult.objectPatchCount;
     patchedNodeCount += overviewDetailResult.objectPatchCount + overviewDetailResult.relationshipPatchCount;
-    syncFieldRectangleMappingVisibility();
+    if (mappingHoverState || mappingPinnedState) renderFieldMappingHighlight();
+    else syncFieldRectangleMappingVisibility();
     routing.pendingCompactRelationshipRouteIds.clear();
 
     const endTime = now(performanceApi);
@@ -5688,7 +5702,8 @@ function patchFieldMappingTableObject(node, object) {
         "data-diagram2-field-mapping-cell-height": rowHeight,
         role: "button",
         tabindex: 0,
-        "aria-label": `Select UI field ${row.uiField || "UI Field"}`
+        "aria-label": `Select UI field ${row.uiField || "UI Field"}`,
+        "aria-pressed": "false"
       });
       appendSvg(uiCell, "rect", {
         "data-diagram2-field-mapping-cell-fill": "true",
@@ -5726,7 +5741,8 @@ function patchFieldMappingTableObject(node, object) {
         "data-diagram2-field-mapping-cell-height": rowHeight,
         role: "button",
         tabindex: 0,
-        "aria-label": `Select database field ${row.databaseField || "Database Field"}`
+        "aria-label": `Select database field ${row.databaseField || "Database Field"}`,
+        "aria-pressed": "false"
       });
       appendSvg(databaseCell, "rect", {
         "data-diagram2-field-mapping-cell-fill": "true",

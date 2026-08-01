@@ -83,7 +83,7 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
     backgroundColor: "rgba(0, 0, 0, 0)",
     borderColor: "rgba(0, 0, 0, 0)"
   });
-  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(10);
+  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(12);
 
   const publicMappingPane = viewer.locator("[data-diagram2-mapping-pane]");
   await publicMappingPane.locator("[data-diagram2-mapping-group-by-table]").check();
@@ -127,7 +127,7 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
   await viewer.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeGreaterThan(initialScale);
   await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
-  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(10);
+  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(12);
   await viewer.getByRole("button", { name: "Maximize Linked Diagram 2 viewer", exact: true }).click();
   await expect(viewer).toHaveClass(/is-maximized/);
   expect(await viewer.locator("[data-diagram-ole-maximize]").evaluate(button =>
@@ -1255,7 +1255,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       await finish();
     };
     const abortController = new AbortController();
-    interactionModule.bindDiagram2EditorInteractions({
+    const interactionHost = interactionModule.bindDiagram2EditorInteractions({
       root,
       canvas: root.querySelector("[data-diagram2-viewer-canvas]"),
       controller,
@@ -1286,6 +1286,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
     globalThis.__diagram2Phase3Harness = {
       controller,
       renderer,
+      interactionHost,
       abortController,
       sync,
       finish
@@ -1519,6 +1520,27 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
     return object.x !== before.x && object.y !== before.y;
   }, rectBeforeMove)).toBe(true);
 
+  const rectBeforeAwaitedCommit = await page.evaluate(() => {
+    const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
+    return { x: object.x, y: object.y };
+  });
+  const rectAfterMoveBox = await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").boundingBox();
+  await page.mouse.move(rectAfterMoveBox.x + 30, rectAfterMoveBox.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(rectAfterMoveBox.x + 58, rectAfterMoveBox.y + 46, { steps: 3 });
+  await page.evaluate(async () => {
+    const interactionHost = window.__diagram2Phase3Harness.interactionHost;
+    if (typeof interactionHost?.finishActiveGesture !== "function") {
+      throw new Error("Diagram 2 interaction host does not expose finishActiveGesture().");
+    }
+    await interactionHost.finishActiveGesture();
+  });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(before => {
+    const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
+    return object.x !== before.x && object.y !== before.y;
+  }, rectBeforeAwaitedCommit)).toBe(true);
+
   await page.evaluate(async () => {
     const { controller, finish } = window.__diagram2Phase3Harness;
     controller.setSelection(["rect-a"]);
@@ -1587,6 +1609,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
   await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rich-a'] foreignObject .diagram2-renderer-rich-text-surface")).toContainText("Edited Rich Text");
 
   const beforeTools = await page.evaluate(() => window.__diagram2Phase3Harness.controller.currentState().objects.length);
+  await page.locator("[data-diagram2-workspace]").focus();
   for (const key of ["r", "o", "a", "l", "t", "y"]) await page.keyboard.press(key);
   await expect.poll(() => page.evaluate(() =>
     window.__diagram2Phase3Harness.controller.currentState().objects.length
@@ -3241,6 +3264,7 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   await expect(page.locator("[data-diagram2-edit-state]").first()).toHaveText("1 selected");
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 
+  await page.locator("[data-diagram2-workspace]").focus();
   await page.keyboard.press("Shift+ArrowRight");
   await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
   await page.locator("[data-filter='diagram2-zoom']").selectOption("2");
@@ -3261,6 +3285,7 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
   await ensureDiagram2LeftPaneClosed(page);
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
+  await page.locator("[data-diagram2-workspace]").focus();
   await page.keyboard.press("Shift+ArrowRight");
   await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeEnabled();

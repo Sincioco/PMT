@@ -18,8 +18,8 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
-import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260731-diagram1-overflow-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -46,7 +46,7 @@ import {
   diagramUpdatedTime,
   loadDiagramCanonicalState,
   loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260731-rte-checkbox-layout-v2";
+} from "../../shared/diagram-documents.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js";
@@ -59,7 +59,7 @@ import {
   createDiagram2PmtDiagramFile,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
-} from "./diagram2-compatibility.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-compatibility.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2DocumentHostAdapter,
   nextAvailableDiagram2SaveTitle
@@ -67,10 +67,10 @@ import {
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260801-diagram2-screen-capture-v2";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-controller.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -96,7 +96,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
+} from "./diagram2-editor-shell.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -105,12 +105,12 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-templates.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -139,6 +139,7 @@ export function createDiagram2Feature({
   saveDiagramInfo,
   moveDiagramDocument,
   deleteItem,
+  reloadState,
   askForText,
   confirm,
   loadTemplateLibrary,
@@ -194,7 +195,9 @@ export function createDiagram2Feature({
   let diagram2Controller = null;
   let diagram2HostAdapter = null;
   let diagram2Phase6Host = null;
+  let diagram2InteractionHost = null;
   let diagram2TreeContextMenuController = null;
+  let diagram2TreeContextMenuOriginId = 0;
   let diagram2DocumentMode = "readonly";
   let diagram2ModeDocumentId = 0;
   let diagram2ClipboardImageBusy = false;
@@ -2145,6 +2148,7 @@ export function createDiagram2Feature({
     diagram2Controller = null;
     diagram2HostAdapter = null;
     diagram2Phase6Host = null;
+    diagram2InteractionHost = null;
     diagram2RendererDocumentId = 0;
     diagram2RendererState = null;
     diagram2SelectedObjectIds = [];
@@ -2281,9 +2285,14 @@ export function createDiagram2Feature({
   function bindDiagram2ObjectTreeControls() {
     const shell = app.querySelector("[data-diagram2-editor-shell]");
     if (!shell) return;
+    if (shell.dataset.diagram2ObjectTreeControlsBound === "true") {
+      bindDiagram2ObjectTreeDragAndDrop(shell);
+      return;
+    }
+    shell.dataset.diagram2ObjectTreeControlsBound = "true";
     let lastObjectTreePointerDown = { key: "", time: 0 };
-    const search = shell.querySelector("[data-filter='diagram2-object-search']");
-    search?.addEventListener("input", event => {
+    shell.addEventListener("input", event => {
+      if (!event.target?.matches?.("[data-filter='diagram2-object-search']")) return;
       diagram2ObjectSearch = String(event.target.value || "").trim();
       refreshDiagram2ObjectsPane({ preserveFocus: true });
     });
@@ -2314,6 +2323,47 @@ export function createDiagram2Feature({
       event.preventDefault();
       void focusDiagram2StructureNode(row);
     });
+    shell.addEventListener("keydown", event => {
+      const row = event.target?.closest?.("[data-diagram2-object-tree-row]");
+      if (!row || event.target !== row || !shell.contains(row)) return;
+      const rows = [...shell.querySelectorAll("[data-diagram2-object-tree-row]")];
+      const currentIndex = rows.indexOf(row);
+      if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+        const nextIndex = event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? rows.length - 1
+            : Math.max(0, Math.min(rows.length - 1, currentIndex + (event.key === "ArrowDown" ? 1 : -1)));
+        event.preventDefault();
+        event.stopPropagation();
+        rows[nextIndex]?.focus({ preventScroll: true });
+        return;
+      }
+      if (["Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const target = diagram2StructureTargetFromButton(row);
+        void selectDiagram2StructureNode(row).then(() => {
+          diagram2ObjectTreeRow(target)?.focus({ preventScroll: true });
+        });
+        return;
+      }
+      if (event.key === "F2") {
+        event.preventDefault();
+        event.stopPropagation();
+        void renameDiagram2StructureNode(row);
+        return;
+      }
+      if (["Delete", "Backspace"].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const nextRow = rows[currentIndex + 1] || rows[currentIndex - 1] || null;
+        const nextTarget = diagram2StructureTargetFromButton(nextRow);
+        void deleteDiagram2StructureNode(row).then(deleted => {
+          if (deleted) diagram2ObjectTreeRow(nextTarget)?.focus({ preventScroll: true });
+        });
+      }
+    });
     bindDiagram2ObjectTreeDragAndDrop(shell);
   }
 
@@ -2321,7 +2371,8 @@ export function createDiagram2Feature({
     const pane = root?.querySelector?.("[data-diagram2-objects-pane]");
     const tree = pane?.querySelector?.("[data-diagram2-object-tree]");
     const eventRoot = pane || tree;
-    if (!tree || !eventRoot) return;
+    if (!tree || !eventRoot || eventRoot.dataset.diagram2ObjectTreeDragBound === "true") return;
+    eventRoot.dataset.diagram2ObjectTreeDragBound = "true";
 
     eventRoot.addEventListener("dragstart", event => {
       const row = event.target.closest?.("[data-diagram2-object-tree-row][draggable='true']");
@@ -2515,7 +2566,7 @@ export function createDiagram2Feature({
       });
       globalThis.__pmtDiagram2Phase6Host = diagram2Phase6Host;
       diagram2Phase6Host.bind(signal);
-      bindDiagram2EditorInteractions({
+      diagram2InteractionHost = bindDiagram2EditorInteractions({
         root: viewer,
         canvas,
         controller: diagram2Controller,
@@ -2893,9 +2944,11 @@ export function createDiagram2Feature({
   function bindDiagram2CanvasContextMenu(viewer, canvas, signal, options = {}) {
     const menu = app.querySelector("[data-diagram2-canvas-context-menu]");
     if (!menu) return;
-    const closeMenu = () => {
+    let focusOrigin = canvas;
+    const closeMenu = (restoreFocus = false) => {
       menu.hidden = true;
       viewer?.classList?.remove("rich-image-menu-open");
+      if (restoreFocus && focusOrigin?.isConnected) focusOrigin.focus?.({ preventScroll: true });
     };
     const syncCheckbox = (selector, checked) => {
       const button = menu.querySelector(selector);
@@ -2922,13 +2975,9 @@ export function createDiagram2Feature({
         button.disabled = !canExport;
       });
     };
-    applyDiagram2ViewOptions(viewer);
-    canvas.addEventListener("contextmenu", event => {
-      const objectTarget = event.target.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]");
-      if (options.editMode === true && objectTarget) return;
-      if (!diagram2CurrentOutputState()) return;
-      event.preventDefault();
-      event.stopPropagation();
+    const openMenu = (clientX, clientY, origin = canvas) => {
+      if (!diagram2CurrentOutputState()) return false;
+      focusOrigin = origin?.isConnected ? origin : canvas;
       app.querySelector("[data-diagram2-tree-context-menu]")?.setAttribute("hidden", "");
       closeDiagram2EditorContextMenu(viewer);
       syncMenu();
@@ -2938,9 +2987,28 @@ export function createDiagram2Feature({
       const margin = 8;
       const maximumLeft = Math.max(margin, window.innerWidth - menu.offsetWidth - margin);
       const maximumTop = Math.max(margin, window.innerHeight - menu.offsetHeight - margin);
-      menu.style.left = `${Math.round(Math.max(margin, Math.min(event.clientX, maximumLeft)))}px`;
-      menu.style.top = `${Math.round(Math.max(margin, Math.min(event.clientY, maximumTop)))}px`;
+      menu.style.left = `${Math.round(Math.max(margin, Math.min(clientX, maximumLeft)))}px`;
+      menu.style.top = `${Math.round(Math.max(margin, Math.min(clientY, maximumTop)))}px`;
       menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+      return true;
+    };
+    applyDiagram2ViewOptions(viewer);
+    canvas.addEventListener("contextmenu", event => {
+      const objectTarget = event.target.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]");
+      if (options.editMode === true && objectTarget) return;
+      if (!openMenu(event.clientX, event.clientY, event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, { signal });
+    canvas.addEventListener("keydown", event => {
+      const requestsContextMenu = event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
+      if (!requestsContextMenu || event.target?.closest?.("input, textarea, select, button, [contenteditable='true']")) return;
+      const objectTarget = event.target?.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]");
+      if (options.editMode === true && objectTarget) return;
+      const bounds = objectTarget?.getBoundingClientRect?.() || canvas.getBoundingClientRect();
+      if (!openMenu(Math.min(bounds.right, bounds.left + 32), Math.min(bounds.bottom, bounds.top + 32), event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
     }, { signal });
     menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
     menu.addEventListener("click", event => {
@@ -2948,7 +3016,7 @@ export function createDiagram2Feature({
         "[data-diagram2-toggle-entity-relationships], [data-diagram2-toggle-field-mappings], [data-diagram2-toggle-relationship-lines-only]"
       );
       if (!toggle) {
-        closeMenu();
+        closeMenu(true);
         return;
       }
 
@@ -2966,26 +3034,30 @@ export function createDiagram2Feature({
       }
       applyDiagram2ViewOptions(viewer);
       syncMenu();
-      closeMenu();
+      closeMenu(true);
       notify?.(`${toggle.querySelector(".dropdown-menu-label")?.textContent || "Diagram option"} ${checked ? "on" : "off"}.`);
     }, { signal });
     window.addEventListener("pointerdown", event => {
-      if (!menu.hidden && !menu.contains(event.target)) closeMenu();
+      if (!menu.hidden && !menu.contains(event.target)) closeMenu(false);
     }, { signal });
     window.addEventListener("scroll", () => {
-      if (!diagram2IgnoringScrollEvent) closeMenu();
+      if (!diagram2IgnoringScrollEvent) closeMenu(false);
     }, { capture: true, passive: true, signal });
-    window.addEventListener("resize", closeMenu, { signal });
+    window.addEventListener("resize", () => closeMenu(false), { signal });
     window.addEventListener("keydown", event => {
       if (menu.hidden) return;
       if (event.key === "Escape" || event.key === "Tab") {
         event.preventDefault();
-        closeMenu();
-        canvas.focus({ preventScroll: true });
+        closeMenu(true);
         return;
       }
       const items = [...menu.querySelectorAll("button:not(:disabled)")];
       const currentIndex = items.indexOf(document.activeElement);
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        items[event.key === "Home" ? 0 : items.length - 1]?.focus({ preventScroll: true });
+        return;
+      }
       const direction = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
       if (!direction || !items.length) return;
       event.preventDefault();
@@ -3022,6 +3094,7 @@ export function createDiagram2Feature({
     abortDiagram2Pan();
     viewportAbortController?.abort();
     viewportAbortController = null;
+    diagram2InteractionHost = null;
   }
 
   function abortDiagram2Pan() {
@@ -3067,7 +3140,10 @@ export function createDiagram2Feature({
 
   async function saveDiagram2Document() {
     if (diagram2Busy || !diagram2Controller) return false;
+    await diagram2InteractionHost?.finishActiveGesture?.();
+    if (diagram2Busy || !diagram2Controller) return false;
     await diagram2Phase6Host?.finishCropAdjustment("save");
+    if (diagram2Busy || !diagram2Controller) return false;
     const document = currentDiagram2Document();
     if (!document || !diagram2Controller.currentState()) {
       notify?.("Select a Diagram before saving.");
@@ -3109,7 +3185,7 @@ export function createDiagram2Feature({
       return true;
     } catch (error) {
       if (diagram2SaveConflict(error) && diagramForSave) {
-        return saveDiagram2ConflictCopy(document, diagramForSave);
+        return resolveDiagram2SaveConflict(document, diagramForSave);
       }
       notify?.(error?.message || "Diagram 2 could not save the Diagram.");
       return false;
@@ -3118,6 +3194,32 @@ export function createDiagram2Feature({
       diagram2Controller?.setBusy(false);
       updateDiagram2EditorControls();
     }
+  }
+
+  async function resolveDiagram2SaveConflict(document, diagram) {
+    const action = await askDiagram2SaveConflictAction({
+      canCopy: diagram2CurrentSecurity().canCreate === true && typeof createDiagramDocument === "function",
+      canReload: typeof reloadState === "function"
+    });
+    if (action === "copy") return saveDiagram2ConflictCopy(document, diagram);
+    if (action !== "reload") {
+      notify?.("A newer version exists. Your local changes remain open and were not overwritten.");
+      return false;
+    }
+
+    try {
+      const reloaded = await reloadState();
+      if (reloaded !== true) {
+        notify?.("The latest Diagram could not be loaded. Your local changes remain open.");
+        return false;
+      }
+      resetDiagram2Renderer();
+      if (active) render();
+      notify?.("The latest Diagram was loaded. Your previous local changes were not saved.");
+    } catch (error) {
+      notify?.(error?.message || "The latest Diagram could not be loaded. Your local changes remain open.");
+    }
+    return false;
   }
 
   async function saveDiagram2ConflictCopy(document, diagram) {
@@ -3164,6 +3266,45 @@ export function createDiagram2Feature({
     }
   }
 
+  function askDiagram2SaveConflictAction(options = {}) {
+    return new Promise(resolve => {
+      const restoreFocus = document.activeElement;
+      const modal = document.createElement("dialog");
+      modal.className = "dialog mini-dialog";
+      modal.setAttribute("aria-label", "Diagram Save Conflict");
+      modal.innerHTML = `
+        <div class="dialog-head">
+          <h2>Diagram Save Conflict</h2>
+        </div>
+        <div class="dialog-body">
+          <p>A newer version of this Diagram exists. Choose what to do with your local changes.</p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Keep Editing")}</button>
+          <button type="button" class="secondary text-icon-button" data-result="reload"${options.canReload === true ? "" : " disabled"}>${buttonContent("&#8634;", "Reload Latest")}</button>
+          <button type="button" class="primary text-icon-button" data-result="copy"${options.canCopy === true ? "" : " disabled"}>${buttonContent("&#128203;", "Save a Copy")}</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const finish = result => {
+        if (modal.open) modal.close();
+        modal.remove();
+        if (restoreFocus?.isConnected) restoreFocus?.focus?.({ preventScroll: true });
+        resolve(result || "cancel");
+      };
+      modal.querySelectorAll("[data-result]").forEach(button => {
+        button.addEventListener("click", () => finish(button.dataset.result));
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish("cancel");
+      });
+      modal.showModal();
+      modal.querySelector("[data-result='copy']:not(:disabled), [data-result='reload']:not(:disabled), [data-result='cancel']")
+        ?.focus({ preventScroll: true });
+    });
+  }
+
   async function closeDiagram2Editor() {
     if (diagram2DocumentMode !== "edit") return false;
     if (diagram2Busy) return false;
@@ -3183,8 +3324,10 @@ export function createDiagram2Feature({
 
   function askDiagram2UnsavedCloseAction() {
     return new Promise(resolve => {
+      const restoreFocus = document.activeElement;
       const modal = document.createElement("dialog");
       modal.className = "dialog mini-dialog";
+      modal.setAttribute("aria-label", "Unsaved Changes");
       modal.innerHTML = `
         <div class="dialog-head">
           <h2>Unsaved Changes</h2>
@@ -3202,6 +3345,7 @@ export function createDiagram2Feature({
       const finish = result => {
         modal.close();
         modal.remove();
+        if (restoreFocus?.isConnected) restoreFocus?.focus?.({ preventScroll: true });
         resolve(result);
       };
       modal.querySelectorAll("[data-result]").forEach(button => {
@@ -3223,15 +3367,21 @@ export function createDiagram2Feature({
       notify?.("You do not have permission to export Diagrams.");
       return false;
     }
-    await diagram2Renderer?.whenIdle();
-    const contents = createDiagram2PmtDiagramFile({
-      title: document.title,
-      state: stateForExport,
-      svg: buildAnnotationSvg(stateForExport)
-    });
-    downloadTextFile(contents, `${safeFileName(document.title)}.pmt-diagram.json`, "application/json");
-    notify?.("PMT Diagram exported.");
-    return true;
+    try {
+      await diagram2Renderer?.whenIdle();
+      const portableState = await buildPortableAnnotationState(stateForExport);
+      const contents = createDiagram2PmtDiagramFile({
+        title: document.title,
+        state: portableState,
+        svg: buildAnnotationSvg(portableState)
+      });
+      downloadTextFile(contents, `${safeFileName(document.title)}.pmt-diagram.json`, "application/json");
+      notify?.("PMT Diagram exported.");
+      return true;
+    } catch (error) {
+      notify?.(error?.message || "The PMT Diagram could not be exported.");
+      return false;
+    }
   }
 
   async function exportDiagram2Svg() {
@@ -4289,6 +4439,14 @@ export function createDiagram2Feature({
     return { kind, id };
   }
 
+  function diagram2ObjectTreeRow(target) {
+    if (!target?.id) return null;
+    return [...app.querySelectorAll("[data-diagram2-object-tree-row]")].find(row => {
+      const candidate = diagram2StructureTargetFromButton(row);
+      return candidate.kind === target.kind && candidate.id === target.id;
+    }) || null;
+  }
+
   function diagram2StructureNodeName(kind, id) {
     const state = diagram2Controller?.currentState?.() || {};
     if (kind === "group") return String(state.groupNames?.[id] || "Group");
@@ -4453,11 +4611,17 @@ export function createDiagram2Feature({
     const { signal } = controller;
     diagram2TreeContextMenuController = controller;
 
-    const closeMenu = () => {
-      menu.hidden = true;
+    const closeMenu = (restoreFocus = false) => {
+      const activeMenu = app.querySelector("[data-diagram2-tree-context-menu]");
+      if (activeMenu) activeMenu.hidden = true;
+      if (restoreFocus && diagram2TreeContextMenuOriginId) {
+        app.querySelector(`[data-action='select-diagram2-document'][data-id='${diagram2TreeContextMenuOriginId}']`)
+          ?.focus({ preventScroll: true });
+      }
     };
 
     const showMenu = (document, clientX, clientY) => {
+      diagram2TreeContextMenuOriginId = Number(document.id || 0);
       if (selectedDiagramDocumentId !== document.id) {
         selectedDiagramDocumentId = document.id;
         writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
@@ -4503,15 +4667,45 @@ export function createDiagram2Feature({
       event.stopPropagation();
       showMenu(document, event.clientX, event.clientY);
     }, { signal });
-    menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
-    menu.addEventListener("click", closeMenu, { signal });
-    window.addEventListener("pointerdown", event => {
-      if (!menu.hidden && !menu.contains(event.target)) closeMenu();
+    tree.addEventListener("keydown", event => {
+      const requestsContextMenu = event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
+      if (!requestsContextMenu) return;
+      const documentButton = event.target.closest?.("[data-action='select-diagram2-document']");
+      const document = diagram2AllDocuments().find(item => item.id === Number(documentButton?.dataset.id || 0));
+      if (!documentButton || !document) return;
+      const bounds = documentButton.getBoundingClientRect();
+      event.preventDefault();
+      event.stopPropagation();
+      showMenu(document, Math.min(bounds.right, bounds.left + 32), Math.min(bounds.bottom, bounds.top + 32));
     }, { signal });
-    window.addEventListener("scroll", closeMenu, { capture: true, passive: true, signal });
-    window.addEventListener("resize", closeMenu, { signal });
+    menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
+    menu.addEventListener("click", () => closeMenu(true), { signal });
+    window.addEventListener("pointerdown", event => {
+      if (!menu.hidden && !menu.contains(event.target)) closeMenu(false);
+    }, { signal });
+    window.addEventListener("scroll", () => closeMenu(false), { capture: true, passive: true, signal });
+    window.addEventListener("resize", () => closeMenu(false), { signal });
     window.addEventListener("keydown", event => {
-      if (event.key === "Escape") closeMenu();
+      if (menu.hidden) return;
+      if (event.key === "Escape" || event.key === "Tab") {
+        event.preventDefault();
+        closeMenu(true);
+        return;
+      }
+      const items = [...menu.querySelectorAll("button:not(:disabled)")];
+      const currentIndex = items.indexOf(document.activeElement);
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        items[event.key === "Home" ? 0 : items.length - 1]?.focus({ preventScroll: true });
+        return;
+      }
+      const direction = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+      if (!direction || !items.length) return;
+      event.preventDefault();
+      const nextIndex = currentIndex < 0
+        ? (direction > 0 ? 0 : items.length - 1)
+        : (currentIndex + direction + items.length) % items.length;
+      items[nextIndex]?.focus({ preventScroll: true });
     }, { signal });
   }
 
@@ -4655,6 +4849,7 @@ export function createDiagram2Feature({
       diagram2ViewMode = "tree";
       writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
       writePreference(preferenceKeys.diagramViewMode, diagram2ViewMode);
+      updateBrowserUrl(routeForContent("diagram-2", selectedDiagramDocumentId));
       notify?.("PMT Diagram imported.");
       return true;
     } catch (error) {
@@ -4699,6 +4894,7 @@ export function createDiagram2Feature({
       diagram2ViewMode = "tree";
       writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
       writePreference(preferenceKeys.diagramViewMode, diagram2ViewMode);
+      updateBrowserUrl(routeForContent("diagram-2", selectedDiagramDocumentId));
       notify?.("Diagram duplicated.");
       render();
     } catch (error) {
@@ -5357,8 +5553,10 @@ function openDiagram2DownloadOptionsDialog(format, options = {}) {
     ? { transparent: "No white background", white: "White background" }
     : { transparent: "Transparent background", white: "White background" };
   return new Promise(resolve => {
+    const restoreFocus = document.activeElement;
     const modal = document.createElement("dialog");
     modal.className = `dialog mini-dialog diagram-download-dialog diagram2-${safeFormat}-download-dialog`;
+    modal.setAttribute("aria-label", title);
     modal.innerHTML = `
       <form>
         <div class="dialog-head">
@@ -5394,6 +5592,7 @@ function openDiagram2DownloadOptionsDialog(format, options = {}) {
     const finish = value => {
       if (modal.open) modal.close();
       modal.remove();
+      if (restoreFocus?.isConnected) restoreFocus?.focus?.({ preventScroll: true });
       resolve(value || null);
     };
     modal.querySelectorAll("[data-diagram2-download-cancel]").forEach(button => {
