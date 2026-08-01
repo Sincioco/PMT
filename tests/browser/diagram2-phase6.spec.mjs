@@ -148,6 +148,13 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   expect(await page.locator("[data-diagram2-mapping-table-plane]").evaluate(
     node => getComputedStyle(node).display
   )).not.toBe("none");
+  const readOnlyCanvasMappingRow = page.locator("[data-diagram2-field-mapping-row]").first();
+  await expect(readOnlyCanvasMappingRow).toBeVisible();
+  const readOnlyCanvasWeightsBeforeHover = await diagram2FieldMappingRowFontWeights(readOnlyCanvasMappingRow);
+  await readOnlyCanvasMappingRow.hover();
+  const readOnlyCanvasWeightsAfterHover = await diagram2FieldMappingRowFontWeights(readOnlyCanvasMappingRow);
+  expect(readOnlyCanvasWeightsAfterHover).toEqual(readOnlyCanvasWeightsBeforeHover);
+  expect(readOnlyCanvasWeightsAfterHover.every(weight => weight === 400)).toBe(true);
   await mappingToggle.click();
   await expect(mappingToggle).toHaveAttribute("aria-pressed", "true");
   await expect(readOnlyPane).toBeVisible();
@@ -394,7 +401,12 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "[data-diagram2-field-rectangle-plane] [data-diagram2-object-id='field-phase6']"
   );
   await expect(editFieldRectangle).toBeHidden();
-  await page.locator("[data-diagram2-field-mapping-row]").first().hover();
+  const editCanvasMappingRow = page.locator("[data-diagram2-field-mapping-row]").first();
+  const editCanvasWeightsBeforeHover = await diagram2FieldMappingRowFontWeights(editCanvasMappingRow);
+  await editCanvasMappingRow.hover();
+  const editCanvasWeightsAfterHover = await diagram2FieldMappingRowFontWeights(editCanvasMappingRow);
+  expect(editCanvasWeightsAfterHover).toEqual(editCanvasWeightsBeforeHover);
+  expect(editCanvasWeightsAfterHover.every(weight => weight === 400)).toBe(true);
   await expect(editFieldRectangle).toBeVisible();
   await expect(page.locator("[data-diagram2-field-mapping-active-relationship]")).toHaveCount(1);
   await page.evaluate(() => window.__pmtDiagram2Renderer.clearFieldMappingHover());
@@ -2866,6 +2878,11 @@ function appState(documentId, title, diagramState) {
     userPermissions: [],
     effectivePermissions: []
   };
+}
+
+function diagram2FieldMappingRowFontWeights(row) {
+  return row.locator("text").evaluateAll(nodes =>
+    nodes.map(node => Number(getComputedStyle(node).fontWeight)));
 }
 
 function mockScreenshotDataUrl() {

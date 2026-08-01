@@ -35,6 +35,7 @@ test("Link Diagram 2 reuses the D1 picker, shell, tab schema, and durable view m
   assert.match(appSource, /function rememberRichDiagramOleViewport/);
   assert.match(appSource, /function rememberRichDiagramOleActiveTab/);
   assert.match(appSource, /function rememberRichDiagramOleMaximized/);
+  assert.match(appSource, /const saved = localStorage\.getItem\(richDiagramOleStorageKey[\s\S]*if \(!saved\) return null/);
 
   assert.match(textSource, /\[data-pmt-ole='diagram'\], \[data-pmt-ole='diagram2'\]/);
   assert.match(textSource, /renderer === "2" \? "pmt-diagram-ole pmt-diagram2-ole" : "pmt-diagram-ole"/);
@@ -60,8 +61,30 @@ test("Link Diagram 2 mounts only the production D2 read-only renderer and patche
   assert.match(adapterSource, /renderer\.destroy\(\)/);
   assert.doesNotMatch(adapterSource, /buildInteractiveDiagramViewerSvg|buildAnnotationSvg/);
   assert.doesNotMatch(adapterSource, /\.render\([^\n]+reason:\s*"pan|\.render\([^\n]+reason:\s*"zoom/);
+  assert.match(adapterSource, /if \(record\.autoFit\) await autoFitDiagram2LinkedViewer\(record\)/);
+  assert.match(adapterSource, /await nextDiagram2LinkedViewerFrame\(\);[\s\S]*await nextDiagram2LinkedViewerFrame\(\);[\s\S]*fitDiagram2LinkedViewer/);
   assert.match(appSource, /if \(richDiagramOleIsDiagram2\(block\)\)[\s\S]*hydrateDiagram2LinkedViewer/);
+  assert.match(appSource, /autoFit: !hasRichDiagramOleViewport\(block, diagram, activeTab\)/);
   assert.match(appSource, /if \(diagram2\) return;[\s\S]*if \(hasStoredView\)/);
+});
+
+test("Diagram 2 public links use the production Linked Diagram 2 viewer", async () => {
+  const endpointSource = await source("Endpoints/ContentEndpoints.cs");
+  const diagram2Source = await source("wwwroot/js/features/diagram2/diagram2.js");
+  const publicViewerSource = await source("wwwroot/js/public-linked-diagram2-viewer.js");
+
+  assert.ok(endpointSource.includes('app.MapGet("/public/diagram-2/{token:guid}"'));
+  assert.ok(endpointSource.includes("useDiagram2Renderer: true"));
+  assert.ok(endpointSource.includes("data-public-linked-diagram2"));
+  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260801-public-diagram2-v1"));
+  assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-public-diagram2-v1"));
+  assert.match(diagram2Source, /appUrl\(`\/public\/diagram-2\/\$\{token\}`\)/);
+  assert.match(publicViewerSource, /hydrateDiagram2LinkedViewer/);
+  assert.match(publicViewerSource, /autoFit: true/);
+  assert.match(publicViewerSource, /panDiagram2LinkedViewer/);
+  assert.match(publicViewerSource, /zoomDiagram2LinkedViewer/);
+  assert.match(publicViewerSource, /\[data-public-linked-diagram2\]/);
+  assert.doesNotMatch(publicViewerSource, /buildInteractiveDiagramViewerSvg|buildAnnotationSvg/);
 });
 
 test("Link Diagram 2 exposes the required renderer lifecycle diagnostics", async () => {

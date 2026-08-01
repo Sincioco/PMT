@@ -77,7 +77,7 @@ import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-diagram2-mapping-view-v3";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-color-preview-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-public-diagram2-v1";
 import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-color-preview-v1";
 import {
   diagram2LinkedViewerViewport,
@@ -88,7 +88,7 @@ import {
   panDiagram2LinkedViewer,
   restoreDiagram2LinkedViewerViewport,
   zoomDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-color-preview-v1";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-public-diagram2-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-diagram2-mapping-view-v3";
 import {
   createGanttFeature,
@@ -6269,7 +6269,8 @@ function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl, ac
       block,
       host: surface,
       source: fallbackSourceUrl,
-      sourceKey: requestKey
+      sourceKey: requestKey,
+      autoFit: !hasRichDiagramOleViewport(block, diagram, activeTab)
     });
     return;
   }
@@ -6653,7 +6654,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
 
   block.addEventListener("diagram-ole-source-ready", () => {
     if (hasStoredView) render({ restore: diagram2 });
-    else fitView();
+    else if (!diagram2) fitView();
   });
 
   if (diagram2) return;
@@ -7021,7 +7022,9 @@ function richDiagramOleViewSignature(view) {
 
 function readRichDiagramOleStoredViewportRecord(block, diagram, tab = null) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(richDiagramOleStorageKey(block, diagram, tab)) || "{}");
+    const saved = localStorage.getItem(richDiagramOleStorageKey(block, diagram, tab));
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
     const view = {
       x: Number(parsed.x || 0),
       y: Number(parsed.y || 0),

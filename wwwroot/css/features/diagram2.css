@@ -379,6 +379,10 @@ body.diagram2-edit-mode-active #app {
   outline: none;
 }
 
+.diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-cell] > text {
+  font-weight: var(--font-weight-regular);
+}
+
 .diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-cell-fill] {
   transition: fill 120ms ease;
 }

@@ -4874,7 +4874,7 @@ export function createDiagram2Feature({
       });
       const token = String(link?.token || "").trim();
       if (!token) throw new Error("The public link could not be created.");
-      return new URL(appUrl(`/public/diagram/${token}`), window.location.href).href;
+      return new URL(appUrl(`/public/diagram-2/${token}`), window.location.href).href;
     }, {
       notify,
       copiedMessage: "Public diagram link copied.",

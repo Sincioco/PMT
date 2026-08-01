@@ -10,6 +10,57 @@ import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test.use({ timezoneId: "Asia/Taipei" });
 
+test("public Diagram 2 links mount the production Linked Diagram 2 viewer", async ({ page }) => {
+  const token = "11111111-2222-4333-8444-555555555555";
+  const bodyHtml = diagramBodyHtml("Public Diagram 2", "#2563eb");
+  await page.route(`**/public/diagram-2/${token}`, route => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: `<!doctype html>
+      <html lang="en" data-theme="light">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/css/tokens.css?v=20260620-token-depth">
+        <link rel="stylesheet" href="/css/themes.css?v=20260621-paper-links">
+        <link rel="stylesheet" href="/css/components/forms.css?v=20260801-public-diagram2-v1">
+        <link rel="stylesheet" href="/css/components/image-annotation.css?v=20260801-public-diagram2-v1">
+        <link rel="stylesheet" href="/css/features/diagram2.css?v=20260801-public-diagram2-v1">
+        <style>
+          body { margin: 0; }
+          .public-diagram-shell { height: 100vh; padding: 12px; }
+          .public-diagram-shell > .pmt-diagram-ole { width: 100%; height: calc(100vh - 24px); margin: 0; resize: none; }
+        </style>
+      </head>
+      <body>
+        <main class="public-diagram-shell">
+          <figure class="pmt-diagram-ole pmt-diagram2-ole" contenteditable="false" data-public-linked-diagram2 data-diagram-renderer="2" data-diagram2-linked-shell data-header="Linked Diagram 2: Public Diagram 2">
+            <template data-public-diagram-source>${bodyHtml}</template>
+          </figure>
+        </main>
+        <script type="module" src="/js/public-linked-diagram2-viewer.js?v=20260801-public-diagram2-v1"></script>
+      </body>
+      </html>`
+  }));
+
+  await page.goto(`/public/diagram-2/${token}`);
+  const viewer = page.locator("[data-public-linked-diagram2]");
+  const viewport = viewer.locator("[data-diagram-ole-viewport]");
+  await expect(viewer).toHaveAttribute("data-diagram-renderer", "2");
+  await expect(viewer.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram 2: Public Diagram 2");
+  await expect(viewer.locator("svg[data-diagram2-svg]")).toBeVisible();
+  await expect(viewer.locator("[data-diagram2-object-id='public-diagram-2-box']")).toBeVisible();
+  await expect(page.locator("[data-public-linked-diagram]")).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "Mapping", exact: true })).toBeHidden();
+  await expect.poll(() => publicDiagram2CenterDelta(viewport)).toBeLessThanOrEqual(2);
+
+  const initialScale = await publicDiagram2ViewportScale(viewport);
+  await viewer.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeGreaterThan(initialScale);
+  await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
+  await expect.poll(() => publicDiagram2CenterDelta(viewport)).toBeLessThanOrEqual(2);
+});
+
 test("Diagram PNG rasterizer copies rich text without tainting the canvas", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/css/base.css");
@@ -424,6 +475,11 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
     totalCount: 0,
     totalByteLength: 0
   })));
+  const publicDiagram2Token = "22222222-3333-4444-8555-666666666666";
+  await page.route("**/api/public-links", route => route.fulfill(jsonResponse({
+    token: publicDiagram2Token,
+    expiresAt: null
+  })));
   let pastedImageUploadCount = 0;
   await page.route("**/api/uploads/richtext", route => {
     pastedImageUploadCount += 1;
@@ -478,6 +534,14 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.getByRole("button", { name: "Edit Diagram" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit Info" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Public Link" })).toBeVisible();
+  await page.getByRole("button", { name: "Public Link" }).click();
+  const publicLinkDialog = page.locator(".public-link-duration-dialog");
+  await expect(publicLinkDialog).toBeVisible();
+  await publicLinkDialog.locator("[data-public-link-create]").click();
+  await expect(publicLinkDialog.locator("[data-public-link-url]"))
+    .toHaveValue(new RegExp(`/public/diagram-2/${publicDiagram2Token}$`));
+  await publicLinkDialog.locator("[data-public-link-cancel]").first().click();
+  await expect(publicLinkDialog).toHaveCount(0);
   await page.getByRole("button", { name: "Edit Info", exact: true }).click();
   await expect(page.locator("#editorDialog")).toBeVisible();
   await expect(page.locator("#dialogTitle")).toHaveText("Edit Diagram Info");
@@ -5903,6 +5967,45 @@ function parseDiagram2Point(value) {
     x: Number(match?.[1] || Number.NaN),
     y: Number(match?.[2] || Number.NaN)
   };
+}
+
+function publicDiagram2ViewportScale(viewport) {
+  return viewport.locator("svg[data-diagram2-svg]").evaluate(svg => {
+    const matrix = String(svg.dataset.diagram2ViewportMatrix || "")
+      .match(/^matrix\(([^)]+)\)$/)?.[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number) || [];
+    return Number(matrix[0] || 0);
+  });
+}
+
+function publicDiagram2CenterDelta(viewport) {
+  return viewport.evaluate(element => {
+    const svg = element.querySelector("svg[data-diagram2-svg]");
+    const object = svg?.querySelector("[data-diagram2-object-id='public-diagram-2-box']");
+    const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
+      .match(/^matrix\(([^)]+)\)$/)?.[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number) || [];
+    if (!object || matrix.length < 6) return Infinity;
+
+    const box = object.getBBox();
+    const objectMatrix = object.transform?.baseVal?.consolidate?.()?.matrix;
+    const localCenter = { x: box.x + (box.width / 2), y: box.y + (box.height / 2) };
+    const worldCenter = objectMatrix
+      ? {
+          x: (localCenter.x * objectMatrix.a) + (localCenter.y * objectMatrix.c) + objectMatrix.e,
+          y: (localCenter.x * objectMatrix.b) + (localCenter.y * objectMatrix.d) + objectMatrix.f
+        }
+      : localCenter;
+    const rect = element.getBoundingClientRect();
+    return Math.max(
+      Math.abs((rect.width / 2) - ((worldCenter.x * matrix[0]) + matrix[4])),
+      Math.abs((rect.height / 2) - ((worldCenter.y * matrix[0]) + matrix[5]))
+    );
+  });
 }
 
 function testState() {

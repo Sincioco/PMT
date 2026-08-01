@@ -1106,7 +1106,6 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   expect(await d2Block.locator("[data-diagram2-mapping-hover-hint]").evaluate(
     hint => hint.parentElement?.matches("[data-diagram2-linked-main]")
   )).toBe(true);
-  await d2Block.locator("[data-diagram-ole-fit]").click();
   await expect.poll(async () => {
     const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
     return Math.max(evidence.deltaX, evidence.deltaY);

@@ -65,6 +65,7 @@ export async function hydrateDiagram2LinkedViewer(options = {}) {
     mappingGroupByTable: false,
     mappingAlphabetical: false,
     mappingHintTimer: 0,
+    autoFit: options.autoFit === true,
     ready: null
   };
   linkedDiagram2Records.set(block, record);
@@ -99,6 +100,8 @@ export async function hydrateDiagram2LinkedViewer(options = {}) {
     linkedDiagram2DiagnosticsState.linkedDiagram2FullRenderCount += Number(diagnostics?.fullRenderCount || 0);
     configureDiagram2LinkedMapping(record);
     bindDiagram2LinkedFieldMapping(record);
+    if (record.autoFit) await autoFitDiagram2LinkedViewer(record);
+    if (!linkedDiagram2RecordIsCurrent(record)) return null;
     publishLinkedDiagram2Diagnostics();
     dispatchDiagram2LinkedViewerReady(record, true);
     return linkedDiagram2ViewerApi(record);
@@ -334,6 +337,20 @@ function bindDiagram2LinkedFieldMapping(record) {
 function selectLinkedRelationshipTrace(record, targetId) {
   record.renderer?.clearFieldMappingSelection?.();
   record.renderer?.setRelationshipTraceSelection?.(targetId ? [targetId] : []);
+}
+
+async function autoFitDiagram2LinkedViewer(record) {
+  await nextDiagram2LinkedViewerFrame();
+  await nextDiagram2LinkedViewerFrame();
+  if (linkedDiagram2RecordIsCurrent(record)) fitDiagram2LinkedViewer(record.block);
+}
+
+function nextDiagram2LinkedViewerFrame() {
+  return new Promise(resolve => {
+    const schedule = globalThis.requestAnimationFrame
+      || (callback => globalThis.setTimeout(callback, 0));
+    schedule(() => resolve());
+  });
 }
 
 function configureDiagram2LinkedMapping(record) {

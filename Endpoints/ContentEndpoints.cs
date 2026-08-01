@@ -25,6 +25,12 @@ internal static class ContentEndpoints
             return PublicBlogResult(context, blog, isDiagram: true);
         });
 
+        app.MapGet("/public/diagram-2/{token:guid}", async (Guid token, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var blog = await store.GetPublicBlogAsync(token, cancellationToken);
+            return PublicBlogResult(context, blog, isDiagram: true, useDiagram2Renderer: true);
+        });
+
         app.MapPost("/api/public-links", async (PublicBlogLinkInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             var currentUserId = ExplicitCurrentUserId(context);
@@ -124,15 +130,15 @@ internal static class ContentEndpoints
     private static bool IsImport(string? auditContext) =>
         string.Equals(auditContext?.Trim(), "Import", StringComparison.OrdinalIgnoreCase);
 
-    private static IResult PublicBlogResult(HttpContext context, BlogPostDto? blog, bool isDiagram)
+    private static IResult PublicBlogResult(HttpContext context, BlogPostDto? blog, bool isDiagram, bool useDiagram2Renderer = false)
     {
         if (blog is null) return Results.NotFound("Public content was not found.");
 
-        var html = PublicBlogPageHtml(context, blog, isDiagram);
+        var html = PublicBlogPageHtml(context, blog, isDiagram, useDiagram2Renderer);
         return Results.Content(html, "text/html; charset=utf-8", Encoding.UTF8);
     }
 
-    private static string PublicBlogPageHtml(HttpContext context, BlogPostDto blog, bool isDiagram)
+    private static string PublicBlogPageHtml(HttpContext context, BlogPostDto blog, bool isDiagram, bool useDiagram2Renderer)
     {
         var safeTitle = Html(blog.Title);
         var subtitle = Html(PublicBlogSubtitle(blog, isDiagram));
@@ -145,7 +151,7 @@ internal static class ContentEndpoints
         builder.AppendLine("  <meta charset=\"utf-8\">");
         builder.AppendLine("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
         builder.AppendLine($"  <title>{safeTitle} - PMT</title>");
-        builder.Append(PublicCssLinksHtml(context, isDiagram));
+        builder.Append(PublicCssLinksHtml(context, isDiagram, useDiagram2Renderer));
         builder.AppendLine("  <style>");
         builder.AppendLine("    :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #17202a; background: #f6f8fb; }");
         builder.AppendLine("    * { box-sizing: border-box; }");
@@ -183,9 +189,9 @@ internal static class ContentEndpoints
         builder.AppendLine($"    <div class=\"public-content-title\"><strong>{safeTitle}</strong><span>{subtitle}</span></div>");
         builder.AppendLine("  </header>");
         builder.AppendLine("  <main>");
-        builder.AppendLine(PublicMainHtml(isDiagram, bodyHtml, attachments, blog));
+        builder.AppendLine(PublicMainHtml(isDiagram, useDiagram2Renderer, bodyHtml, attachments, blog));
         builder.AppendLine("  </main>");
-        builder.AppendLine(PublicScriptHtml(context, isDiagram));
+        builder.AppendLine(PublicScriptHtml(context, isDiagram, useDiagram2Renderer));
         builder.AppendLine("</body>");
         builder.AppendLine("</html>");
         return builder.ToString();
@@ -208,19 +214,25 @@ internal static class ContentEndpoints
         return local.ToString("M/d/yyyy h:mm tt");
     }
 
-    private static string PublicCssLinksHtml(HttpContext context, bool isDiagram)
+    private static string PublicCssLinksHtml(HttpContext context, bool isDiagram, bool useDiagram2Renderer)
     {
         if (!isDiagram) return "";
 
+        var formsVersion = useDiagram2Renderer ? "20260801-public-diagram2-v1" : "20260725-public-link-dialog-v2";
+        var annotationVersion = useDiagram2Renderer ? "20260801-public-diagram2-v1" : "20260728-public-field-mapping-v1";
+        var diagram2Css = useDiagram2Renderer
+            ? $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/features/diagram2.css?v=20260801-public-diagram2-v1"))}\">"
+            : "";
         return string.Join(Environment.NewLine,
             $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/tokens.css?v=20260620-token-depth"))}\">",
             $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/themes.css?v=20260621-paper-links"))}\">",
-            $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/components/forms.css?v=20260725-public-link-dialog-v2"))}\">",
-            $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/components/image-annotation.css?v=20260728-public-field-mapping-v1"))}\">",
+            $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, $"/css/components/forms.css?v={formsVersion}"))}\">",
+            $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, $"/css/components/image-annotation.css?v={annotationVersion}"))}\">",
+            diagram2Css,
             "");
     }
 
-    private static string PublicMainHtml(bool isDiagram, string bodyHtml, string attachments, BlogPostDto blog)
+    private static string PublicMainHtml(bool isDiagram, bool useDiagram2Renderer, string bodyHtml, string attachments, BlogPostDto blog)
     {
         if (!isDiagram)
         {
@@ -231,10 +243,14 @@ internal static class ContentEndpoints
                 "    </article>");
         }
 
-        var header = HtmlAttr($"Linked Diagram: {blog.Title}");
+        var featureName = useDiagram2Renderer ? "Linked Diagram 2" : "Linked Diagram";
+        var header = HtmlAttr($"{featureName}: {blog.Title}");
+        var figureClass = useDiagram2Renderer ? "pmt-diagram-ole pmt-diagram2-ole" : "pmt-diagram-ole";
+        var publicViewerAttribute = useDiagram2Renderer ? "data-public-linked-diagram2" : "data-public-linked-diagram";
+        var diagram2Attributes = useDiagram2Renderer ? " data-diagram-renderer=\"2\" data-diagram2-linked-shell" : "";
         return string.Join(Environment.NewLine,
             "    <section class=\"public-diagram-shell\">",
-            $"      <figure class=\"pmt-diagram-ole\" contenteditable=\"false\" data-public-linked-diagram data-header=\"{header}\">",
+            $"      <figure class=\"{figureClass}\" contenteditable=\"false\" {publicViewerAttribute}{diagram2Attributes} data-header=\"{header}\">",
             "        <template data-public-diagram-source>",
             $"          {bodyHtml}",
             "        </template>",
@@ -243,9 +259,14 @@ internal static class ContentEndpoints
             "    </section>");
     }
 
-    private static string PublicScriptHtml(HttpContext context, bool isDiagram)
+    private static string PublicScriptHtml(HttpContext context, bool isDiagram, bool useDiagram2Renderer)
     {
         if (!isDiagram) return "";
+
+        if (useDiagram2Renderer)
+        {
+            return $"  <script type=\"module\" src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram2-viewer.js?v=20260801-public-diagram2-v1"))}\"></script>";
+        }
 
         return $"  <script src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram-viewer.js?v=20260728-public-field-mapping-v1"))}\"></script>";
     }
