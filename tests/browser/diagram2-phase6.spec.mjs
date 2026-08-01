@@ -96,6 +96,95 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(readOnlyPane).toHaveAttribute("data-diagram2-mapping-count", "1");
   await expect(readOnlyUiField).toContainText("TaskId");
   await expect(readOnlyDatabaseCell).toContainText("pmt.Phase6Entity.TaskId");
+  const mappingColumnHeaders = readOnlyPane.locator("[data-diagram2-mapping-column-headers]");
+  const mappingHeaderCells = mappingColumnHeaders.locator(".diagram2-mapping-pane-column-header");
+  await expect(mappingHeaderCells).toHaveText(["UI Field", "Database Field"]);
+  expect(await mappingColumnHeaders.evaluate(header => {
+    const style = getComputedStyle(header);
+    return [style.borderTopStyle, style.borderBottomStyle];
+  })).toEqual(["solid", "solid"]);
+  const mappingHeaderStyle = async () => mappingHeaderCells.first().evaluate(header => {
+    const style = getComputedStyle(header);
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      fontWeight: style.fontWeight
+    };
+  });
+  const headerStyleBeforeHover = await mappingHeaderStyle();
+  await mappingHeaderCells.first().hover();
+  expect(await mappingHeaderStyle()).toEqual(headerStyleBeforeHover);
+
+  const mappingColumnResizer = mappingColumnHeaders.locator("[data-diagram2-mapping-column-resizer]");
+  const mappingColumnWidthsBefore = await readOnlyPane.evaluate(pane => ({
+    header: pane.querySelector(".diagram2-mapping-pane-column-header")?.getBoundingClientRect().width || 0,
+    ui: pane.querySelector("[data-diagram2-field-mapping-cell-kind='ui']")?.getBoundingClientRect().width || 0,
+    database: pane.querySelector("[data-diagram2-field-mapping-cell-kind='database']")?.getBoundingClientRect().width || 0
+  }));
+  expect(Math.abs(mappingColumnWidthsBefore.header - mappingColumnWidthsBefore.ui)).toBeLessThanOrEqual(1);
+  expect(mappingColumnWidthsBefore.ui).toBeLessThan(mappingColumnWidthsBefore.database);
+  const mappingColumnResizerBox = await mappingColumnResizer.boundingBox();
+  expect(mappingColumnResizerBox).toBeTruthy();
+  await page.mouse.move(
+    mappingColumnResizerBox.x + (mappingColumnResizerBox.width / 2),
+    mappingColumnResizerBox.y + (mappingColumnResizerBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    mappingColumnResizerBox.x + (mappingColumnResizerBox.width / 2) + 48,
+    mappingColumnResizerBox.y + (mappingColumnResizerBox.height / 2)
+  );
+  await page.mouse.up();
+  const mappingColumnWidthsAfter = await readOnlyPane.evaluate(pane => ({
+    header: pane.querySelector(".diagram2-mapping-pane-column-header")?.getBoundingClientRect().width || 0,
+    ui: pane.querySelector("[data-diagram2-field-mapping-cell-kind='ui']")?.getBoundingClientRect().width || 0,
+    database: pane.querySelector("[data-diagram2-field-mapping-cell-kind='database']")?.getBoundingClientRect().width || 0
+  }));
+  expect(mappingColumnWidthsAfter.ui).toBeGreaterThan(mappingColumnWidthsBefore.ui + 40);
+  expect(Math.abs(mappingColumnWidthsAfter.header - mappingColumnWidthsAfter.ui)).toBeLessThanOrEqual(1);
+  expect(mappingColumnWidthsAfter.database).toBeLessThan(mappingColumnWidthsBefore.database - 40);
+  const mappingDownloads = readOnlyPane.locator("[data-diagram2-mapping-downloads]");
+  const downloadCsvButton = mappingDownloads.getByRole("button", { name: "Download as CSV", exact: true });
+  const downloadExcelButton = mappingDownloads.getByRole("button", { name: "Download as Excel", exact: true });
+  await expect(downloadCsvButton).toBeVisible();
+  await expect(downloadExcelButton).toBeVisible();
+  expect(await mappingDownloads.evaluate(footer =>
+    footer.parentElement?.classList.contains("diagram2-editor-left-pane-scroll") === true
+  )).toBe(true);
+
+  const [csvDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    downloadCsvButton.click()
+  ]);
+  expect(csvDownload.suggestedFilename()).toMatch(/^pmt-field-mapping-\d{8}-\d{6}\.csv$/);
+  const csvPath = await csvDownload.path();
+  expect(csvPath).toBeTruthy();
+  expect((await readFile(csvPath, "utf8")).replace(/^\uFEFF/, ""))
+    .toBe("UI Field,Database Field\r\nTaskId,pmt.Phase6Entity.TaskId");
+
+  const [excelDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    downloadExcelButton.click()
+  ]);
+  expect(excelDownload.suggestedFilename()).toMatch(/^pmt-field-mapping-\d{8}-\d{6}\.xlsx$/);
+  const excelPath = await excelDownload.path();
+  expect(excelPath).toBeTruthy();
+  const excelRows = await page.evaluate(async ({ content, filename }) => {
+    const bytes = Uint8Array.from(atob(content), character => character.charCodeAt(0));
+    const { readXlsxObjects } = await import("/js/shared/xlsx.js?v=20260630-native-xlsx");
+    return readXlsxObjects(new File(
+      [bytes],
+      filename,
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+    ));
+  }, {
+    content: (await readFile(excelPath)).toString("base64"),
+    filename: excelDownload.suggestedFilename()
+  });
+  expect(excelRows).toEqual([{
+    "UI Field": "TaskId",
+    "Database Field": "pmt.Phase6Entity.TaskId"
+  }]);
   const treeToggle = page.getByRole("button", { name: "Treeview", exact: true });
   const mappingToggle = page.getByRole("button", { name: "Mapping", exact: true });
   await expect(treeToggle).toHaveAttribute("aria-pressed", "true");
@@ -103,11 +192,7 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(mappingToggle).toHaveAttribute("aria-pressed", "true");
   expect(await treeToggle.evaluate((tree, mapping) => tree.nextElementSibling === mapping, await mappingToggle.elementHandle())).toBe(true);
   await expect(page.locator("[data-diagram2-readonly-shell]")).toHaveClass(/is-field-mapping-lines-hidden/);
-  const mappingHint = page.locator("[data-diagram2-mapping-hover-hint]");
-  await expect(mappingHint).toBeVisible();
-  await expect(mappingHint).toHaveText("Hover on the UI to DB Field Mapping");
-  expect(await mappingHint.evaluate(hint => hint.parentElement?.matches("[data-diagram2-readonly-main]"))).toBe(true);
-  await expect(mappingHint).toBeHidden({ timeout: 6500 });
+  await expect(page.locator("[data-diagram2-mapping-hover-hint]")).toHaveCount(0);
   await page.getByRole("button", { name: "Fit Diagram", exact: true }).click();
   const shownTreeFit = await diagram2VisibleContentCenterEvidence(page);
   expect(shownTreeFit.mappingPaneWidth).toBeGreaterThanOrEqual(200);
@@ -304,7 +389,6 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await readOnlyCanvas.click({ button: "right", position: { x: 380, y: 40 } });
   await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
   await expect(page.locator("[data-diagram2-readonly-shell]")).not.toHaveClass(/is-field-mapping-lines-hidden/);
-  await expect(mappingHint).toBeHidden();
   const readOnlyTraceBefore = await diagnosticNumber(page, "full-render-count");
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']")
     .dispatchEvent("click", { button: 0 });

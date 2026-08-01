@@ -1337,6 +1337,65 @@ body.has-pmt-diagram-ole-maximized {
   color: var(--color-danger-text);
 }
 
+.pmt-diagram-ole-actions button.dialog-maximize-button {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-indent: -9999px;
+  box-shadow: none;
+}
+
+.pmt-diagram-ole-actions button.dialog-maximize-button:hover:not(:disabled),
+.pmt-diagram-ole-actions button.dialog-maximize-button:focus-visible {
+  border-color: var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.pmt-diagram-ole-actions button.dialog-maximize-button:focus:not(:focus-visible),
+.pmt-diagram-ole-actions button.dialog-maximize-button:active:not(:hover) {
+  border-color: transparent;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.pmt-diagram-ole-actions button.dialog-maximize-button::before,
+.pmt-diagram-ole-actions button.dialog-maximize-button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.pmt-diagram-ole-actions button.dialog-maximize-button::after {
+  display: none;
+}
+
+.pmt-diagram-ole.is-maximized .pmt-diagram-ole-actions button.dialog-maximize-button::before {
+  width: 10px;
+  height: 10px;
+  transform: translate(-35%, -65%);
+}
+
+.pmt-diagram-ole.is-maximized .pmt-diagram-ole-actions button.dialog-maximize-button::after {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: var(--color-surface-subtle);
+  transform: translate(-65%, -35%);
+}
+
 .pmt-diagram-ole-tabs {
   display: flex;
   align-items: center;

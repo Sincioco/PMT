@@ -46,6 +46,7 @@ import {
 import {
   createDiagram2FieldMappingIndexes,
   diagram2EntityFieldMappingKey,
+  diagram2FieldMappingExportRows,
   diagram2FieldMappingPaneGroups,
   diagram2FieldMappingIndexDiagnostics,
   diagram2MappingAttentionTargets,
@@ -683,6 +684,15 @@ test("Diagram 2 Mapping pane alphabetical sorting is reversible", () => {
 
   const restored = diagram2FieldMappingPaneGroups(indexes, { groupByTable: true });
   assert.deepEqual(restored, original);
+
+  const originalExport = diagram2FieldMappingExportRows(indexes, { groupByTable: true });
+  assert.deepEqual(originalExport.map(row => row.uiField), ["Zulu UI", "Alpha UI", "Middle UI"]);
+  assert.deepEqual(Object.keys(originalExport[0]).sort(), ["databaseField", "uiField"]);
+  assert.deepEqual(
+    diagram2FieldMappingExportRows(indexes, { groupByTable: true, alphabetical: true })
+      .map(row => row.uiField),
+    ["Middle UI", "Alpha UI", "Zulu UI"]
+  );
 });
 
 test("Diagram 2 keeps Mapping pane and canvas-table rows synchronized with database field changes", async () => {

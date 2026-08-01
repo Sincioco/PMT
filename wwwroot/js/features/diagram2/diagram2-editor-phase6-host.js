@@ -22,7 +22,7 @@ import {
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor,
   setDiagram2InspectorActiveTab
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-color-preview-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-mapping-download-v2";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;

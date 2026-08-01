@@ -218,10 +218,10 @@ internal static class ContentEndpoints
     {
         if (!isDiagram) return "";
 
-        var formsVersion = useDiagram2Renderer ? "20260801-public-diagram2-v1" : "20260725-public-link-dialog-v2";
+        var formsVersion = useDiagram2Renderer ? "20260801-linked-diagram2-controls-v3" : "20260725-public-link-dialog-v2";
         var annotationVersion = useDiagram2Renderer ? "20260801-public-diagram2-v1" : "20260728-public-field-mapping-v1";
         var diagram2Css = useDiagram2Renderer
-            ? $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/features/diagram2.css?v=20260801-public-diagram2-v1"))}\">"
+            ? $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/features/diagram2.css?v=20260801-diagram2-mapping-download-v2"))}\">"
             : "";
         return string.Join(Environment.NewLine,
             $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/tokens.css?v=20260620-token-depth"))}\">",
@@ -265,7 +265,7 @@ internal static class ContentEndpoints
 
         if (useDiagram2Renderer)
         {
-            return $"  <script type=\"module\" src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram2-viewer.js?v=20260801-public-diagram2-v1"))}\"></script>";
+            return $"  <script type=\"module\" src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram2-viewer.js?v=20260801-diagram2-mapping-download-v2"))}\"></script>";
         }
 
         return $"  <script src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram-viewer.js?v=20260728-public-field-mapping-v1"))}\"></script>";

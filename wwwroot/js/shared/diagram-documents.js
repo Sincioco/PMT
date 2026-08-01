@@ -51,6 +51,17 @@ export function diagramDocumentImage(document) {
   return null;
 }
 
+export function diagramDocumentIsDiagramOnly(document) {
+  const html = String(document?.bodyHtml || "");
+  const template = globalThis.document?.createElement?.("template");
+  if (template) {
+    template.innerHTML = html;
+    return Boolean(template.content.querySelector("img[data-pmt-diagram-only='true']"));
+  }
+
+  return /<img\b[^>]*\bdata-pmt-diagram-only=(?:"true"|'true'|true)(?:\s|\/|>)/i.test(html);
+}
+
 export function diagramUpdatedTime(document) {
   return Date.parse(document?.updatedAt || document?.createdAt || "") || 0;
 }

@@ -169,22 +169,6 @@ body.diagram2-edit-mode-active #app {
   display: none !important;
 }
 
-.diagram2-mapping-hover-hint {
-  position: absolute;
-  top: 12px;
-  left: calc(var(--diagram2-active-left-pane-width, 0px) + 12px);
-  z-index: 12;
-  max-width: calc(100% - var(--diagram2-active-left-pane-width, 0px) - 24px);
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width) solid #e5b700;
-  border-radius: var(--radius-sm);
-  background: #fff3a3;
-  color: #3f3200;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  pointer-events: none;
-}
-
 .diagram2-readonly-shell.is-entity-relationships-hidden [data-diagram2-relationship-plane],
 .diagram2-editor-shell.is-entity-relationships-hidden [data-diagram2-relationship-plane],
 .diagram2-readonly-shell.is-field-mapping-lines-hidden [data-diagram2-field-relationship-plane],
@@ -1063,6 +1047,54 @@ body.diagram2-edit-mode-active #app {
   margin: 0;
 }
 
+.diagram2-mapping-pane-column-headers {
+  display: grid;
+  grid-template-columns: minmax(72px, var(--diagram2-mapping-ui-column-width, 112px)) minmax(0, 1fr);
+  min-width: 0;
+  border-top: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.diagram2-mapping-pane-column-header {
+  position: relative;
+  min-width: 0;
+  padding: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.diagram2-mapping-pane-column-resizer {
+  position: absolute;
+  z-index: 1;
+  inset: 3px -4px 3px auto;
+  width: 8px;
+  padding: 0;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.diagram2-mapping-pane-column-resizer::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 3px;
+  width: var(--border-width);
+  background: var(--color-border);
+}
+
+.diagram2-mapping-pane-column-resizer:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+[data-diagram2-editor-shell].is-resizing-mapping-column,
+[data-diagram2-linked-shell].is-resizing-mapping-column,
+[data-diagram2-readonly-shell].is-resizing-mapping-column {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .diagram2-mapping-pane-group {
   display: grid;
   min-width: 0;
@@ -1087,16 +1119,18 @@ body.diagram2-edit-mode-active #app {
 
 .diagram2-mapping-pane-row {
   display: grid;
+  grid-template-columns: minmax(72px, var(--diagram2-mapping-ui-column-width, 112px)) minmax(0, 1fr);
   min-width: 0;
   border-bottom: var(--border-width) solid var(--color-border-subtle);
   padding-bottom: var(--space-1);
 }
 
+.diagram2-mapping-pane-rows .diagram2-mapping-pane-row:last-child {
+  border-bottom: 0;
+}
+
 .diagram2-mapping-pane-field {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--space-2);
+  display: block;
   width: 100%;
   min-height: 34px;
   padding: var(--space-1) var(--space-2);
@@ -1113,13 +1147,6 @@ body.diagram2-edit-mode-active #app {
   background: color-mix(in srgb, var(--color-accent, #2563eb) 8%, var(--color-surface));
 }
 
-.diagram2-mapping-pane-field-kind {
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-}
-
 .diagram2-mapping-pane-field-value {
   min-width: 0;
   color: var(--color-text-primary);
@@ -1132,6 +1159,22 @@ body.diagram2-edit-mode-active #app {
   padding: var(--space-2);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.diagram2-mapping-pane-downloads {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-surface-dialog);
+}
+
+.diagram2-mapping-pane-downloads button {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
 }
 
 .diagram2-editor-objects-pane .image-annotation-object-tree-actions,

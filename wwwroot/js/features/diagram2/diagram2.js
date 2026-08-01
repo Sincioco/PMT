@@ -80,6 +80,7 @@ import {
   diagram2EditorShellHtml,
   diagram2MappingPaneHtml,
   diagram2ObjectsPaneHtml,
+  downloadDiagram2FieldMappings,
   openDiagram2CompactProgress,
   diagram2TemplatePaneHtml,
   openDiagram2EntityEditor,
@@ -90,11 +91,12 @@ import {
   setDiagram2ObjectsPaneOpen,
   setDiagram2TemplatesPaneOpen,
   setDiagram2ToolsPaneOpen,
+  syncDiagram2MappingPaneColumnWidth,
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-color-preview-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-mapping-download-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -200,8 +202,6 @@ export function createDiagram2Feature({
   let diagram2MappingSearch = "";
   let diagram2MappingGroupByTable = false;
   let diagram2MappingAlphabetical = false;
-  let diagram2MappingHintTimer = 0;
-  let diagram2MappingHintExpired = false;
   let diagram2ReadonlyFieldMappingIndexes = null;
   let diagram2HasFieldMappings = false;
   let diagram2TemplateState = null;
@@ -1468,7 +1468,6 @@ export function createDiagram2Feature({
         <div class="diagram-readonly-viewer diagram-tree-preview-image diagram2-readonly-shell" data-diagram2-readonly-shell>
           <div class="diagram2-readonly-main" data-diagram2-readonly-main data-diagram2-left-pane-mode="mapping">
             ${diagram2MappingPaneHtml(diagram2RendererState)}
-            <div class="diagram2-mapping-hover-hint" data-diagram2-mapping-hover-hint role="status" hidden>Hover on the UI to DB Field Mapping</div>
             <div class="diagram-preview diagram-readonly-viewport diagram2-readonly-canvas diagram2-viewer-canvas" data-diagram2-viewer-canvas tabindex="0" aria-label="Read-only Diagram 2 canvas. Drag to pan; use mouse wheel to zoom.">
               <div class="diagram2-renderer-surface ${diagram2ViewerZoom === "fit" ? "is-fit" : ""}" data-diagram2-renderer-surface></div>
             <div class="diagram2-readonly-scroll-spacer" data-diagram2-readonly-scroll-spacer aria-hidden="true"></div>
@@ -1505,7 +1504,7 @@ export function createDiagram2Feature({
     return `<div class="diagram-empty diagram2-empty">
       <span class="diagram-empty-icon" aria-hidden="true">&#128208;</span>
       <h2>Create a diagram</h2>
-      <p>New Diagram creates a private backing Document immediately, then opens the editor here.</p>
+      <p>New Diagram creates a private Diagram immediately, then opens the editor here.</p>
     </div>`;
   }
 
@@ -2255,6 +2254,19 @@ export function createDiagram2Feature({
         refreshDiagram2MappingPane(shell, { focus: "alphabetical" });
       }
     });
+    shell.addEventListener("click", event => {
+      const button = event.target?.closest?.("[data-diagram2-download-field-mapping]");
+      if (!button || !shell.contains(button)) return;
+      event.preventDefault();
+      downloadDiagram2FieldMappings(
+        diagram2Controller?.fieldMappingIndexes?.() || diagram2ReadonlyFieldMappingIndexes,
+        button.dataset.diagram2DownloadFieldMapping,
+        {
+          groupByTable: diagram2MappingGroupByTable,
+          alphabetical: diagram2MappingAlphabetical
+        }
+      );
+    });
   }
 
   function syncDiagram2InspectorToggleState() {
@@ -2820,9 +2832,6 @@ export function createDiagram2Feature({
   }
 
   function resetDiagram2ReadonlyViewOptions() {
-    if (diagram2MappingHintTimer) globalThis.clearTimeout(diagram2MappingHintTimer);
-    diagram2MappingHintTimer = 0;
-    diagram2MappingHintExpired = false;
     diagram2ReadonlyEntityRelationshipsVisible = true;
     diagram2ReadonlyFieldMappingLinesVisible = true;
     diagram2ReadonlyRelationshipLinesOnly = false;
@@ -2857,30 +2866,7 @@ export function createDiagram2Feature({
       diagram2ReadonlyRelationshipLinesOnly
     );
     diagram2Renderer?.setFieldMappingLinesVisible?.(diagram2ReadonlyFieldMappingLinesVisible);
-    syncDiagram2MappingHoverHint(shell);
     syncDiagram2PageMappingButton();
-  }
-
-  function syncDiagram2MappingHoverHint(shell) {
-    const hint = shell?.querySelector?.("[data-diagram2-mapping-hover-hint]");
-    if (!hint) return;
-    const show = diagram2HasFieldMappings
-      && !diagram2ReadonlyFieldMappingLinesVisible
-      && !diagram2MappingHintExpired;
-    hint.hidden = !show;
-    if (!show) {
-      if (diagram2MappingHintTimer && diagram2ReadonlyFieldMappingLinesVisible) {
-        globalThis.clearTimeout(diagram2MappingHintTimer);
-        diagram2MappingHintTimer = 0;
-      }
-      return;
-    }
-    if (diagram2MappingHintTimer) return;
-    diagram2MappingHintTimer = globalThis.setTimeout(() => {
-      diagram2MappingHintTimer = 0;
-      diagram2MappingHintExpired = true;
-      app.querySelector?.("[data-diagram2-mapping-hover-hint]")?.setAttribute("hidden", "");
-    }, 5000);
   }
 
   function bindDiagram2CanvasContextMenu(viewer, canvas, signal, options = {}) {
@@ -4167,6 +4153,7 @@ export function createDiagram2Feature({
     const nextPane = shell.querySelector("[data-diagram2-mapping-pane]");
     const nextScroll = nextPane?.querySelector(".diagram2-editor-left-pane-scroll");
     if (nextScroll) nextScroll.scrollTop = previousScrollTop;
+    syncDiagram2MappingPaneColumnWidth(shell);
     if (options.focus === "search") {
       const search = nextPane?.querySelector("[data-diagram2-mapping-search]");
       search?.focus?.({ preventScroll: true });

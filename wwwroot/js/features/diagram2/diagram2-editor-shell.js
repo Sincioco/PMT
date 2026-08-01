@@ -2,6 +2,7 @@ import {
   richTextToolsHtml,
   sharedRichColorPickerHtml
 } from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
+import { buttonContent } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import {
   annotationTemplatePreviewDataUrl,
   buildPortableAnnotationSelectionSvg,
@@ -9,6 +10,12 @@ import {
   copyAnnotationSvgToClipboard
 } from "../../components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
 import { appUrl } from "../../shared/app-urls.js";
+import {
+  downloadCsv,
+  downloadXlsx,
+  exportFileName,
+  exportIconHtml
+} from "../../shared/table-export.js?v=20260801-diagram2-mapping-download-v2";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   diagram2EntityDialogDefaults,
@@ -25,8 +32,9 @@ import {
 } from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2FieldMappingIndexes,
+  diagram2FieldMappingExportRows,
   diagram2FieldMappingPaneGroups
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-download-v2";
 import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260731-rte-checkbox-layout-v2";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
@@ -679,6 +687,7 @@ export function diagram2MappingPaneHtml(stateInput = null, options = {}) {
   const countText = search.trim()
     ? `${visibleCount} of ${mappingCount}`
     : `${mappingCount} ${mappingCount === 1 ? "mapping" : "mappings"}`;
+  const downloadDisabled = mappingCount ? "" : "disabled";
 
   return `
     <aside class="diagram2-editor-left-pane diagram2-mapping-pane" data-diagram2-left-pane data-diagram2-left-pane-name="mapping" data-diagram2-mapping-pane data-diagram2-mapping-count="${mappingCount}" data-diagram2-mapping-visible-count="${visibleCount}" aria-label="UI to database field mapping">
@@ -703,13 +712,42 @@ export function diagram2MappingPaneHtml(stateInput = null, options = {}) {
             </label>
           </div>
         </div>
+        <div class="diagram2-mapping-pane-column-headers" data-diagram2-mapping-column-headers>
+          <span class="diagram2-mapping-pane-column-header is-ui-field">
+            <span data-diagram2-mapping-ui-column-label>UI Field</span>
+            <span class="diagram2-mapping-pane-column-resizer" data-diagram2-mapping-column-resizer role="separator" aria-orientation="vertical" aria-label="Resize UI Field column" title="Resize UI Field column" tabindex="0"></span>
+          </span>
+          <span class="diagram2-mapping-pane-column-header">Database Field</span>
+        </div>
         <div class="diagram2-mapping-pane-list" role="list">
           ${content}
         </div>
+        <footer class="diagram2-mapping-pane-downloads" data-diagram2-mapping-downloads aria-label="Download field mapping">
+          <button type="button" class="secondary text-icon-button" data-diagram2-download-field-mapping="csv" title="Download field mapping as CSV" ${downloadDisabled}>${buttonContent(exportIconHtml(), "Download as CSV")}</button>
+          <button type="button" class="secondary text-icon-button" data-diagram2-download-field-mapping="xlsx" title="Download field mapping as Excel" ${downloadDisabled}>${buttonContent(exportIconHtml(), "Download as Excel")}</button>
+        </footer>
       </div>
       ${diagram2LeftPaneResizerHtml("Mapping")}
     </aside>
   `;
+}
+
+export function downloadDiagram2FieldMappings(indexes, formatInput = "csv", options = {}) {
+  const rows = diagram2FieldMappingExportRows(indexes, {
+    groupByTable: options.groupByTable === true,
+    alphabetical: options.alphabetical === true
+  });
+  if (!rows.length) return false;
+
+  const columns = [
+    { header: "UI Field", value: row => row.uiField },
+    { header: "Database Field", value: row => row.databaseField }
+  ];
+  const format = String(formatInput || "csv").toLowerCase() === "xlsx" ? "xlsx" : "csv";
+  const filename = exportFileName("pmt-field-mapping", format);
+  if (format === "xlsx") downloadXlsx(filename, "Field Mapping", columns, rows);
+  else downloadCsv(filename, columns, rows);
+  return true;
 }
 
 function diagram2MappingPaneGroupHtml(group) {
@@ -728,11 +766,9 @@ function diagram2MappingPaneRowHtml(row) {
   return `
     <div class="diagram2-mapping-pane-row" data-diagram2-mapping-pane-row data-diagram2-field-mapping-id="${escapeAttr(row.mappingId)}" data-diagram2-field-mapping-table-id="${escapeAttr(row.tableId)}" role="group" aria-label="${escapeAttr(`${row.uiField} maps to ${row.databaseField}`)}">
       <button type="button" class="diagram2-mapping-pane-field" ${commonAttributes} data-diagram2-field-mapping-cell-kind="ui" aria-label="Select UI field ${escapeAttr(row.uiField)}">
-        <span class="diagram2-mapping-pane-field-kind">UI Field</span>
         <span class="diagram2-mapping-pane-field-value">${escapeHtml(row.uiField)}</span>
       </button>
       <button type="button" class="diagram2-mapping-pane-field" ${commonAttributes} data-diagram2-field-mapping-cell-kind="database" aria-label="Select database field ${escapeAttr(row.databaseField)}">
-        <span class="diagram2-mapping-pane-field-kind">Database Field</span>
         <span class="diagram2-mapping-pane-field-value">${escapeHtml(row.databaseField)}</span>
       </button>
     </div>
@@ -893,7 +929,9 @@ export function setDiagram2TemplatesPaneOpen(root, open) {
 }
 
 export function setDiagram2MappingPaneOpen(root, open) {
-  return setDiagram2LeftPaneMode(root, "mapping", open);
+  const nextOpen = setDiagram2LeftPaneMode(root, "mapping", open);
+  if (nextOpen) syncDiagram2MappingPaneColumnWidth(root);
+  return nextOpen;
 }
 
 export function syncDiagram2RendererViewportInset(root, renderer, options = {}) {
@@ -1067,11 +1105,42 @@ export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
       resizer.setAttribute("aria-valuemax", String(limits.maximum));
       resizer.setAttribute("aria-valuenow", String(width));
     });
+    if (paneMode === "mapping") syncDiagram2MappingPaneColumnWidth(shell);
     options.onResize?.(width, paneMode);
     return width;
   };
 
   main.addEventListener("pointerdown", event => {
+    const mappingColumnResizer = event.target?.closest?.("[data-diagram2-mapping-column-resizer]");
+    if (mappingColumnResizer && main.contains(mappingColumnResizer)) {
+      event.preventDefault();
+      event.stopPropagation();
+      finishResize();
+      const startX = Number(event.clientX || 0);
+      const startWidth = syncDiagram2MappingPaneColumnWidth(shell, { auto: false });
+      shell.classList.add("is-resizing-mapping-column");
+      mappingColumnResizer.setPointerCapture?.(event.pointerId);
+
+      const resize = moveEvent => {
+        syncDiagram2MappingPaneColumnWidth(shell, {
+          auto: false,
+          manual: true,
+          width: startWidth + Number(moveEvent.clientX || 0) - startX
+        });
+      };
+      finishResize = () => {
+        shell.classList.remove("is-resizing-mapping-column");
+        window.removeEventListener("pointermove", resize);
+        window.removeEventListener("pointerup", finishResize);
+        window.removeEventListener("pointercancel", finishResize);
+        finishResize = () => {};
+      };
+      window.addEventListener("pointermove", resize);
+      window.addEventListener("pointerup", finishResize);
+      window.addEventListener("pointercancel", finishResize);
+      return;
+    }
+
     const resizer = event.target?.closest?.("[data-diagram2-left-pane-resizer]");
     if (!resizer || !main.contains(resizer) || !main.classList.contains("is-left-pane-open")) return;
     event.preventDefault();
@@ -1102,6 +1171,20 @@ export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
   });
 
   main.addEventListener("keydown", event => {
+    const mappingColumnResizer = event.target?.closest?.("[data-diagram2-mapping-column-resizer]");
+    if (mappingColumnResizer && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const limits = diagram2MappingPaneColumnWidthLimits(main);
+      const currentWidth = syncDiagram2MappingPaneColumnWidth(shell, { auto: false });
+      const width = event.key === "Home"
+        ? limits.minimum
+        : event.key === "End"
+          ? limits.maximum
+          : currentWidth + (event.key === "ArrowRight" ? 16 : -16);
+      syncDiagram2MappingPaneColumnWidth(shell, { auto: false, manual: true, width });
+      return;
+    }
+
     const resizer = event.target?.closest?.("[data-diagram2-left-pane-resizer]");
     if (!resizer || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
@@ -1115,6 +1198,70 @@ export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
   });
 
   paneModes.forEach(mode => setLeftPaneWidth(mode, diagram2CurrentLeftPaneWidth(main, mode)));
+  syncDiagram2MappingPaneColumnWidth(shell);
+}
+
+export function syncDiagram2MappingPaneColumnWidth(root, options = {}) {
+  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]")
+    ? root
+    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main], [data-diagram2-linked-main]");
+  const pane = main?.querySelector?.("[data-diagram2-mapping-pane]");
+  if (!main || !pane) return 0;
+
+  if (options.manual === true) main.dataset.diagram2MappingUiColumnManual = "true";
+  const limits = diagram2MappingPaneColumnWidthLimits(main);
+  const currentWidth = Number.parseFloat(main.style.getPropertyValue("--diagram2-mapping-ui-column-width"));
+  const shouldAutoSize = options.auto !== false && main.dataset.diagram2MappingUiColumnManual !== "true";
+  const requestedWidth = Number(options.width);
+  const width = Math.round(clampDiagram2Number(
+    Number.isFinite(requestedWidth)
+      ? requestedWidth
+      : shouldAutoSize || !Number.isFinite(currentWidth)
+        ? diagram2MappingPaneAutoColumnWidth(pane)
+        : currentWidth,
+    limits.minimum,
+    limits.maximum
+  ));
+  main.style.setProperty("--diagram2-mapping-ui-column-width", `${width}px`);
+  pane.querySelectorAll("[data-diagram2-mapping-column-resizer]").forEach(resizer => {
+    resizer.setAttribute("aria-valuemin", String(limits.minimum));
+    resizer.setAttribute("aria-valuemax", String(limits.maximum));
+    resizer.setAttribute("aria-valuenow", String(width));
+  });
+  return width;
+}
+
+function diagram2MappingPaneColumnWidthLimits(main) {
+  const pane = main?.querySelector?.("[data-diagram2-mapping-pane]");
+  const paneWidth = Math.max(
+    200,
+    Math.round(pane?.getBoundingClientRect?.().width || diagram2CurrentLeftPaneWidth(main, "mapping") || 320)
+  );
+  return {
+    minimum: 72,
+    maximum: Math.max(72, paneWidth - 112)
+  };
+}
+
+function diagram2MappingPaneAutoColumnWidth(pane) {
+  const label = pane.querySelector("[data-diagram2-mapping-ui-column-label]");
+  const values = [...pane.querySelectorAll("[data-diagram2-field-mapping-cell-kind='ui'] .diagram2-mapping-pane-field-value")];
+  const documentRef = pane.ownerDocument;
+  const view = documentRef?.defaultView;
+  const context = documentRef?.createElement?.("canvas")?.getContext?.("2d");
+  const measure = node => {
+    const text = String(node?.textContent || "").trim();
+    if (!text) return 0;
+    const style = view?.getComputedStyle?.(node);
+    if (context && style) {
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      return context.measureText(text).width;
+    }
+    return text.length * 7;
+  };
+  const longestText = Math.max(measure(label), ...values.map(measure), 0);
+  return Math.ceil(longestText + 28);
 }
 
 function normalizeDiagram2TextEditorHtml(value) {

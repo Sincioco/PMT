@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { buildAnnotationSvg, parseAnnotationSvg } from "../../wwwroot/js/components/image-annotation.js";
 import { createDiagram2FieldMappingTable } from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mapping-tables.js";
@@ -1100,16 +1100,49 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await expect(linkedMappingPane).toHaveAttribute("data-diagram2-mapping-count", "1");
   await expect(linkedNativeDiagram).toHaveAttribute("href", "#/diagram-2/77");
   await expect(linkedNativeDiagram).toHaveAttribute("target", "_blank");
-  await expect(d2Block.locator("[data-diagram2-mapping-hover-hint]"))
-    .toHaveText("Hover on the UI to DB Field Mapping");
-  await expect(d2Block.locator("[data-diagram2-mapping-hover-hint]")).toBeVisible();
-  expect(await d2Block.locator("[data-diagram2-mapping-hover-hint]").evaluate(
-    hint => hint.parentElement?.matches("[data-diagram2-linked-main]")
-  )).toBe(true);
+  await expect(d2Block.locator("[data-diagram2-mapping-hover-hint]")).toHaveCount(0);
+  const linkedControlOrder = await d2Block.locator(".pmt-diagram-ole-actions > *").evaluateAll(nodes =>
+    nodes.map(node => [...node.attributes]
+      .map(attribute => attribute.name)
+      .find(name => name.startsWith("data-diagram-ole-") || name === "data-diagram2-linked-mapping-toggle") || "")
+  );
+  expect(linkedControlOrder.slice(0, 5)).toEqual([
+    "data-diagram2-linked-mapping-toggle",
+    "data-diagram-ole-zoom-out",
+    "data-diagram-ole-reset",
+    "data-diagram-ole-zoom-in",
+    "data-diagram-ole-fit"
+  ]);
+  expect(linkedControlOrder.at(-1)).toBe("data-diagram-ole-maximize");
+  await expect(d2Block.locator("[data-diagram-ole-fit]")).toHaveText("□");
+  expect(await d2Block.locator("[data-diagram-ole-maximize]").evaluate(button => ({
+    backgroundColor: getComputedStyle(button).backgroundColor,
+    borderColor: getComputedStyle(button).borderColor
+  }))).toEqual({
+    backgroundColor: "rgba(0, 0, 0, 0)",
+    borderColor: "rgba(0, 0, 0, 0)"
+  });
   await expect.poll(async () => {
     const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
     return Math.max(evidence.deltaX, evidence.deltaY);
   }).toBeLessThanOrEqual(2);
+  const linkedCsvButton = linkedMappingPane.getByRole("button", { name: "Download as CSV", exact: true });
+  const linkedExcelButton = linkedMappingPane.getByRole("button", { name: "Download as Excel", exact: true });
+  await expect(linkedCsvButton).toBeVisible();
+  await expect(linkedExcelButton).toBeVisible();
+  expect(await linkedCsvButton.locator("xpath=ancestor::*[@data-diagram2-mapping-downloads]").evaluate(footer =>
+    footer.parentElement?.classList.contains("diagram2-editor-left-pane-scroll") === true
+  )).toBe(true);
+  const [linkedCsvDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    linkedCsvButton.click()
+  ]);
+  const linkedCsvPath = await linkedCsvDownload.path();
+  expect(linkedCsvPath).toBeTruthy();
+  expect((await readFile(linkedCsvPath, "utf8")).replace(/^\uFEFF/, ""))
+    .toBe("UI Field,Database Field\r\nLinked record ID,pmt.LinkedEntity0.Id");
+  const postDownloadCenter = await linkedDiagram2FitCenterEvidence(d2Viewport);
+  expect(Math.max(postDownloadCenter.deltaX, postDownloadCenter.deltaY)).toBeLessThanOrEqual(2);
   const linkedMappingSearch = linkedMappingPane.locator("[data-diagram2-mapping-search]");
   const linkedAlphabeticalToggle = linkedMappingPane.locator("[data-diagram2-mapping-alphabetical]");
   const linkedSearchStyle = await linkedMappingSearch.evaluate(input => {
@@ -1140,6 +1173,17 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   expect(await d2Block.locator("[data-diagram2-mapping-table-plane]").evaluate(
     node => getComputedStyle(node).display
   )).not.toBe("none");
+  await expect(d2Block.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(0);
+  const linkedCanvasUiField = d2Block.locator(
+    "[data-diagram2-mapping-table-plane] [data-diagram2-field-mapping-cell-kind='ui']"
+  ).first();
+  await d2Block.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
+  await expect(linkedCanvasUiField).toBeVisible();
+  await linkedCanvasUiField.hover();
+  await expect(d2Block.locator("[data-diagram2-field-mapping-row].is-field-mapping-hover")).toHaveCount(1);
+  await expect(d2Block.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(1);
+  await expect(d2Block.locator(".image-annotation-field-mapping-attention-rect")).toHaveCount(2);
+  await expect(d2Block.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
   const traceFullRenderCount = Number(await d2Block.locator("svg[data-diagram2-svg]")
     .getAttribute("data-diagram2-full-render-count") || 0);
   await d2Block.locator("[data-diagram2-object-id='linked-entity-0']")
@@ -1182,6 +1226,10 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await linkedMappingToggle.click();
   await expect(linkedMappingPane).toBeVisible();
   await d2Block.locator("[data-diagram-ole-fit]").click();
+  await expect.poll(async () => {
+    const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
+    return Math.max(evidence.deltaX, evidence.deltaY);
+  }).toBeLessThanOrEqual(2);
   const firstFrameDuration = await d2Block.locator("svg[data-diagram2-svg]").evaluate(svg =>
     Number(svg.dataset.diagram2LastFrameDuration || 0)
   );
@@ -1340,6 +1388,9 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await d2Block.locator("[data-diagram-ole-maximize]").click();
   await expect(d2Block).toHaveClass(/is-maximized/);
   await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
+  expect(await d2Block.locator("[data-diagram-ole-maximize]").evaluate(button =>
+    getComputedStyle(button, "::after").display
+  )).toBe("block");
   if (page.viewportSize()?.width === 1920) {
     await saveLinkDiagramScreenshot(page, "link-diagram-2-maximized-1920x1080.png");
   }

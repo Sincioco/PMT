@@ -5881,17 +5881,33 @@ test("Diagram backing Documents are created once, then updated in place without 
   assert.ok(createStart >= 0 && updateStart > createStart && end > updateStart, "Diagram backing Document functions were not found");
   assert.match(createDiagram, /saveJson\("\/api\/blogs",\s*"POST"/);
   assert.match(createDiagram, /isPrivate:\s*sourceDocument \? sourceDocument\.isPrivate !== false : true/);
-  assert.match(createDiagram, /uploadedDiagramBackingBodyHtml\(title, diagram\)/);
+  assert.match(createDiagram, /uploadedDiagramBackingBodyHtml\(title, diagram, \{ diagramOnly \}\)/);
   assert.match(updateDiagram, /saveJson\(`\/api\/blogs\/\$\{document\.id\}`,\s*"PUT"/);
   assert.match(updateDiagram, /expectedRowVersion:\s*document\.rowVersion/);
   assert.match(updateDiagram, /isPrivate:\s*document\.isPrivate !== false/);
-  assert.match(updateDiagram, /uploadedDiagramBackingBodyHtml\(document\.title, diagram\)/);
+  assert.match(updateDiagram, /uploadedDiagramBackingBodyHtml\(document\.title, diagram, \{ diagramOnly \}\)/);
   assert.match(appSource, /async function uploadedDiagramBackingBodyHtml[\s\S]*uploadFile\([\s\S]*"richtext"/);
   const uploadStart = appSource.indexOf("async function uploadedDiagramBackingBodyHtml");
   const uploadEnd = appSource.indexOf("\nasync function updateDiagramBackingInfo", uploadStart);
   assert.doesNotMatch(appSource.slice(uploadStart, uploadEnd), /data:image\/svg\+xml;base64/);
   assert.equal((createDiagram.match(/saveJson\s*\(/g) || []).length, 1);
   assert.equal((updateDiagram.match(/saveJson\s*\(/g) || []).length, 1);
+});
+
+test("Diagram 2 records are diagram-only without changing Diagram 1 storage", async () => {
+  const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const diagram1Start = appSource.indexOf("const diagramFeature = createDiagramFeature");
+  const diagram2Start = appSource.indexOf("const diagram2Feature = createDiagram2Feature", diagram1Start);
+  const diagram2End = appSource.indexOf("const wfhScheduleFeature", diagram2Start);
+  const diagram1Registration = appSource.slice(diagram1Start, diagram2Start);
+  const diagram2Registration = appSource.slice(diagram2Start, diagram2End);
+
+  assert.match(diagram1Registration, /createDiagramDocument:\s*createDiagramBackingDocument/);
+  assert.match(diagram1Registration, /saveDiagramDocument:\s*updateDiagramBackingDocument/);
+  assert.doesNotMatch(diagram1Registration, /diagramOnly/);
+  assert.match(diagram2Registration, /createDiagramBackingDocument\(\{ \.\.\.options, diagramOnly: true \}\)/);
+  assert.match(diagram2Registration, /updateDiagramBackingDocument\(document, \{ \.\.\.payload, diagramOnly: true \}\)/);
+  assert.match(appSource, /data-pmt-diagram-only="true"/);
 });
 
 test("editing a stored Diagram and normal RTE annotations both upload before changing the image source", async () => {

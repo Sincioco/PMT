@@ -1,7 +1,7 @@
 import {
   disposeDiagram2LinkedViewer,
   hydrateDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-public-diagram2-v1";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-mapping-download-v2";
 
 document.querySelectorAll("[data-public-linked-diagram2]").forEach(block => {
   void hydratePublicLinkedDiagram2(block);
@@ -18,16 +18,15 @@ async function hydratePublicLinkedDiagram2(block) {
     <figcaption class="pmt-diagram-ole-caption">
       <span data-diagram-ole-header>${escapeHtml(header)}</span>
       <span class="pmt-diagram-ole-actions">
+        <button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
         <button type="button" data-diagram-ole-reset title="Reset to fit" aria-label="Reset to fit">Reset</button>
-        <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">Fit</button>
-        <button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>
-        <button type="button" data-diagram-ole-maximize title="Maximize Linked Diagram 2 viewer" aria-label="Maximize Linked Diagram 2 viewer">Maximize</button>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">&#9633;</button>
+        <button type="button" class="dialog-maximize-button" data-diagram-ole-maximize title="Maximize Linked Diagram 2 viewer" aria-label="Maximize Linked Diagram 2 viewer">Maximize</button>
       </span>
     </figcaption>
     <div class="pmt-diagram2-ole-main diagram2-readonly-main" data-diagram2-linked-main data-diagram2-left-pane-mode="mapping">
-      <div class="diagram2-mapping-hover-hint" data-diagram2-mapping-hover-hint role="status" hidden>Hover on the UI to DB Field Mapping</div>
       <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${header} viewer`)}">
         ${source
           ? `<div class="pmt-diagram-ole-surface diagram2-renderer-surface" data-diagram-ole-surface data-diagram2-linked-renderer-host></div>`
@@ -55,8 +54,7 @@ function bindPublicLinkedDiagram2Controls(block, viewport, api) {
   block.querySelector("[data-diagram-ole-maximize]")?.addEventListener("click", async event => {
     event.preventDefault();
     syncPublicLinkedDiagram2Maximized(block, !block.classList.contains("is-maximized"));
-    await nextPublicDiagram2Layout();
-    if (block.isConnected) api.fit();
+    if (block.isConnected) await api.fit();
   });
 
   viewport.addEventListener("wheel", event => {
@@ -128,11 +126,6 @@ function syncPublicLinkedDiagram2Maximized(block, maximized) {
   button.textContent = nextMaximized ? "Restore" : "Maximize";
   button.setAttribute("aria-label", nextMaximized ? "Restore Linked Diagram 2 viewer" : "Maximize Linked Diagram 2 viewer");
   button.setAttribute("title", nextMaximized ? "Restore Linked Diagram 2 viewer" : "Maximize Linked Diagram 2 viewer");
-}
-
-async function nextPublicDiagram2Layout() {
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  await new Promise(resolve => requestAnimationFrame(resolve));
 }
 
 function escapeHtml(value) {

@@ -70,10 +70,44 @@ Diagram 2
 32.) In Diagram 2, if I create a public link, the viewer it brings up is still the Diagram 1 viewer.  Either update it or use a different URL so that it is the Diagram 2 viewer that is used.  Refer to how Diagram 1 processes public links and figure out how to do something similar with Diagram 2. It looks like it is using the Linked Diagram 1 viewer.  We need a version that uses the Linked Diagram 2 viewer.
 33.) In RTE, if a Linked Diagram 2 is inserted, the diagram should auto-fit when it is first loaded.  Be sure to factor the Mapping left pane if it is visible for the auto-fit and auto-center logic.
 34.) In Diagram 2, in both read and edit mode, the canvas version of the Field Mapping Table when you hover on it bolds the text of the field name or the database field name. Do not apply any bolding to any text on the Field Mapping Table when hovering.
+35.) Let's remove the "Hover on the UI to DB Field Mapping" message.
+36.) In the Link Diagram 2 viewer, the on-canvas version of the Field Mapping Table does not render the blue arrow or the UI / DB highlights like it does for the Mapping Left Pane.
+
+
+37.) Was there a previous logic / instruction that automatically created a Document whenever a Diagram is created?  Could you verify?  And if so, you can remove it now.  When a Diagram is created, it no longer needs to create a separate Document.  The new Diagram should just create a diagram.  I am of course referring to Diagram 2.
+
+38.) Bug:  In Link Diagram 2, when clicking "Fit" it does not center / auto-fit the image correctly when the Mapping Left pane is visible.  Compare the first attached image vs the second image.  The 2nd image has the Mapping left pane.  Notice how it's now off center.
+
+39.) In Link Diagram 2 Viewer, let's arrange the buttons on it's upper-right.  First, the Maximize / Restore button should be on the right-most.  use the same Maximize / Restore icons as the normal dialog box.  Move the plus ("+") sign just right after the Reset button.  Use the same "Fit" icon as on the Diagram 2 screen.
+
+40.) In the Link Diagram 2 Viewer, if the image is public, a "Diagram" button appears on the upper-right which makes the header fatter and shifts the canvas when there are multiple tab.
+
+41.) In the Link Diagram 2 Viewer, the Maximize and Restore buttons seems so much darker than the regular dialog box buttons.
+
+42.) In the Link Diagram 2 Viewer, put the Mapping button as the first button (to the left of the minus button).
+
+43.) In Diagram 2 and in the Link Diagram 2 Viewer, at the very bottom of the Mapping pane, put two buttons "Download as CSV" and "Download as Excel" and let the user download the Field Mapping Table in their desired format.  Format the file with simply two columns:  UI Field, Database Field.
+
+44.) The two buttons do not have to be a fixed to the bottom of the Mapping pane since they will take up vertical space.  Let them scroll in or out of view.
+
+45.) Bug:  It has two horizontal lines above the buttons.  One is enough.
+
+46.) In the Mapping Left Pane, you currently have "UI Field" and "Title" as the column headers.  Change them to "UI Field" and "Database Field".  Put a horizontal divider above and below them.  And there should be no hover state on them.
+
+47.) The UI Field column has too much white space on it's side.  Can you auto-size that column by default and give the user the ability to resize the column width by dragging the edge of the first column header.  Only for the first column.  The second column can resize and take up the available width.
+
+48.) In Diagram 2 when in read-only mode and in the Link View Diagram 2 (both public and private), allow the user to hover over an Entity and highlight it and its Relationship Lines.
+
+49.) In Diagram 2 when in read-only mode and in the Link View Diagram 2 (both public and private), if the user clicks an entity or any one of the relationship lines, let the highlight stay until they click another item on the canvas or click on the canvas itself to dismiss all highlights.  If an entity is clicked, highlight the entity and all of its relationship lines.  If a relationship line is clicked, highlight that line and both entities it connects.
+
+50.) I've attached instructions for you to implement a Screen Capture functionality.  Place the camera icon right above the Crop icon on the toolbar of D2.
+
+51.) After an image has been captured and placed on the canvas, automatically select the image and switch to crop mode to allow the user to crop it like any other image on the canvas.
+
 
 What's New
 ---------------------------------
-For the What's New, I want you to highlight that Diagram 2 is now live and is much faster than Diagram 1 perfect for creating large ERD diagrams for Enterprise use.  You can also now create UI Field to Database Field mapping in Diagram 2, perfect for System Documentation, maintenance or help onboard new members of the team.
+For the What's New, I want you to highlight that Diagram 2 is now live and is much faster than Diagram 1 perfect for creating large ERD diagrams for Enterprise use.  You can also now create UI Field to Database Field mapping in Diagram 2, perfect for System Documentation, maintenance or help onboard new members of the team.  The UI Field to Database Field mapping can be download either as a CSV or Excel file.  Mention that in Diagram 2 they now also do screen capture.  Bypassing the Windows Snipping Tool.
 
 Database Migration Script Testing
 ---------------------------------
@@ -82,4 +116,4 @@ If needed, update the migration scripts and test them by dropping and re-creatin
 Commit and Push
 ---------------
 When all your tests are green, create a detailed commit message and push to the repo.
-Also commit the file named "2026-07-31 - Requirements - Day 40.txt" and "2026-08-01 - Requirements - Day 41.txt".
+Also commit the file named "2026-08-01 - Requirements - Day 41.txt".

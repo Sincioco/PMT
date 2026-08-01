@@ -62,7 +62,7 @@ test("Link Diagram 2 mounts only the production D2 read-only renderer and patche
   assert.doesNotMatch(adapterSource, /buildInteractiveDiagramViewerSvg|buildAnnotationSvg/);
   assert.doesNotMatch(adapterSource, /\.render\([^\n]+reason:\s*"pan|\.render\([^\n]+reason:\s*"zoom/);
   assert.match(adapterSource, /if \(record\.autoFit\) await autoFitDiagram2LinkedViewer\(record\)/);
-  assert.match(adapterSource, /await nextDiagram2LinkedViewerFrame\(\);[\s\S]*await nextDiagram2LinkedViewerFrame\(\);[\s\S]*fitDiagram2LinkedViewer/);
+  assert.match(adapterSource, /fitDiagram2LinkedViewerAfterLayout[\s\S]*await nextDiagram2LinkedViewerFrame\(\);[\s\S]*await nextDiagram2LinkedViewerFrame\(\);[\s\S]*fitDiagram2LinkedViewer/);
   assert.match(appSource, /if \(richDiagramOleIsDiagram2\(block\)\)[\s\S]*hydrateDiagram2LinkedViewer/);
   assert.match(appSource, /autoFit: !hasRichDiagramOleViewport\(block, diagram, activeTab\)/);
   assert.match(appSource, /if \(diagram2\) return;[\s\S]*if \(hasStoredView\)/);
@@ -76,15 +76,33 @@ test("Diagram 2 public links use the production Linked Diagram 2 viewer", async 
   assert.ok(endpointSource.includes('app.MapGet("/public/diagram-2/{token:guid}"'));
   assert.ok(endpointSource.includes("useDiagram2Renderer: true"));
   assert.ok(endpointSource.includes("data-public-linked-diagram2"));
-  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260801-public-diagram2-v1"));
-  assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-public-diagram2-v1"));
+  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260801-diagram2-mapping-download-v2"));
+  assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-diagram2-mapping-download-v2"));
   assert.match(diagram2Source, /appUrl\(`\/public\/diagram-2\/\$\{token\}`\)/);
   assert.match(publicViewerSource, /hydrateDiagram2LinkedViewer/);
   assert.match(publicViewerSource, /autoFit: true/);
-  assert.match(publicViewerSource, /panDiagram2LinkedViewer/);
-  assert.match(publicViewerSource, /zoomDiagram2LinkedViewer/);
+  assert.match(publicViewerSource, /api\.panBy/);
+  assert.match(publicViewerSource, /api\.zoomBy/);
   assert.match(publicViewerSource, /\[data-public-linked-diagram2\]/);
   assert.doesNotMatch(publicViewerSource, /buildInteractiveDiagramViewerSvg|buildAnnotationSvg/);
+});
+
+test("Link Diagram 2 controls use the D2 Fit icon and dialog maximize treatment", async () => {
+  const publicViewerSource = await source("wwwroot/js/public-linked-diagram2-viewer.js");
+  const formsCss = await source("wwwroot/css/components/forms.css");
+  const mapping = publicViewerSource.indexOf("data-diagram2-linked-mapping-toggle");
+  const zoomOut = publicViewerSource.indexOf("data-diagram-ole-zoom-out", mapping);
+  const reset = publicViewerSource.indexOf("data-diagram-ole-reset", zoomOut);
+  const zoomIn = publicViewerSource.indexOf("data-diagram-ole-zoom-in", reset);
+  const fit = publicViewerSource.indexOf("data-diagram-ole-fit", zoomIn);
+  const maximize = publicViewerSource.indexOf("data-diagram-ole-maximize", fit);
+
+  assert.ok(mapping >= 0 && zoomOut > mapping && reset > zoomOut && zoomIn > reset && fit > zoomIn && maximize > fit);
+  assert.match(publicViewerSource, /data-diagram-ole-fit[^>]*>&#9633;<\/button>/);
+  assert.match(publicViewerSource, /class="dialog-maximize-button" data-diagram-ole-maximize/);
+  assert.match(formsCss, /\.pmt-diagram-ole-actions button\.dialog-maximize-button::before/);
+  assert.match(formsCss, /button\.dialog-maximize-button \{[\s\S]*border-color:\s*transparent;[\s\S]*background:\s*transparent;/);
+  assert.match(formsCss, /\.pmt-diagram-ole\.is-maximized \.pmt-diagram-ole-actions button\.dialog-maximize-button::after/);
 });
 
 test("Link Diagram 2 exposes the required renderer lifecycle diagnostics", async () => {
@@ -115,13 +133,33 @@ test("Diagram 2 read mode detects mappings before render and exposes the page Ma
   assert.match(diagram2Source, /data-action="toggle-diagram2-tree-pane"[\s\S]*data-diagram2-page-mapping-button/);
   assert.match(diagram2Source, /diagram2HasFieldMappings = fieldMappingIndexes\.mappingsById\.size > 0\s*&& fieldMappingIndexes\.fieldRectanglesById\.size > 0/);
   assert.match(diagram2Source, /if \(!isEditMode && diagram2HasFieldMappings\)[\s\S]*diagram2ReadonlyFieldMappingLinesVisible = false/);
-  assert.match(diagram2Source, /Hover on the UI to DB Field Mapping/);
-  assert.match(diagram2Source, /diagram2MappingHintExpired[\s\S]*setTimeout[\s\S]*5000/);
+  assert.doesNotMatch(diagram2Source, /Hover on the UI to DB Field Mapping|diagram2MappingHint/);
   assert.match(diagram2Source, /setDiagram2MappingPaneOpen\(shell, mappingCount > 0\)/);
   assert.match(diagram2Source, /setFieldMappingTablesVisible\?\.\(!mappingPaneOpen\)/);
   assert.match(shellSource, /class="field diagram2-mapping-pane-search"/);
   assert.match(shellSource, /class="diagram2-mapping-pane-options"/);
   assert.match(shellSource, /data-diagram2-mapping-alphabetical/);
+});
+
+test("Diagram 2 Mapping panes download the full two-column table in pane order", async () => {
+  const shellSource = await source("wwwroot/js/features/diagram2/diagram2-editor-shell.js");
+  const fieldMappingSource = await source("wwwroot/js/features/diagram2/diagram2-editor-field-mappings.js");
+  const diagram2Source = await source("wwwroot/js/features/diagram2/diagram2.js");
+  const adapterSource = await source("wwwroot/js/features/diagram2/diagram2-rte-linked-viewer.js");
+  const diagram2Css = await source("wwwroot/css/features/diagram2.css");
+
+  assert.match(shellSource, /data-diagram2-download-field-mapping="csv"[\s\S]*Download as CSV/);
+  assert.match(shellSource, /data-diagram2-download-field-mapping="xlsx"[\s\S]*Download as Excel/);
+  assert.match(shellSource, /data-diagram2-mapping-column-headers[\s\S]*UI Field[\s\S]*Database Field/);
+  assert.match(shellSource, /data-diagram2-mapping-column-resizer[\s\S]*Resize UI Field column/);
+  assert.match(shellSource, /syncDiagram2MappingPaneColumnWidth[\s\S]*diagram2MappingPaneAutoColumnWidth/);
+  assert.doesNotMatch(shellSource, /diagram2-mapping-pane-field-kind/);
+  assert.match(shellSource, /header: "UI Field"[\s\S]*header: "Database Field"/);
+  assert.match(fieldMappingSource, /diagram2FieldMappingExportRows[\s\S]*groupByTable[\s\S]*alphabetical/);
+  assert.match(diagram2Source, /downloadDiagram2FieldMappings[\s\S]*groupByTable: diagram2MappingGroupByTable[\s\S]*alphabetical: diagram2MappingAlphabetical/);
+  assert.match(adapterSource, /downloadDiagram2FieldMappings[\s\S]*groupByTable: record\.mappingGroupByTable[\s\S]*alphabetical: record\.mappingAlphabetical/);
+  assert.match(diagram2Css, /\.diagram2-mapping-pane-downloads \{[\s\S]*grid-template-columns:[^;]+;[\s\S]*border-top:/);
+  assert.match(diagram2Css, /--diagram2-mapping-ui-column-width[\s\S]*\.diagram2-mapping-pane-column-resizer/);
 });
 
 test("Link Diagram 2 reuses the mapping pane, links public sources, and never applies the D1 pan clamp", async () => {
@@ -138,7 +176,9 @@ test("Link Diagram 2 reuses the mapping pane, links public sources, and never ap
   assert.match(adapterSource, /setFieldMappingTablesVisible\?\.\(!nextOpen\)/);
   assert.match(adapterSource, /syncDiagram2RendererViewportInset/);
   assert.match(adapterSource, /focusFieldMappingTarget\?\./);
-  assert.match(adapterSource, /scheduleDiagram2LinkedMappingHint[\s\S]*setTimeout[\s\S]*5000/);
+  assert.match(adapterSource, /block\.addEventListener\("pointermove",[\s\S]*capture: true, signal/);
+  assert.doesNotMatch(adapterSource, /scheduleDiagram2LinkedMappingHint|data-diagram2-mapping-hover-hint/);
+  assert.match(appSource, /if \(diagram2\) view = diagram2LinkedViewerViewport\(block\) \|\| view/);
   assert.match(textSource, /removeAttribute\("data-diagram2-linked-shell"\)/);
   assert.match(textSource, /removeAttribute\("data-diagram2-left-pane-resize-bound"\)/);
 });

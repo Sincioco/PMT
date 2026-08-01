@@ -36,7 +36,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-color-preview-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-mapping-download-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,

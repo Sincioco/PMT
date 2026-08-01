@@ -24,7 +24,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-0996762d6734";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -58,6 +58,7 @@ import {
   normalizeRichHtml
 } from "../../shared/text-and-links.js?v=20260801-diagram2-mapping-view-v3";
 import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-html-images.js";
+import { diagramDocumentIsDiagramOnly } from "../../shared/diagram-documents.js?v=20260801-linked-diagram2-controls-v3";
 import {
   captureTreeNavState,
   restoreTreeNavState
@@ -1996,6 +1997,7 @@ function documentationLastEditorUserId(blog) {
 
 function documentationBlogAccessibleToCurrentUser(blog) {
   return Boolean(blog)
+    && !diagramDocumentIsDiagramOnly(blog)
     && (blog.isPrivate === false || documentationOwnedByCurrentUser(blog));
 }
 

@@ -12,6 +12,7 @@ import {
 import {
   diagramAllDocuments,
   diagramDocumentImage,
+  diagramDocumentIsDiagramOnly,
   diagramReadonlyImageResult,
   loadDiagramCanonicalState
 } from "../../wwwroot/js/shared/diagram-documents.js";
@@ -69,6 +70,16 @@ test("Diagram 2 selects the same owned and public backing Diagram documents", ()
 
   assert.deepEqual(diagramAllDocuments(documents, 1).map(document => document.id), [10, 20]);
   assert.match(diagramDocumentImage(documents[0]).source, /^data:image\/svg\+xml/);
+});
+
+test("Diagram-only storage markers do not change ordinary Diagram records", () => {
+  const diagram1 = { bodyHtml: '<p><img data-pmt-diagram="true" src="/d1.svg"></p>' };
+  const diagram2 = { bodyHtml: '<p><img data-pmt-diagram="true" data-pmt-diagram-only="true" src="/d2.svg"></p>' };
+
+  assert.equal(diagramDocumentIsDiagramOnly(diagram1), false);
+  assert.equal(diagramDocumentIsDiagramOnly(diagram2), true);
+  assert.equal(diagramDocumentImage(diagram1)?.source, "/d1.svg");
+  assert.equal(diagramDocumentImage(diagram2)?.source, "/d2.svg");
 });
 
 test("Diagram 2 read-only shell renders saved canonical Diagram SVG metadata", () => {

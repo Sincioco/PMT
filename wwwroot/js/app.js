@@ -12,7 +12,7 @@ import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
 } from "./components/diagram-field-mapping-interactions.js?v=20260731-rte-checkbox-layout-v2";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-08-01-day-41-0996762d6734";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -75,30 +75,30 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260801-diagram2-mapping-view-v3";
 import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram2-mapping-view-v3";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-0996762d6734";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-diagram2-mapping-view-v3";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-public-diagram2-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-mapping-download-v2";
 import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-color-preview-v1";
 import {
   diagram2LinkedViewerViewport,
   disposeDiagram2LinkedViewer,
   disposeDiagram2LinkedViewers,
-  fitDiagram2LinkedViewer,
+  fitDiagram2LinkedViewerAfterLayout,
   hydrateDiagram2LinkedViewer,
   panDiagram2LinkedViewer,
   restoreDiagram2LinkedViewerViewport,
   zoomDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-public-diagram2-v1";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-diagram2-mapping-view-v3";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-mapping-download-v2";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-linked-diagram2-controls-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+} from "./features/gantt/gantt.js?v=release-notes-2026-08-01-day-41-0996762d6734";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260801-diagram2-mapping-view-v3";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260801-diagram2-mapping-view-v3";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-08-01-day-41-0996762d6734";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260801-diagram2-mapping-view-v3";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260801-diagram2-mapping-view-v3";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260801-diagram2-mapping-view-v3";
@@ -580,8 +580,8 @@ const diagram2Feature = createDiagram2Feature({
   ),
   loadPmtDatabaseSchema: () => api("/api/diagram/pmt-database-schema", { cache: "no-store" }),
   uploadEmbeddedImage: uploadRichTextCanvasImage,
-  createDiagramDocument: createDiagramBackingDocument,
-  saveDiagramDocument: updateDiagramBackingDocument,
+  createDiagramDocument: options => createDiagramBackingDocument({ ...options, diagramOnly: true }),
+  saveDiagramDocument: (document, payload) => updateDiagramBackingDocument(document, { ...payload, diagramOnly: true }),
   openEditor,
   saveDiagramInfo: updateDiagramBackingInfo,
   moveDiagramDocument: moveDiagramBackingDocument,
@@ -6174,22 +6174,23 @@ function hydrateRichDiagramOleBlock(block) {
     <figcaption class="pmt-diagram-ole-caption">
       <span data-diagram-ole-header>${escapeHtml(header)}</span>
       <span class="pmt-diagram-ole-actions">
+        ${diagram2 ? `<button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>` : ""}
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
         <button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>
-        <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">Fit</button>
-        ${diagram2 ? `<button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>` : ""}
-        <button type="button" data-diagram-ole-maximize title="Maximize ${escapeAttr(featureName)} viewer" aria-label="Maximize ${escapeAttr(featureName)} viewer">Max</button>
-        <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
+        ${diagram2 ? `<button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>` : ""}
+        <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">${diagram2 ? "&#9633;" : "Fit"}</button>
+        ${diagram2 ? "" : `<button type="button" data-diagram-ole-maximize title="Maximize ${escapeAttr(featureName)} viewer" aria-label="Maximize ${escapeAttr(featureName)} viewer">Max</button>`}
+        ${diagram2 ? "" : `<button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>`}
         ${diagram2 && diagram?.isPrivate === false ? `<a class="pmt-diagram-ole-native-link" data-diagram-ole-native-link href="${escapeAttr(routeForContent("diagram-2", diagram.id))}" target="_blank" rel="noopener" title="Open in Diagram 2" aria-label="Open ${escapeAttr(title)} in Diagram 2">Diagram 2</a>` : ""}
         ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-rename-header title="Rename the viewer header" aria-label="Rename ${escapeAttr(featureName)} viewer header">Rename</button>` : ""}
         ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change the active tab's Diagram" aria-label="Change active ${escapeAttr(featureName)} tab Diagram">Change</button>` : ""}
         ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete ${escapeAttr(featureName)}" aria-label="Delete ${escapeAttr(featureName)}">&#128465;</button>` : ""}
+        ${diagram2 ? `<button type="button" class="dialog-maximize-button" data-diagram-ole-maximize title="Maximize ${escapeAttr(featureName)} viewer" aria-label="Maximize ${escapeAttr(featureName)} viewer">Maximize</button>` : ""}
       </span>
     </figcaption>
     ${richDiagramOleTabsHtml(tabs, activeTab.id, editable, featureName)}
     ${diagram2 ? `
       <div class="pmt-diagram2-ole-main diagram2-readonly-main" data-diagram2-linked-main data-diagram2-left-pane-mode="mapping">
-        <div class="diagram2-mapping-hover-hint" data-diagram2-mapping-hover-hint role="status" hidden>Hover on the UI to DB Field Mapping</div>
         <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} ${featureName} viewer`)}">
           ${diagram
             ? `<div class="pmt-diagram-ole-surface diagram2-renderer-surface" data-diagram-ole-surface data-diagram2-linked-renderer-host></div>`
@@ -6370,12 +6371,13 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   const fitView = (options = {}) => {
     if (!surface || !diagram) return;
     if (diagram2) {
-      const nextView = fitDiagram2LinkedViewer(block);
-      if (!nextView) return;
-      view = nextView;
-      if (options.remember) {
-        rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: options.notify === true });
-      }
+      void fitDiagram2LinkedViewerAfterLayout(block).then(nextView => {
+        if (!nextView || !block.isConnected) return;
+        view = nextView;
+        if (options.remember) {
+          rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: options.notify === true });
+        }
+      });
       return;
     }
     const media = richDiagramOleMedia(surface);
@@ -6412,7 +6414,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     else syncRichDiagramOleMaximizedBodyClass();
     const button = block.querySelector("[data-diagram-ole-maximize]");
     if (button) {
-      button.textContent = nextMaximized ? "Restore" : "Max";
+      button.textContent = nextMaximized ? "Restore" : (diagram2 ? "Maximize" : "Max");
       button.setAttribute("aria-label", nextMaximized ? `Restore ${featureName} viewer` : `Maximize ${featureName} viewer`);
       button.setAttribute("title", nextMaximized ? `Restore ${featureName} viewer` : `Maximize ${featureName} viewer`);
     }
@@ -6421,7 +6423,10 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   const storedMaximized = readRichDiagramOleStoredMaximized(block);
   if (storedMaximized !== null) setMaximized(storedMaximized);
   else if (block.classList.contains("is-maximized")) setMaximized(true);
-  block.addEventListener("diagram-ole-resized", () => render());
+  block.addEventListener("diagram-ole-resized", () => {
+    if (diagram2) view = diagram2LinkedViewerViewport(block) || view;
+    render();
+  });
   block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => zoomBy(0.85));
   block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => zoomBy(1.15));
   block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", resetView);
@@ -7136,7 +7141,12 @@ function bindRichDiagramOleResizePersistence(block, diagram, tab = null) {
     if (options.notify) {
       richDiagramOleDispatchInput(block);
     }
-    const currentView = richDiagramOleCurrentViewport(block, tab);
+    const currentView = richDiagramOleIsDiagram2(block)
+      ? diagram2LinkedViewerViewport(block)
+      : richDiagramOleCurrentViewport(block, tab);
+    if (richDiagramOleIsDiagram2(block) && currentView) {
+      writeRichDiagramOleCurrentViewport(block, tab, currentView);
+    }
     if (diagram && currentView) writeRichDiagramOleViewport(block, diagram, tab, currentView);
     block.dispatchEvent(new CustomEvent("diagram-ole-resized"));
   };
@@ -7649,12 +7659,12 @@ function updateWorkItemContentUrl(task) {
   lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
 }
 
-async function createDiagramBackingDocument({ title, diagram, sourceDocument = null }) {
+async function createDiagramBackingDocument({ title, diagram, sourceDocument = null, diagramOnly = false }) {
   if (!canAccessResource("Documentation", "Create")) {
     throw new Error("You do not have permission to create Documentation.");
   }
   if (!title || !diagram?.svg) throw new Error("The Diagram backing Document is incomplete.");
-  const bodyHtml = await uploadedDiagramBackingBodyHtml(title, diagram);
+  const bodyHtml = await uploadedDiagramBackingBodyHtml(title, diagram, { diagramOnly });
 
   const result = await saveJson("/api/blogs", "POST", {
     id: 0,
@@ -7671,14 +7681,14 @@ async function createDiagramBackingDocument({ title, diagram, sourceDocument = n
   return state.blogs.find(blog => blog.id === result.id) || result;
 }
 
-async function updateDiagramBackingDocument(document, { diagram }) {
+async function updateDiagramBackingDocument(document, { diagram, diagramOnly = false }) {
   if (!canAccessResource("Documentation", "Update")) {
     throw new Error("You do not have permission to update Documentation.");
   }
   if (!document?.id || !diagram?.svg) {
     throw new Error("The Diagram could not be saved.");
   }
-  const bodyHtml = await uploadedDiagramBackingBodyHtml(document.title, diagram);
+  const bodyHtml = await uploadedDiagramBackingBodyHtml(document.title, diagram, { diagramOnly });
 
   const result = await saveJson(`/api/blogs/${document.id}`, "PUT", {
     id: document.id,
@@ -7696,7 +7706,7 @@ async function updateDiagramBackingDocument(document, { diagram }) {
   return state.blogs.find(blog => blog.id === document.id) || result;
 }
 
-async function uploadedDiagramBackingBodyHtml(title, diagram) {
+async function uploadedDiagramBackingBodyHtml(title, diagram, options = {}) {
   const fileName = `${String(title || "diagram")
     .replace(/[^a-z0-9_-]+/gi, "-")
     .replace(/^-+|-+$/g, "")
@@ -7706,7 +7716,8 @@ async function uploadedDiagramBackingBodyHtml(title, diagram) {
     new File([diagram.svg], fileName, { type: "image/svg+xml" })
   );
   const version = Number(diagram.state?.version || 1);
-  return `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(storageUrl(upload.url))}" alt="${escapeAttr(title)}" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
+  const diagramOnly = options.diagramOnly === true ? ` data-pmt-diagram-only="true"` : "";
+  return `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(storageUrl(upload.url))}" alt="${escapeAttr(title)}" data-pmt-diagram="true" data-pmt-private-diagram="true"${diagramOnly} data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
 }
 
 async function updateDiagramBackingInfo(document, metadata) {

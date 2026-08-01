@@ -1625,7 +1625,8 @@
       {
         "title": "UI to Database Field Mapping",
         "items": [
-          "Create UI Field to Database Field mappings in Diagram 2 for system documentation, ongoing maintenance, and onboarding new team members."
+          "Create UI Field to Database Field mappings in Diagram 2 for system documentation, ongoing maintenance, and onboarding new team members.",
+          "Download UI Field to Database Field mappings as CSV or Excel files."
         ]
       }
     ]

@@ -52,6 +52,27 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
   await expect(viewer.locator("[data-diagram2-object-id='public-diagram-2-box']")).toBeVisible();
   await expect(page.locator("[data-public-linked-diagram]")).toHaveCount(0);
   await expect(viewer.getByRole("button", { name: "Mapping", exact: true })).toBeHidden();
+  const publicControlOrder = await viewer.locator(".pmt-diagram-ole-actions > *").evaluateAll(nodes =>
+    nodes.map(node => [...node.attributes]
+      .map(attribute => attribute.name)
+      .find(name => name.startsWith("data-diagram-ole-") || name === "data-diagram2-linked-mapping-toggle") || "")
+  );
+  expect(publicControlOrder).toEqual([
+    "data-diagram2-linked-mapping-toggle",
+    "data-diagram-ole-zoom-out",
+    "data-diagram-ole-reset",
+    "data-diagram-ole-zoom-in",
+    "data-diagram-ole-fit",
+    "data-diagram-ole-maximize"
+  ]);
+  await expect(viewer.locator("[data-diagram-ole-fit]")).toHaveText("□");
+  expect(await viewer.locator("[data-diagram-ole-maximize]").evaluate(button => ({
+    backgroundColor: getComputedStyle(button).backgroundColor,
+    borderColor: getComputedStyle(button).borderColor
+  }))).toEqual({
+    backgroundColor: "rgba(0, 0, 0, 0)",
+    borderColor: "rgba(0, 0, 0, 0)"
+  });
   await expect.poll(() => publicDiagram2CenterDelta(viewport)).toBeLessThanOrEqual(2);
 
   const initialScale = await publicDiagram2ViewportScale(viewport);
@@ -59,6 +80,13 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
   await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeGreaterThan(initialScale);
   await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
   await expect.poll(() => publicDiagram2CenterDelta(viewport)).toBeLessThanOrEqual(2);
+  await viewer.getByRole("button", { name: "Maximize Linked Diagram 2 viewer", exact: true }).click();
+  await expect(viewer).toHaveClass(/is-maximized/);
+  expect(await viewer.locator("[data-diagram-ole-maximize]").evaluate(button =>
+    getComputedStyle(button, "::after").display
+  )).toBe("block");
+  await viewer.getByRole("button", { name: "Restore Linked Diagram 2 viewer", exact: true }).click();
+  await expect(viewer).not.toHaveClass(/is-maximized/);
 });
 
 test("Diagram PNG rasterizer copies rich text without tainting the canvas", async ({ page }) => {
@@ -2910,7 +2938,7 @@ CREATE TABLE [pmt].[Phase5Browser](
   await expect(page.locator("[data-diagram2-diagnostic='canonical-relationship-count']")).toHaveText("78");
 }
 
-test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode", async ({ page }) => {
+test("Diagram 2 New creates a diagram-only record and opens it in Edit mode", async ({ page }) => {
   const browserErrors = [];
   let apiState = testState();
   let createdPayload = null;
@@ -2990,6 +3018,7 @@ test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode"
     title: "Untitled 1",
     isPrivate: true
   });
+  expect(createdPayload.bodyHtml).toContain('data-pmt-diagram-only="true"');
   expect(uploadedSvg).toContain("data-pmt-image-annotation-state");
 
   await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -2997,6 +3026,10 @@ test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode"
   await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Untitled 1");
   await expect(page.locator("[data-diagram2-tree-row][data-id='123']")).toHaveClass(/is-selected/);
   await expect(page.locator("[data-diagram2-live-viewer]")).toHaveAttribute("data-id", "123");
+
+  await openNavigationScreen(page, "Documentation");
+  await expect(page.getByRole("heading", { name: "Documentation", exact: true })).toBeVisible();
+  await expect(page.locator(".documentation-screen")).not.toContainText("Untitled 1");
 
   expect(browserErrors).toEqual([]);
 });

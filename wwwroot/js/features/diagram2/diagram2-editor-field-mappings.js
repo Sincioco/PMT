@@ -224,6 +224,16 @@ export function diagram2FieldMappingPaneGroups(indexes, options = {}) {
     : groups;
 }
 
+export function diagram2FieldMappingExportRows(indexes, options = {}) {
+  return diagram2FieldMappingPaneGroups(indexes, {
+    groupByTable: options.groupByTable === true,
+    alphabetical: options.alphabetical === true
+  }).flatMap(group => group.rows.map(row => ({
+    uiField: row.uiField,
+    databaseField: row.databaseField
+  })));
+}
+
 function diagram2FieldMappingPaneRowAlphabeticalCompare(left, right) {
   return left.uiField.localeCompare(right.uiField)
     || left.databaseField.localeCompare(right.databaseField);
