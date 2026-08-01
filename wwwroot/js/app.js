@@ -7,16 +7,16 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260801-rte-link-diagram2-v1";
+} from "./components/image-annotation.js?v=20260801-diagram2-mapping-view-v3";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
 } from "./components/diagram-field-mapping-interactions.js?v=20260731-rte-checkbox-layout-v2";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
-} from "./components/user-mentions.js?v=20260801-rte-link-diagram2-v1";
+} from "./components/user-mentions.js?v=20260801-diagram2-mapping-view-v3";
 import {
   askForText,
   askYesNo,
@@ -33,7 +33,7 @@ import {
   richTextField,
   richValue,
   value
-} from "./components/forms.js?v=20260801-rte-link-diagram2-v1";
+} from "./components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
@@ -72,13 +72,13 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260722-login-flyby-v1";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260801-rte-link-diagram2-v1";
-import { createBoardFeature } from "./features/board/board.js?v=20260801-rte-link-diagram2-v1";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-rte-link-diagram2-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-rte-link-diagram2-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-rte-link-diagram2-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-rte-link-diagram2-v1";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260801-diagram2-mapping-view-v3";
+import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram2-mapping-view-v3";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-diagram2-mapping-view-v3";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-color-preview-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-color-preview-v1";
 import {
   diagram2LinkedViewerViewport,
   disposeDiagram2LinkedViewer,
@@ -88,23 +88,23 @@ import {
   panDiagram2LinkedViewer,
   restoreDiagram2LinkedViewerViewport,
   zoomDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-rte-link-diagram2-v1";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-rte-link-diagram2-v1";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-color-preview-v1";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-diagram2-mapping-view-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260801-rte-link-diagram2-v1";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260801-rte-link-diagram2-v1";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260801-rte-link-diagram2-v1";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260801-rte-link-diagram2-v1";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260801-rte-link-diagram2-v1";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260801-rte-link-diagram2-v1";
+} from "./features/gantt/gantt.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260801-diagram2-mapping-view-v3";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260801-diagram2-mapping-view-v3";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260801-diagram2-mapping-view-v3";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260801-diagram2-mapping-view-v3";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260801-diagram2-mapping-view-v3";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260801-diagram2-mapping-view-v3";
 import { createSuggestionsFeature } from "./features/suggestions/suggestions.js?v=20260725-day36-v1";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260801-rte-link-diagram2-v1";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260801-diagram2-mapping-view-v3";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260720-work-item-export-images-v4";
 import {
   fallbackEnvironments,
@@ -139,7 +139,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
+} from "./shared/text-and-links.js?v=20260801-diagram2-mapping-view-v3";
 import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
@@ -6122,8 +6122,13 @@ function hydrateRichDiagramOleBlock(block) {
   block.classList.toggle("pmt-diagram2-ole", diagram2);
   block.setAttribute("contenteditable", "false");
   block.dataset.pmtOle = diagram2 ? "diagram2" : "diagram";
-  if (diagram2) block.dataset.diagramRenderer = "2";
-  else delete block.dataset.diagramRenderer;
+  if (diagram2) {
+    block.dataset.diagramRenderer = "2";
+    block.setAttribute("data-diagram2-linked-shell", "");
+  } else {
+    delete block.dataset.diagramRenderer;
+    block.removeAttribute("data-diagram2-linked-shell");
+  }
   block.dataset.viewWidth = String(width);
   block.dataset.viewHeight = String(height);
   block.style.width = `${width}px`;
@@ -6172,23 +6177,34 @@ function hydrateRichDiagramOleBlock(block) {
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
         <button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>
         <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">Fit</button>
+        ${diagram2 ? `<button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>` : ""}
         <button type="button" data-diagram-ole-maximize title="Maximize ${escapeAttr(featureName)} viewer" aria-label="Maximize ${escapeAttr(featureName)} viewer">Max</button>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
+        ${diagram2 && diagram?.isPrivate === false ? `<a class="pmt-diagram-ole-native-link" data-diagram-ole-native-link href="${escapeAttr(routeForContent("diagram-2", diagram.id))}" target="_blank" rel="noopener" title="Open in Diagram 2" aria-label="Open ${escapeAttr(title)} in Diagram 2">Diagram 2</a>` : ""}
         ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-rename-header title="Rename the viewer header" aria-label="Rename ${escapeAttr(featureName)} viewer header">Rename</button>` : ""}
         ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change the active tab's Diagram" aria-label="Change active ${escapeAttr(featureName)} tab Diagram">Change</button>` : ""}
         ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete ${escapeAttr(featureName)}" aria-label="Delete ${escapeAttr(featureName)}">&#128465;</button>` : ""}
       </span>
     </figcaption>
     ${richDiagramOleTabsHtml(tabs, activeTab.id, editable, featureName)}
-    <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} ${featureName} viewer`)}">
-      ${diagram
-        ? (diagram2
-          ? `<div class="pmt-diagram-ole-surface diagram2-renderer-surface" data-diagram-ole-surface data-diagram2-linked-renderer-host></div>`
-          : `<div class="pmt-diagram-ole-surface" data-diagram-ole-surface>
+    ${diagram2 ? `
+      <div class="pmt-diagram2-ole-main diagram2-readonly-main" data-diagram2-linked-main data-diagram2-left-pane-mode="mapping">
+        <div class="diagram2-mapping-hover-hint" data-diagram2-mapping-hover-hint role="status" hidden>Hover on the UI to DB Field Mapping</div>
+        <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} ${featureName} viewer`)}">
+          ${diagram
+            ? `<div class="pmt-diagram-ole-surface diagram2-renderer-surface" data-diagram-ole-surface data-diagram2-linked-renderer-host></div>`
+            : `<div class="pmt-diagram-ole-placeholder">This ${escapeHtml(featureName.toLowerCase())} tab could not be found or you do not have permission to view it.</div>`}
+        </div>
+      </div>
+    ` : `
+      <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} ${featureName} viewer`)}">
+        ${diagram
+          ? `<div class="pmt-diagram-ole-surface" data-diagram-ole-surface>
               <img src="${escapeAttr(sourceUrl)}" alt="${escapeAttr(title)}" draggable="false" data-diagram-ole-media="true">
-            </div>`)
-        : `<div class="pmt-diagram-ole-placeholder">This ${escapeHtml(featureName.toLowerCase())} tab could not be found or you do not have permission to view it.</div>`}
-    </div>
+            </div>`
+          : `<div class="pmt-diagram-ole-placeholder">This ${escapeHtml(featureName.toLowerCase())} tab could not be found or you do not have permission to view it.</div>`}
+      </div>
+    `}
   `;
 
   if (diagram2) {
@@ -6308,12 +6324,11 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     view.x = Math.round(Number(view.x || 0));
     view.y = Math.round(Number(view.y || 0));
     if (diagram2) {
-      const hasMeasuredDiagram = clampRichDiagramOleViewport(block, viewport, surface, view);
       const restoredView = restoreDiagram2LinkedViewerViewport(block, view, {
         count: options.restore === true
       });
       if (restoredView) view = restoredView;
-      if (hasMeasuredDiagram && restoredView && options.remember) {
+      if (restoredView && options.remember) {
         rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: options.notify === true });
       }
       return;
@@ -6414,6 +6429,9 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     event.preventDefault();
     event.stopPropagation();
     setMaximized(!block.classList.contains("is-maximized"));
+  });
+  block.querySelector("[data-diagram-ole-native-link]")?.addEventListener("click", event => {
+    event.stopPropagation();
   });
   ["pointerdown", "mousedown"].forEach(eventName => {
     block.addEventListener(eventName, event => {

@@ -1369,8 +1369,11 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
   const rectBox = await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").boundingBox();
   await page.mouse.move(rectBox.x + 30, rectBox.y + 30);
   await page.mouse.down();
+  await expect(page.locator("[data-diagram2-selection-id='selection:multi']")).toBeHidden();
   await page.mouse.move(rectBox.x + 75, rectBox.y + 55, { steps: 5 });
+  await expect(page.locator("[data-diagram2-selection-id='selection:multi']")).toBeHidden();
   await page.mouse.up();
+  await expect(page.locator("[data-diagram2-selection-id='selection:multi']")).toBeVisible();
   await expect.poll(() => page.evaluate(before => {
     const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
     return object.x !== before.x && object.y !== before.y;
@@ -1386,8 +1389,11 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
   const handleBox = await eastHandle.boundingBox();
   await page.mouse.move(handleBox.x + (handleBox.width / 2), handleBox.y + (handleBox.height / 2));
   await page.mouse.down();
+  await expect(page.locator("[data-diagram2-selection-id='rect-a']")).toBeHidden();
   await page.mouse.move(handleBox.x + 50, handleBox.y + (handleBox.height / 2), { steps: 5 });
+  await expect(page.locator("[data-diagram2-selection-id='rect-a']")).toBeHidden();
   await page.mouse.up();
+  await expect(page.locator("[data-diagram2-selection-id='rect-a']")).toBeVisible();
   await expect.poll(() => page.evaluate(width =>
     window.__diagram2Phase3Harness.controller.getObjectById("rect-a").width > width, widthBefore
   )).toBe(true);
@@ -4355,6 +4361,28 @@ async function assertDiagram2ColorPickerBehavior(page) {
   await page.keyboard.press("Escape");
   await expect(palette).toBeHidden();
 
+  await assertDiagram2PaletteHoverPreview(page, {
+    name: "fill",
+    color: "#FFFF00",
+    property: "fill",
+    renderedSelector: "[data-diagram2-entity-body]",
+    attribute: "fill"
+  });
+  await assertDiagram2PaletteHoverPreview(page, {
+    name: "stroke",
+    color: "#FF0000",
+    property: "stroke",
+    renderedSelector: "[data-diagram2-entity-outline]",
+    attribute: "stroke"
+  });
+  await assertDiagram2PaletteHoverPreview(page, {
+    name: "textColor",
+    color: "#00B0F0",
+    property: "textColor",
+    renderedSelector: "[data-diagram2-entity-low-field]",
+    attribute: "stroke"
+  });
+
   const before = await page.evaluate(() => {
     const controller = window.__pmtDiagram2EditorCore;
     const id = controller.selectedObjectIds()[0];
@@ -4399,6 +4427,80 @@ async function assertDiagram2ColorPickerBehavior(page) {
     String(window.__pmtDiagram2EditorCore.getObjectById(id)?.fill || "").toUpperCase() === String(fill || "").toUpperCase(), before
   )).toBe(true);
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
+async function assertDiagram2PaletteHoverPreview(page, options) {
+  const trigger = page.locator(
+    `[data-annotation-color-picker='${options.name}'] [data-annotation-color-trigger]`
+  ).first();
+  const palette = page.locator(
+    `[data-annotation-color-picker='${options.name}'] [data-rich-color-palette]`
+  ).first();
+  const triggerBox = await trigger.boundingBox();
+  expect(triggerBox).toBeTruthy();
+  await page.mouse.click(
+    triggerBox.x + (triggerBox.width * 0.75),
+    triggerBox.y + (triggerBox.height / 2)
+  );
+  await expect(palette).toBeVisible();
+
+  const selectedId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  const rendered = page.locator(
+    `[data-diagram2-object-plane] [data-diagram2-object-id='${selectedId}'] ${options.renderedSelector}`
+  ).first();
+  const beforeRendered = await rendered.getAttribute(options.attribute);
+  const before = await page.evaluate(({ property }) => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const id = controller.selectedObjectIds()[0];
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      canonical: controller.getObjectById(id)?.[property] ?? null,
+      history: JSON.stringify(controller.historyStatus()),
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  }, options);
+
+  await page.evaluate(() => { window.__diagram2ColorPreviewStartedAt = performance.now(); });
+  await palette.locator(`[data-rich-color-value='${options.color}']`).first().hover();
+  await expect(rendered).toHaveAttribute(
+    options.attribute,
+    new RegExp(`^${options.color.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+  );
+  const preview = await page.evaluate(async ({ property }) => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const id = controller.selectedObjectIds()[0];
+    await renderer.whenInteractive();
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      canonical: controller.getObjectById(id)?.[property] ?? null,
+      history: JSON.stringify(controller.historyStatus()),
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      durationMs: performance.now() - window.__diagram2ColorPreviewStartedAt
+    };
+  }, options);
+  expect(preview.canonical).toBe(before.canonical);
+  expect(preview.history).toBe(before.history);
+  expect(preview.fullRenderCount).toBe(before.fullRenderCount);
+  expect(preview.durationMs).toBeLessThan(500);
+
+  await page.mouse.move(triggerBox.x + (triggerBox.width / 2), triggerBox.y + (triggerBox.height / 2));
+  await expect(rendered).toHaveAttribute(options.attribute, beforeRendered);
+  const restored = await page.evaluate(async ({ property }) => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const id = controller.selectedObjectIds()[0];
+    await renderer.whenInteractive();
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      canonical: controller.getObjectById(id)?.[property] ?? null,
+      history: JSON.stringify(controller.historyStatus()),
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  }, options);
+  expect(restored).toEqual(before);
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
 }
 
 async function assertDiagram2EditModeCursor(page) {

@@ -23,10 +23,10 @@ import {
   patchDiagram2FieldMappingIndexes,
   setDiagram2FieldMappingRouteIndex,
   diagram2MappingAttentionTargets
-} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
 import {
   diagram2FieldMappingTableRowKey
-} from "./diagram2-editor-field-mapping-tables.js?v=20260731-diagram2-mapping-pane-v2";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260801-diagram2-mapping-view-v3";
 import {
   createDiagram2ImageResourceManager
 } from "./diagram2-image-resources.js?v=20260731-rte-checkbox-layout-v2";
@@ -70,8 +70,8 @@ const diagram2RelationshipPromotionThreshold = 32;
 const diagram2RelationshipPromotionBatchSize = 6;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
-  ["images", "data-diagram2-image-plane"],
   ["belowObjects", "data-diagram2-below-object-plane"],
+  ["images", "data-diagram2-image-plane"],
   ["relationships", "data-diagram2-relationship-plane"],
   ["betweenObjects", "data-diagram2-between-object-plane"],
   ["fieldRelationships", "data-diagram2-field-relationship-plane"],
@@ -459,6 +459,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let cropOptionAdjustmentCancelCount = 0;
   let cropOptionImagePatchCount = 0;
   let cropOptionOverlayPatchCount = 0;
+  const relationshipTraceIds = new Set();
   let fullRenderCount = 0;
   let fullRenderReason = "";
   let frameSequence = 0;
@@ -1012,6 +1013,45 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return scheduleDiagramFlush("selection");
   }
 
+  function setRelationshipTraceSelection(ids = []) {
+    const nextTraceIds = new Set();
+    (Array.isArray(ids) ? ids : [ids])
+      .map(id => String(id || "").trim())
+      .filter(Boolean)
+      .forEach(id => {
+        routing.relationshipIdsByEntityId.get(id)?.forEach(relationshipId => {
+          nextTraceIds.add(relationshipId);
+        });
+        if (liveView.relationshipDataById.has(id) || routing.relationshipRoutesById.has(id)) {
+          nextTraceIds.add(id);
+        }
+      });
+
+    if (nextTraceIds.size === relationshipTraceIds.size
+      && [...nextTraceIds].every(id => relationshipTraceIds.has(id))) return diagnostics();
+
+    const changedIds = new Set([...relationshipTraceIds, ...nextTraceIds]);
+    relationshipTraceIds.clear();
+    nextTraceIds.forEach(id => relationshipTraceIds.add(id));
+    changedIds.forEach(id => {
+      const relationship = liveView.relationshipDataById.get(id);
+      const route = routing.relationshipRoutesById.get(id);
+      if (relationship && route) {
+        patchSelectedRelationshipOverlay(relationship, route, {
+          selected: liveView.selectedIds.has(id),
+          viewportScale: committedViewportTransform.scale
+        });
+        return;
+      }
+      if (!relationshipTraceIds.has(id) && !liveView.selectedIds.has(id)) {
+        planes.selection
+          ?.querySelector(`:scope > g[data-diagram2-relationship-route-overlay-id="${cssEscape(id)}"]`)
+          ?.remove();
+      }
+    });
+    return diagnostics();
+  }
+
   function setCanvasOptions(options = {}) {
     canvasOptions = {
       gridVisible: options.gridVisible === true,
@@ -1082,11 +1122,21 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return diagnostics();
   }
 
-  function setSelectionChromeSuppressed(objectIdInput, suppressed = true) {
-    const objectId = String(objectIdInput || "").trim();
-    if (!objectId) return diagnostics();
-    if (suppressed === true) selectionChromeSuppressedIds.add(objectId);
-    else selectionChromeSuppressedIds.delete(objectId);
+  function setSelectionChromeSuppressed(objectIdsInput, suppressed = true) {
+    const objectIds = (Array.isArray(objectIdsInput) ? objectIdsInput : [objectIdsInput])
+      .map(id => String(id || "").trim())
+      .filter(Boolean);
+    if (!objectIds.length) return diagnostics();
+    let changed = false;
+    objectIds.forEach(objectId => {
+      if (suppressed === true && !selectionChromeSuppressedIds.has(objectId)) {
+        selectionChromeSuppressedIds.add(objectId);
+        changed = true;
+      } else if (suppressed !== true && selectionChromeSuppressedIds.delete(objectId)) {
+        changed = true;
+      }
+    });
+    if (!changed) return diagnostics();
     patchSelectionOverlays();
     return diagnostics();
   }
@@ -1944,6 +1994,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       mountedObjectIds: [...liveView.mountedObjectIds],
       mountedRelationshipIds: [...liveView.mountedRelationshipIds],
       selectedIds: [...liveView.selectedIds],
+      relationshipTraceIds: [...relationshipTraceIds],
       objectVersionCount: liveView.objectVersionsById.size,
       relationshipVersionCount: liveView.relationshipVersionsById.size,
       objectDataCount: liveView.objectDataById.size,
@@ -2264,6 +2315,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     cropPreviewState = null;
     cropOptionAdjustmentImageId = "";
     selectionChromeSuppressedIds.clear();
+    relationshipTraceIds.clear();
     lastDiagnostics = emptyDiagnostics();
     lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
     lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
@@ -2734,6 +2786,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.relationshipDetailLevelsById.delete(id);
     liveView.mountedRelationshipIds.delete(id);
     if (options.preserveSelection !== true) liveView.selectedIds.delete(id);
+    if (options.preserveTrace !== true) relationshipTraceIds.delete(id);
     if (options.preserveRouting !== true) removeRelationshipRoutingState(id);
   }
 
@@ -2742,7 +2795,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const id = String(relationship?.id || "").trim();
     if (!id) return;
     let overlay = planes.selection.querySelector(`:scope > g[data-diagram2-relationship-route-overlay-id="${cssEscape(id)}"]`);
-    if (options.selected !== true) {
+    const selected = options.selected === true;
+    const traced = relationshipTraceIds.has(id);
+    if (!selected && !traced) {
       overlay?.remove();
       return;
     }
@@ -2758,7 +2813,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const renderRoute = route;
     setSvgAttributes(overlay, {
       "data-diagram2-relationship-route-overlay-id": id,
-      class: "diagram2-renderer-relationship-route-overlay",
+      class: `diagram2-renderer-relationship-route-overlay${traced ? " is-relationship-trace" : ""}`,
       "pointer-events": "none"
     });
     let selectionPath = overlay.querySelector(":scope > path[data-diagram2-relationship-selection-path]");
@@ -2780,7 +2835,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       overlay,
       relationship,
       renderRoute,
-      true,
+      selected,
       options.viewportScale
     );
   }
@@ -2788,7 +2843,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function unmountViewportHaloRelationshipNode(id) {
     removeRelationshipNode(id, {
       preserveRouting: true,
-      preserveSelection: true
+      preserveSelection: true,
+      preserveTrace: true
     });
   }
 
@@ -4027,6 +4083,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         planes.selection.appendChild(overlay);
       }
 
+      const selectionChromeSuppressed = selectionChromeSuppressedIds.size > 0;
       setSvgAttributes(overlay, {
         "data-diagram2-selection-id": entry.id,
         class: [
@@ -4037,8 +4094,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
           entry.locked === true ? "is-locked" : ""
         ].filter(Boolean).join(" "),
         transform: entry.transform,
-        display: selectionChromeSuppressedIds.has(entry.id) ? "none" : null,
-        "data-diagram2-selection-suppressed": selectionChromeSuppressedIds.has(entry.id) ? "true" : null
+        display: selectionChromeSuppressed ? "none" : null,
+        "data-diagram2-selection-suppressed": selectionChromeSuppressed ? "true" : null
       });
 
       let outline = overlay.querySelector(":scope > rect[data-diagram2-selection-outline]");
@@ -4118,7 +4175,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
           locked: false,
           connector: false
         };
-        group.bounds = unionBounds(group.bounds, objectBounds(object));
+        group.bounds = unionBounds(group.bounds, objectSelectionWorldBounds(object));
         group.worldBounds = group.bounds;
         group.locked = group.locked || object.locked === true;
         grouped.set(groupId, group);
@@ -4127,7 +4184,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
       const bounds = objectSelectionBounds(object);
       const connector = object.type === "arrow" || object.type === "line";
-      const worldBounds = objectBounds(object);
+      const worldBounds = objectSelectionWorldBounds(object);
       entries.push({
         id,
         kind: "object",
@@ -4509,6 +4566,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     completeRelationshipRouteCommit,
     relationshipRoutePoints,
     setSelectedIds,
+    setRelationshipTraceSelection,
     setCanvasOptions,
     setViewportInset,
     objectIdsInBounds,
@@ -6948,7 +7006,18 @@ function objectSelectionBounds(object) {
       height: Math.max(1, Math.abs(y2 - y1))
     };
   }
-  return objectBounds(diagram2LocalObject(object));
+  const localObject = diagram2LocalObject(object);
+  if (localObject?.type === "embedded-image") {
+    return diagram2ImageEffectiveClip(localObject) || objectBounds(localObject);
+  }
+  return objectBounds(localObject);
+}
+
+function objectSelectionWorldBounds(object) {
+  if (object?.type === "embedded-image") {
+    return diagram2ImageEffectiveClip(object) || objectBounds(object);
+  }
+  return objectBounds(object);
 }
 
 function diagram2SelectionHandlePoints(object, bounds) {

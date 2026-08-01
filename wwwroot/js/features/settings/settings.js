@@ -6,7 +6,7 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
+} from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,

@@ -20,6 +20,18 @@ export function createDiagram2DocumentHostAdapter(options = {}) {
   };
 }
 
+export function nextAvailableDiagram2SaveTitle(title, documents = []) {
+  const currentTitle = String(title || "Diagram").trim() || "Diagram";
+  const numbered = currentTitle.match(/^(.*\S)\s+(\d+)$/);
+  const baseTitle = String(numbered?.[1] || currentTitle).trim() || "Diagram";
+  const titles = new Set((documents || [])
+    .map(document => String(document?.title || "").trim().toLocaleLowerCase())
+    .filter(Boolean));
+  let index = numbered ? Math.max(2, Number(numbered[2]) + 1) : 2;
+  while (titles.has(`${baseTitle} ${index}`.toLocaleLowerCase())) index += 1;
+  return `${baseTitle} ${index}`;
+}
+
 function normalizeDiagram2DocumentSecurity(options = {}) {
   const provided = options.security && typeof options.security === "object" ? options.security : {};
   const canUpdate = Object.hasOwn(provided, "canUpdate")

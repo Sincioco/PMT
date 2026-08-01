@@ -115,6 +115,68 @@ test("Diagram 2 editor controller applies color styles through command history w
   assert.equal(await controller.updateSelectedObjectsStyle("headerFill", "#123456"), false);
 });
 
+test("Diagram 2 color previews stay renderer-only and leave history unchanged", () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: formatState()
+  });
+  const originalState = JSON.stringify(controller.currentState());
+  const originalHistory = controller.historyStatus();
+
+  controller.setSelection(["box", "text"]);
+  const clearFillPreview = controller.previewSelectedObjectsStyle("fill", "#ffff00");
+  assert.equal(typeof clearFillPreview, "function");
+  assert.equal(renderer.structureStates.at(-1).stylesById.box.fill, "#FFFF00");
+  assert.equal(renderer.structureStates.at(-1).stylesById.text.fill, "#FFFF00");
+  assert.equal(renderer.structureStates.at(-1).reason, "preview fill");
+  assert.equal(JSON.stringify(controller.currentState()), originalState);
+  assert.deepEqual(controller.historyStatus(), originalHistory);
+
+  clearFillPreview();
+  assert.equal(renderer.structureStates.at(-1).stylesById.box.fill, controller.getObjectById("box").fill);
+  assert.equal(renderer.structureStates.at(-1).stylesById.text.fill, controller.getObjectById("text").fill);
+  assert.equal(renderer.structureStates.at(-1).reason, "clear fill preview");
+
+  controller.setSelection(["text"]);
+  const clearTextPreview = controller.previewSelectedObjectsStyle("textColor", "#00b0f0");
+  assert.equal(renderer.structureStates.at(-1).stylesById.text.textColor, "#00B0F0");
+  clearTextPreview();
+  assert.equal(renderer.structureStates.at(-1).stylesById.text.textColor, controller.getObjectById("text").textColor);
+  assert.equal(JSON.stringify(controller.currentState()), originalState);
+  assert.deepEqual(controller.historyStatus(), originalHistory);
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 relationship color previews restore without a command", () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: phase5TwoEntityState()
+  });
+  const relationship = diagram2CanonicalRelationships(controller.currentState())[0];
+  const originalHistory = controller.historyStatus();
+  controller.setSelection([relationship.id]);
+
+  const clearPreview = controller.previewSelectedObjectsStyle("stroke", "#ff0000");
+  assert.equal(typeof clearPreview, "function");
+  assert.equal(
+    renderer.structureStates.at(-1).relationshipStylesById[relationship.id].stroke.toUpperCase(),
+    "#FF0000"
+  );
+  assert.deepEqual(controller.historyStatus(), originalHistory);
+
+  clearPreview();
+  assert.equal(
+    renderer.structureStates.at(-1).relationshipStylesById[relationship.id].stroke,
+    relationship.diagram2EffectiveStyle.stroke
+  );
+  assert.deepEqual(controller.historyStatus(), originalHistory);
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
 test("Diagram 2 editor controller applies Diagram 1 format styles by object type", async () => {
   const renderer = fakeRenderer();
   const controller = createDiagram2EditorController({
@@ -514,6 +576,61 @@ test("Diagram 2 context-menu layer commands match Diagram 1 ordering and undo lo
 
   await controller.setSelectedObjectsLocked(true);
   assert.equal(await controller.arrangeSelectedObjects("front"), false);
+});
+
+test("Diagram 2 layer commands keep grouped images and shapes together", async () => {
+  const controller = createDiagram2EditorController({
+    renderer: fakeRenderer(),
+    host: editableHost(),
+    state: {
+      version: 1,
+      width: 900,
+      height: 540,
+      objects: [
+        {
+          id: "group-image",
+          type: "embedded-image",
+          groupId: "mixed-group",
+          x: 40,
+          y: 40,
+          width: 240,
+          height: 160,
+          source: "data:image/png;base64,AA==",
+          imageClip: { x: 40, y: 40, width: 240, height: 160 }
+        },
+        {
+          id: "group-label",
+          type: "rectangle",
+          groupId: "mixed-group",
+          x: 60,
+          y: 60,
+          width: 120,
+          height: 50,
+          fill: "#ffffff",
+          stroke: "#172b4d"
+        },
+        {
+          id: "red-box",
+          type: "rectangle",
+          x: 80,
+          y: 80,
+          width: 180,
+          height: 100,
+          fill: "#ff0000",
+          stroke: "#991b1b"
+        }
+      ],
+      groupNames: { "mixed-group": "Mixed image group" },
+      groupVisibility: { "mixed-group": true }
+    }
+  });
+  const order = () => controller.currentState().objects.map(object => object.id);
+
+  controller.selectStructureNode("group", "mixed-group");
+  assert.equal(await controller.arrangeSelectedObjects("front"), true);
+  assert.deepEqual(order(), ["red-box", "group-image", "group-label"]);
+  assert.equal(await controller.arrangeSelectedObjects("back"), true);
+  assert.deepEqual(order(), ["group-image", "group-label", "red-box"]);
 });
 
 test("Diagram 2 Phase 4 structure and templates stay command-based and renderer-local", async () => {
@@ -1985,6 +2102,15 @@ function fakeRenderer() {
         relationshipCount: relationships.length,
         groupNames: { ...(state?.groupNames || {}) },
         groupVisibility: { ...(state?.groupVisibility || {}) },
+        stylesById: Object.fromEntries((state?.objects || []).map(object => [object.id, {
+          fill: object.fill,
+          stroke: object.stroke,
+          textColor: object.textColor
+        }])),
+        relationshipStylesById: Object.fromEntries(relationships.map(relationship => [
+          relationship.id,
+          { ...(relationship.diagram2EffectiveStyle || {}) }
+        ])),
         affectedObjectIds: [...(options.affectedObjectIds || [])],
         affectedRelationshipIds: [...(options.affectedRelationshipIds || [])],
         reason: options.reason || ""

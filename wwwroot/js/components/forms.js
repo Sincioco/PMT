@@ -2,7 +2,7 @@ import {
   escapeAttr,
   escapeHtml,
   normalizeRichHtml
-} from "../shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
+} from "../shared/text-and-links.js?v=20260801-diagram2-mapping-view-v3";
 import { roleLabel } from "../shared/selectors.js?v=20260713-managed-roles";
 
 export function field(label, name, currentValue, type, min = "", max = "", maxLength = "", options = {}) {

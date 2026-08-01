@@ -99,7 +99,7 @@ export function diagram2CropCornerPatch(image, valuesInput = {}) {
   return uniform
     ? { cropCornerRadius: values.topLeft, cropCornerRadii: null }
     : {
-        cropCornerRadius: clamp(finiteNumber(image?.cropCornerRadius, 0), 0, maximum),
+        cropCornerRadius: 0,
         cropCornerRadii: values
       };
 }
@@ -121,6 +121,13 @@ export function diagram2ResetCropPatch(image) {
   return {
     imageClip: full,
     cropVisible: true,
+    cropCornerRadius: 0,
+    cropCornerRadii: null
+  };
+}
+
+export function diagram2ResetCropRadiusPatch() {
+  return {
     cropCornerRadius: 0,
     cropCornerRadii: null
   };

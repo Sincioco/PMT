@@ -9,7 +9,7 @@ import {
   statusLegendHtml,
   thinProgressHtml
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
 import { state } from "../../core/store.js";
 import {
   escapeHtml

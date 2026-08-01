@@ -199,12 +199,15 @@ export function diagram2FieldMappingPaneGroups(indexes, options = {}) {
     || row.uiField.toLowerCase().includes(search)
     || row.databaseField.toLowerCase().includes(search));
   if (!rows.length) return [];
+  const orderedRows = options.alphabetical === true
+    ? [...rows].sort(diagram2FieldMappingPaneRowAlphabeticalCompare)
+    : rows;
   if (options.groupByTable !== true) {
-    return [{ id: "all-mappings", name: "", rows }];
+    return [{ id: "all-mappings", name: "", rows: orderedRows }];
   }
 
   const groupsByTable = new Map();
-  rows.forEach(row => {
+  orderedRows.forEach(row => {
     const name = row.databaseTable || "Database Table";
     if (!groupsByTable.has(name)) {
       groupsByTable.set(name, {
@@ -215,8 +218,15 @@ export function diagram2FieldMappingPaneGroups(indexes, options = {}) {
     }
     groupsByTable.get(name).rows.push(row);
   });
-  return [...groupsByTable.values()]
-    .sort((left, right) => left.name.localeCompare(right.name));
+  const groups = [...groupsByTable.values()];
+  return options.alphabetical === true
+    ? groups.sort((left, right) => left.name.localeCompare(right.name))
+    : groups;
+}
+
+function diagram2FieldMappingPaneRowAlphabeticalCompare(left, right) {
+  return left.uiField.localeCompare(right.uiField)
+    || left.databaseField.localeCompare(right.databaseField);
 }
 
 function diagram2FieldMappingPaneRows(indexes, mappingIdsInput, tableIdByMappingId) {

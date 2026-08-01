@@ -97,7 +97,17 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(readOnlyUiField).toContainText("TaskId");
   await expect(readOnlyDatabaseCell).toContainText("pmt.Phase6Entity.TaskId");
   const treeToggle = page.getByRole("button", { name: "Treeview", exact: true });
+  const mappingToggle = page.getByRole("button", { name: "Mapping", exact: true });
   await expect(treeToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(mappingToggle).toBeVisible();
+  await expect(mappingToggle).toHaveAttribute("aria-pressed", "true");
+  expect(await treeToggle.evaluate((tree, mapping) => tree.nextElementSibling === mapping, await mappingToggle.elementHandle())).toBe(true);
+  await expect(page.locator("[data-diagram2-readonly-shell]")).toHaveClass(/is-field-mapping-lines-hidden/);
+  const mappingHint = page.locator("[data-diagram2-mapping-hover-hint]");
+  await expect(mappingHint).toBeVisible();
+  await expect(mappingHint).toHaveText("Hover on the UI to DB Field Mapping");
+  expect(await mappingHint.evaluate(hint => hint.parentElement?.matches("[data-diagram2-readonly-main]"))).toBe(true);
+  await expect(mappingHint).toBeHidden({ timeout: 6500 });
   await page.getByRole("button", { name: "Fit Diagram", exact: true }).click();
   const shownTreeFit = await diagram2VisibleContentCenterEvidence(page);
   expect(shownTreeFit.mappingPaneWidth).toBeGreaterThanOrEqual(200);
@@ -132,8 +142,40 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   expect(restoredTreeFit.centerDeltaY).toBeLessThanOrEqual(2);
   expect(restoredTreeFit.fullRenderCount).toBe(shownTreeFit.fullRenderCount);
   expect(restoredTreeFit.durationMs).toBeLessThan(500);
+  await mappingToggle.click();
+  await expect(mappingToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(readOnlyPane).toBeHidden();
+  expect(await page.locator("[data-diagram2-mapping-table-plane]").evaluate(
+    node => getComputedStyle(node).display
+  )).not.toBe("none");
+  await mappingToggle.click();
+  await expect(mappingToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(readOnlyPane).toBeVisible();
   const readOnlyMappingSearch = readOnlyPane.locator("[data-diagram2-mapping-search]");
   const readOnlyGroupToggle = readOnlyPane.locator("[data-diagram2-mapping-group-by-table]");
+  const readOnlyAlphabeticalToggle = readOnlyPane.locator("[data-diagram2-mapping-alphabetical]");
+  const searchStyle = await readOnlyMappingSearch.evaluate(input => {
+    const style = getComputedStyle(input);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderStyle: style.borderStyle,
+      borderWidth: style.borderWidth,
+      minHeight: Number.parseFloat(style.minHeight)
+    };
+  });
+  expect(searchStyle.borderStyle).toBe("solid");
+  expect(searchStyle.borderWidth).toBe("1px");
+  expect(searchStyle.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(searchStyle.minHeight).toBeGreaterThanOrEqual(32);
+  await expect(readOnlyAlphabeticalToggle).not.toBeChecked();
+  const wideOptionTops = await readOnlyPane.locator(".diagram2-mapping-pane-group-toggle").evaluateAll(labels =>
+    labels.map(label => Math.round(label.getBoundingClientRect().top))
+  );
+  expect(wideOptionTops[0]).toBe(wideOptionTops[1]);
+  await readOnlyAlphabeticalToggle.check();
+  await expect(readOnlyAlphabeticalToggle).toBeChecked();
+  await readOnlyAlphabeticalToggle.uncheck();
+  await expect(readOnlyAlphabeticalToggle).not.toBeChecked();
   await readOnlyMappingSearch.fill("PHASE6ENTITY.TAS");
   await expect(readOnlyPane).toHaveAttribute("data-diagram2-mapping-visible-count", "1");
   await readOnlyMappingSearch.fill("not present");
@@ -144,6 +186,16 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(readOnlyPane).toHaveAttribute("data-diagram2-mapping-visible-count", "1");
   await readOnlyGroupToggle.check();
   await expect(readOnlyPane.locator(".diagram2-mapping-pane-group h4")).toHaveText("pmt.Phase6Entity");
+  const groupHeaderStyle = await readOnlyPane.locator(".diagram2-mapping-pane-group h4").evaluate(header => {
+    const style = getComputedStyle(header);
+    return {
+      backgroundColor: style.backgroundColor,
+      paneBackgroundColor: getComputedStyle(header.closest("[data-diagram2-mapping-pane]")).backgroundColor,
+      fontWeight: Number(style.fontWeight)
+    };
+  });
+  expect(groupHeaderStyle.backgroundColor).not.toBe(groupHeaderStyle.paneBackgroundColor);
+  expect(groupHeaderStyle.fontWeight).toBeGreaterThanOrEqual(600);
   await readOnlyGroupToggle.uncheck();
   await expect(readOnlyPane.locator(".diagram2-mapping-pane-group h4")).toHaveCount(0);
   expect(await page.locator("[data-diagram2-mapping-table-plane]").evaluate(
@@ -167,6 +219,10 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   const readOnlyResizer = readOnlyPane.getByRole("separator", { name: "Resize Mapping pane" });
   await readOnlyResizer.press("Home");
   await expect.poll(() => readOnlyPane.evaluate(element => Math.round(element.getBoundingClientRect().width))).toBe(200);
+  const narrowOptionTops = await readOnlyPane.locator(".diagram2-mapping-pane-group-toggle").evaluateAll(labels =>
+    labels.map(label => Math.round(label.getBoundingClientRect().top))
+  );
+  expect(narrowOptionTops[1]).toBeGreaterThan(narrowOptionTops[0]);
   await readOnlyResizer.press("End");
   await expect.poll(() => readOnlyPane.evaluate(element => Math.round(element.getBoundingClientRect().width))).toBe(600);
   await readOnlyResizer.press("Home");
@@ -186,7 +242,9 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "Copy as SVG",
     "Copy as PNG"
   ]);
-  await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
+  await expect(readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]"))
+    .toHaveAttribute("aria-checked", "false");
+  await readOnlyMenu.press("Escape");
   await expect(page.locator("[data-diagram2-readonly-shell]")).toHaveClass(/is-field-mapping-lines-hidden/);
   await expect(page.locator("[data-diagram2-object-id='table-phase6']")).toBeHidden();
   await expect(readOnlyPane).toBeVisible();
@@ -239,6 +297,23 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await readOnlyCanvas.click({ button: "right", position: { x: 380, y: 40 } });
   await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
   await expect(page.locator("[data-diagram2-readonly-shell]")).not.toHaveClass(/is-field-mapping-lines-hidden/);
+  await expect(mappingHint).toBeHidden();
+  const readOnlyTraceBefore = await diagnosticNumber(page, "full-render-count");
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']")
+    .dispatchEvent("click", { button: 0 });
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(1);
+  const readOnlyTraceStyle = await page.locator(
+    ".is-relationship-trace [data-diagram2-relationship-selection-path]"
+  ).evaluate(path => {
+    const style = getComputedStyle(path);
+    return { stroke: style.stroke, dasharray: style.strokeDasharray };
+  });
+  expect(readOnlyTraceStyle.stroke).not.toBe("none");
+  expect(readOnlyTraceStyle.dasharray).toBe("none");
+  await page.locator("[data-diagram2-relationship-id]").first()
+    .dispatchEvent("click", { button: 0 });
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(1);
+  expect(await diagnosticNumber(page, "full-render-count")).toBe(readOnlyTraceBefore);
 
   await page.evaluate(() => {
     window.location.hash = "#/diagram/601";
@@ -285,6 +360,14 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "Mapping",
     "Right Pane"
   ]);
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']").click();
+  await expect(page.locator(
+    "[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']"
+  )).toHaveClass(/is-selected/);
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(0);
+  await page.locator("[data-diagram2-relationship-id]").first()
+    .dispatchEvent("pointerdown", { button: 0, pointerId: 1 });
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(0);
 
   const editCanvas = page.locator("[data-diagram2-viewer-canvas]");
   const editMenu = page.locator("[data-diagram2-canvas-context-menu]");
@@ -654,6 +737,175 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   expect(browserErrors).toEqual([]);
 });
 
+test("Diagram 2 shows Mapping only when a mapped Field Mapping Rectangle exists", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-1366", "One viewport covers dynamic Mapping availability.");
+  const complete = phase6State();
+  const withoutRectangle = normalizeAnnotationState({
+    ...complete,
+    objects: complete.objects.filter(object => object.id !== "field-phase6")
+  });
+  const withoutTable = normalizeAnnotationState({
+    ...complete,
+    objects: complete.objects.filter(object => object.type !== "field-mapping-table")
+  });
+  const apiState = appState(606, "Mapping table without rectangle", withoutRectangle);
+  apiState.blogs.push(appState(607, "Mapped rectangle without table", withoutTable).blogs[0]);
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+
+  await loginAndOpenDiagram2(page, 606);
+  await expect(page.getByRole("button", { name: "Mapping", exact: true })).toBeHidden();
+  await page.evaluate(() => { window.location.hash = "#/diagram-2/607"; });
+  await expect(page).toHaveURL(/#\/diagram-2\/607$/);
+  await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mapping", exact: true })).toBeVisible();
+  await expect(page.locator("[data-diagram2-mapping-pane]")).toHaveAttribute("data-diagram2-mapping-count", "1");
+});
+
+test("Diagram 2 object z-order paints images and image groups in tree order", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-1366", "One viewport covers SVG paint order.");
+  const apiState = appState(608, "Diagram 2 Z Order", zOrderState());
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+
+  await loginAndOpenDiagram2(page, 608);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  const evidence = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const fullRenderCount = renderer.diagnostics().fullRenderCount;
+    const visualIndex = id => {
+      const node = document.querySelector(`svg[data-diagram2-svg] [data-diagram2-object-id='${CSS.escape(id)}']`);
+      const plane = node?.parentElement;
+      const viewport = plane?.parentElement;
+      if (!node || !plane || !viewport) return -1;
+      return ([...viewport.children].indexOf(plane) * 10000) + [...plane.children].indexOf(node);
+    };
+    const capture = () => ({
+      order: controller.currentState().objects.map(object => object.id),
+      image: visualIndex("z-image"),
+      red: visualIndex("z-red"),
+      groupShape: visualIndex("z-group-shape")
+    });
+    const timed = async action => {
+      const started = performance.now();
+      await action();
+      await renderer.whenIdle();
+      return performance.now() - started;
+    };
+
+    controller.setSelection(["z-image"], { expandGroups: false });
+    const imageFrontMs = await timed(() => controller.arrangeSelectedObjects("front"));
+    const imageFront = capture();
+    const imageBackMs = await timed(() => controller.arrangeSelectedObjects("back"));
+    const imageBack = capture();
+
+    await controller.addObject(controller.createDefaultObject("rectangle", {
+      x: 125,
+      y: 105
+    }, {
+      id: "z-group-shape",
+      name: "Grouped outline"
+    }));
+    controller.setSelection(["z-image", "z-group-shape"], { expandGroups: false });
+    await controller.groupSelectedObjects();
+    const groupId = controller.getObjectById("z-image").groupId;
+    controller.selectStructureNode("group", groupId);
+    const groupBackMs = await timed(() => controller.arrangeSelectedObjects("back"));
+    const groupBack = capture();
+    const groupFrontMs = await timed(() => controller.arrangeSelectedObjects("front"));
+    const groupFront = capture();
+
+    return {
+      imageFront,
+      imageBack,
+      groupBack,
+      groupFront,
+      durations: [imageFrontMs, imageBackMs, groupBackMs, groupFrontMs],
+      fullRenderDelta: renderer.diagnostics().fullRenderCount - fullRenderCount
+    };
+  });
+
+  expect(evidence.imageFront.order).toEqual(["z-red", "z-image"]);
+  expect(evidence.imageFront.image).toBeGreaterThan(evidence.imageFront.red);
+  expect(evidence.imageBack.order).toEqual(["z-image", "z-red"]);
+  expect(evidence.imageBack.image).toBeLessThan(evidence.imageBack.red);
+  expect(evidence.groupBack.order).toEqual(["z-image", "z-group-shape", "z-red"]);
+  expect(evidence.groupBack.image).toBeLessThan(evidence.groupBack.red);
+  expect(evidence.groupBack.groupShape).toBeLessThan(evidence.groupBack.red);
+  expect(evidence.groupFront.order).toEqual(["z-red", "z-image", "z-group-shape"]);
+  expect(evidence.groupFront.image).toBeGreaterThan(evidence.groupFront.red);
+  expect(evidence.groupFront.groupShape).toBeGreaterThan(evidence.groupFront.red);
+  evidence.durations.forEach(duration => expect(duration).toBeLessThan(500));
+  expect(evidence.fullRenderDelta).toBe(0);
+});
+
+test("Diagram 2 save conflicts offer the next numbered name and preserve the original", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-1366", "One viewport covers the save-conflict workflow.");
+  let apiState = appState(610, "Conflict Diagram 2", zOrderState());
+  apiState.blogs.push(appState(611, "Conflict Diagram 3", zOrderState()).blogs[0]);
+  let uploadCount = 0;
+  let latestSvg = buildAnnotationSvg(zOrderState());
+  let createdPayload = null;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    latestSvg = extractMultipartSvg(route.request().postDataBuffer()) || latestSvg;
+    uploadCount += 1;
+    return route.fulfill(jsonResponse({ url: `/uploads/conflict-diagram-${uploadCount}.svg` }));
+  });
+  await page.route("**/uploads/conflict-diagram-*.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: latestSvg
+  }));
+  await page.route("**/api/blogs/610", route => route.fulfill(jsonResponse({
+    error: "A newer version of this item exists. Your changes were not applied."
+  }, 409)));
+  await page.route("**/api/blogs", route => {
+    createdPayload = route.request().postDataJSON();
+    const created = {
+      ...apiState.blogs[0],
+      ...createdPayload,
+      id: 612,
+      rowVersion: "conflict-copy-row-1",
+      updatedAt: "2026-08-01T12:00:00Z"
+    };
+    apiState = { ...apiState, blogs: [...apiState.blogs, created] };
+    return route.fulfill(jsonResponse(created));
+  });
+
+  await loginAndOpenDiagram2(page, 610);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    await controller.moveObjects(["z-red"], 120, 0, { reason: "save conflict test" });
+  });
+  await page.locator("[data-action='save-diagram2-document']").click();
+  const dialog = page.locator("dialog", { has: page.getByRole("heading", { name: "Save Diagram As" }) });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator("[name='dialogText']")).toHaveValue("Conflict Diagram 4");
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page).toHaveURL(/#\/diagram-2\/612$/);
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Saved");
+  expect(createdPayload?.title).toBe("Conflict Diagram 4");
+  expect(createdPayload?.projectId).toBe(apiState.blogs[0].projectId);
+  expect(apiState.blogs.find(blog => blog.id === 610)?.title).toBe("Conflict Diagram 2");
+  expect(uploadCount).toBe(2);
+});
+
 test("Diagram 2 Crop Radius debounces focused input without requiring Tab", async ({ page }, testInfo) => {
   const state = phase6State();
   const apiState = appState(603, "Diagram 2 Crop Debounce", state);
@@ -792,6 +1044,19 @@ test("Diagram 2 Crop numeric controls flush, cancel, normalize, and Undo as one 
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
   await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
   await page.evaluate(() => window.__pmtDiagram2EditorCore.setSelection(["image-phase6"]));
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await expect(page.getByRole("heading", { name: "Crop Options", exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.activeTool())).toBe("crop");
+  const cropPreview = page.locator("[data-diagram2-crop-preview]");
+  await expect(cropPreview).toHaveAttribute("x", String(image.imageClip.x));
+  await expect(cropPreview).toHaveAttribute("y", String(image.imageClip.y));
+  await expect(cropPreview).toHaveAttribute("width", String(image.imageClip.width));
+  await expect(cropPreview).toHaveAttribute("height", String(image.imageClip.height));
+  const northwestCropHandle = page.locator("[data-diagram2-crop-handle='nw']");
+  await expect(northwestCropHandle).toHaveAttribute("cx", String(image.imageClip.x));
+  await expect(northwestCropHandle).toHaveAttribute("cy", String(image.imageClip.y));
+  await page.locator("[data-diagram2-tool='crop']").click();
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.activeTool())).toBe("select");
   await page.locator("[data-diagram2-inspector-tab='crop']").click();
 
   const radius = page.locator("[data-diagram2-crop-corner-radius]");
@@ -859,7 +1124,7 @@ test("Diagram 2 Crop numeric controls flush, cancel, normalize, and Undo as one 
       corners: current?.cropCornerRadii
     };
   })).toEqual({
-    uniform: 30,
+    uniform: 0,
     corners: {
       topLeft: 12,
       topRight: 30,
@@ -867,17 +1132,42 @@ test("Diagram 2 Crop numeric controls flush, cancel, normalize, and Undo as one 
       bottomLeft: 30
     }
   });
+  await expect(radius).toHaveValue("0");
 
-  await topLeft.fill("30");
+  await radius.fill("30");
   await expect.poll(() => page.evaluate(() => {
     const current = window.__pmtDiagram2EditorCore.getObjectById("image-phase6");
     return {
       uniform: current?.cropCornerRadius,
-      hasCorners: current?.cropCornerRadii != null
+      hasCorners: current?.cropCornerRadii != null,
+      controls: [...document.querySelectorAll("[data-diagram2-crop-corner]")].map(control => control.value)
     };
   })).toEqual({
     uniform: 30,
-    hasCorners: false
+    hasCorners: false,
+    controls: ["30", "30", "30", "30"]
+  });
+
+  await topLeft.fill("12");
+  await topLeft.press("Tab");
+  await expect(radius).toHaveValue("0");
+  const cropBeforeRadiusReset = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.getObjectById("image-phase6")?.imageClip
+  );
+  const resetRadius = page.locator("[data-action='reset-diagram2-crop-radius']");
+  await expect(resetRadius).toBeEnabled();
+  await resetRadius.click();
+  await expect.poll(() => page.evaluate(() => {
+    const current = window.__pmtDiagram2EditorCore.getObjectById("image-phase6");
+    return {
+      radius: current?.cropCornerRadius,
+      hasCorners: current?.cropCornerRadii != null,
+      clip: current?.imageClip
+    };
+  })).toEqual({
+    radius: 0,
+    hasCorners: false,
+    clip: cropBeforeRadiusReset
   });
 
   await radius.fill("34");
@@ -1029,7 +1319,7 @@ test("Diagram 2 matches the shared Diagram 1 Crop fixture and saves it", async (
       corners: image.cropCornerRadii
     };
   })).toEqual({
-    radius: 28,
+    radius: 0,
     corners: {
       topLeft: 12,
       topRight: 28,
@@ -1037,6 +1327,7 @@ test("Diagram 2 matches the shared Diagram 1 Crop fixture and saves it", async (
       bottomLeft: 28
     }
   });
+  await expect(radius).toHaveValue("0");
   if (testInfo.project.name === "chromium-1920") {
     await capturePhase6ClosureScreenshot(page, "crop/crop-d2-independent-corners-1920x1080.png");
   }
@@ -1127,10 +1418,30 @@ test("Diagram 2 matches the shared Diagram 1 Crop fixture and saves it", async (
       bottomLeft: 28
     }
   });
+  const reopenedSelectionBounds = await page.locator(
+    "[data-diagram2-selection-id='crop-parity-image'] [data-diagram2-selection-outline]"
+  ).evaluate(outline => ({
+    x: Number(outline.getAttribute("x")),
+    y: Number(outline.getAttribute("y")),
+    width: Number(outline.getAttribute("width")),
+    height: Number(outline.getAttribute("height")),
+    transform: outline.parentElement?.getAttribute("transform") || ""
+  }));
+  expect(reopenedSelectionBounds).toEqual({
+    x: 18,
+    y: 12,
+    width: 618,
+    height: 390,
+    transform: "translate(60 100)"
+  });
   await page.locator("[data-diagram2-tool='crop']").click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "Crop Options", exact: true })).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-crop-preview]")).toHaveAttribute("x", "78");
+  await expect(page.locator("[data-diagram2-crop-preview]")).toHaveAttribute("y", "112");
+  await expect(page.locator("[data-diagram2-crop-preview]")).toHaveAttribute("width", "618");
+  await expect(page.locator("[data-diagram2-crop-preview]")).toHaveAttribute("height", "390");
   await page.locator("[data-diagram2-tool='crop']").click();
-  await page.getByRole("button", { name: "Remove Crop", exact: true }).click();
+  await page.locator("[data-action='reset-diagram2-crop']").click();
   await expect.poll(() => page.evaluate(() =>
     window.__pmtDiagram2EditorCore.getObjectById("crop-parity-image")?.imageClip
   )).toEqual({ x: 60, y: 100, width: 660, height: 420 });
@@ -2113,8 +2424,11 @@ async function createDiagram2ReversibleCrop(page, imageId) {
   expect(box).not.toBeNull();
   await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
   await page.mouse.down();
+  await expect(page.locator("[data-diagram2-crop-overlay]")).toBeHidden();
   await page.mouse.move(box.x + (box.width / 2) + 36, box.y + (box.height / 2) + 28, { steps: 4 });
+  await expect(page.locator("[data-diagram2-crop-overlay]")).toBeHidden();
   await page.mouse.up();
+  await expect(page.locator("[data-diagram2-crop-overlay]")).toBeVisible();
   await expect.poll(() => page.evaluate(id => {
     const image = window.__pmtDiagram2EditorCore?.getObjectById?.(id);
     return image?.imageClip?.x > image?.x && image?.imageClip?.y > image?.y;
@@ -2361,6 +2675,39 @@ function cropParityState() {
       height: 420,
       isOriginalImage: true
     })]
+  });
+}
+
+function zOrderState() {
+  return normalizeAnnotationState({
+    version: 1,
+    width: 900,
+    height: 540,
+    gridVisible: false,
+    objects: [
+      createDiagram2EmbeddedImage({
+        id: "z-image",
+        name: "Z-order image",
+        source: mockScreenshotDataUrl(),
+        x: 100,
+        y: 80,
+        width: 360,
+        height: 240
+      }),
+      {
+        id: "z-red",
+        type: "rectangle",
+        name: "Red box",
+        x: 140,
+        y: 120,
+        width: 220,
+        height: 120,
+        fill: "#ef4444",
+        stroke: "#991b1b",
+        strokeWidth: 2,
+        opacity: 1
+      }
+    ]
   });
 }
 

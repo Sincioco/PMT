@@ -100,6 +100,8 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     block.removeAttribute("data-diagram-ole-view-clamped");
     block.removeAttribute("data-diagram-ole-viewer-bound");
     block.removeAttribute("data-diagram2-linked-field-mapping-bound");
+    block.removeAttribute("data-diagram2-linked-shell");
+    block.removeAttribute("data-diagram2-left-pane-resize-bound");
     block.removeAttribute("data-current-view-x");
     block.removeAttribute("data-current-view-y");
     block.removeAttribute("data-current-view-zoom");

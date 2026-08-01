@@ -11,7 +11,7 @@ import {
 } from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
 import {
   diagram2NormalizeEntityReference
-} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
 import { createDiagram2ObjectId } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 
 const defaultMappingTableStyle = {

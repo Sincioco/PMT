@@ -3,7 +3,7 @@ import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test.use({ timezoneId: "Asia/Taipei" });
 
-test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cleanup", async ({ page }) => {
+test("Diagram 2 live shell preserves navigation, zoom matrix, and open-close cleanup", async ({ page }) => {
   test.setTimeout(120000);
   const browserErrors = [];
   page.on("console", message => {
@@ -19,7 +19,7 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
       label: button.querySelector("span:last-child")?.textContent?.trim() || ""
     }))
   );
-  expect(navigationLabels).toContainEqual({ view: "Diagram", label: "Diagram" });
+  expect(navigationLabels).toContainEqual({ view: "Diagram", label: "Diagram 1" });
   expect(navigationLabels).toContainEqual({ view: "Diagram 2", label: "Diagram 2" });
   await openNavigationScreen(page, "Diagram 2");
   await expect(page).toHaveURL(/#\/diagram-2$/);

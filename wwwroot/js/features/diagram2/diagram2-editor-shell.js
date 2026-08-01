@@ -1,7 +1,7 @@
 import {
   richTextToolsHtml,
   sharedRichColorPickerHtml
-} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
+} from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import {
   annotationTemplatePreviewDataUrl,
   buildPortableAnnotationSelectionSvg,
@@ -26,7 +26,7 @@ import {
 import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingPaneGroups
-} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
 import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260731-rte-checkbox-layout-v2";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
@@ -669,7 +669,8 @@ export function diagram2MappingPaneHtml(stateInput = null, options = {}) {
     : createDiagram2FieldMappingIndexes(stateInput?.objects || []);
   const search = String(options.search || "");
   const groupByTable = options.groupByTable === true;
-  const groups = diagram2FieldMappingPaneGroups(indexes, { search, groupByTable });
+  const alphabetical = options.alphabetical === true;
+  const groups = diagram2FieldMappingPaneGroups(indexes, { search, groupByTable, alphabetical });
   const mappingCount = indexes.mappingsById.size;
   const visibleCount = groups.reduce((total, group) => total + group.rows.length, 0);
   const content = groups.length
@@ -687,14 +688,20 @@ export function diagram2MappingPaneHtml(stateInput = null, options = {}) {
           <span>${escapeHtml(countText)}</span>
         </div>
         <div class="diagram2-mapping-pane-controls">
-          <label class="diagram2-mapping-pane-search">
+          <label class="field diagram2-mapping-pane-search">
             <span>Search</span>
             <input type="search" value="${escapeAttr(search)}" placeholder="UI or database field" autocomplete="off" data-diagram2-mapping-search>
           </label>
-          <label class="diagram2-mapping-pane-group-toggle">
-            <input type="checkbox" data-diagram2-mapping-group-by-table ${groupByTable ? "checked" : ""}>
-            <span>Group by table</span>
-          </label>
+          <div class="diagram2-mapping-pane-options">
+            <label class="diagram2-mapping-pane-group-toggle">
+              <input type="checkbox" data-diagram2-mapping-group-by-table ${groupByTable ? "checked" : ""}>
+              <span>Group by table</span>
+            </label>
+            <label class="diagram2-mapping-pane-group-toggle">
+              <input type="checkbox" data-diagram2-mapping-alphabetical ${alphabetical ? "checked" : ""}>
+              <span>Alphabetical</span>
+            </label>
+          </div>
         </div>
         <div class="diagram2-mapping-pane-list" role="list">
           ${content}
@@ -891,24 +898,29 @@ export function setDiagram2MappingPaneOpen(root, open) {
 
 export function syncDiagram2RendererViewportInset(root, renderer, options = {}) {
   if (!renderer || typeof renderer.setViewportInset !== "function") return false;
-  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
+  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]")
     ? root
-    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
-  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
+    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main], [data-diagram2-linked-main]");
   const surface = shell?.querySelector?.("[data-diagram2-renderer-surface]");
   const surfaceRect = surface?.getBoundingClientRect?.();
+  const linkedViewer = main?.matches?.("[data-diagram2-linked-main]") === true;
   let left = 0;
+  let paneWidth = 0;
 
-  if (main?.classList.contains("is-left-pane-open") && surfaceRect?.width) {
+  if (!linkedViewer && main?.classList.contains("is-left-pane-open") && surfaceRect?.width) {
     const mode = String(main.dataset.diagram2LeftPaneMode || "").trim();
     const pane = [...main.querySelectorAll("[data-diagram2-left-pane]")]
       .find(candidate => candidate.dataset.diagram2LeftPaneName === mode);
     const paneRect = pane?.getBoundingClientRect?.();
+    paneWidth = Math.max(0, Math.round(paneRect?.width || 0));
     if (paneRect && paneRect.right > surfaceRect.left && paneRect.left < surfaceRect.right) {
       left = clampDiagram2Number(paneRect.right - surfaceRect.left, 0, surfaceRect.width - 1);
     }
   }
 
+  main?.style.setProperty("--diagram2-active-left-pane-width", `${paneWidth}px`);
+  main?.style.setProperty("--diagram2-active-left-pane-inset", `${Math.round(left)}px`);
   renderer.setViewportInset({
     left: Math.round(left),
     top: 0,
@@ -920,10 +932,10 @@ export function syncDiagram2RendererViewportInset(root, renderer, options = {}) 
 
 function setDiagram2LeftPaneMode(root, modeInput, open) {
   if (!root) return false;
-  const shell = root.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
+  const shell = root.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]")
     ? root
-    : root.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
-  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
+    : root.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]");
+  const main = shell?.querySelector?.("[data-diagram2-editor-main], [data-diagram2-readonly-main], [data-diagram2-linked-main]");
   if (!shell || !main) return false;
   const requestedMode = String(modeInput || "tools").trim();
   const mode = ["tools", "objects", "templates", "mapping"].includes(requestedMode) ? requestedMode : "tools";
@@ -1020,11 +1032,11 @@ export function bindDiagram2EditorInspectorResize(root, options = {}) {
 }
 
 export function bindDiagram2EditorLeftPaneResize(root, options = {}) {
-  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]")
+  const shell = root?.matches?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]")
     ? root
-    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
+    : root?.querySelector?.("[data-diagram2-editor-shell], [data-diagram2-readonly-shell], [data-diagram2-linked-shell]");
   if (!shell || shell.dataset.diagram2LeftPaneResizeBound === "true") return;
-  const main = shell.querySelector("[data-diagram2-editor-main], [data-diagram2-readonly-main]");
+  const main = shell.querySelector("[data-diagram2-editor-main], [data-diagram2-readonly-main], [data-diagram2-linked-main]");
   if (!main) return;
   shell.dataset.diagram2LeftPaneResizeBound = "true";
 
@@ -1201,7 +1213,42 @@ export function bindDiagram2EditorColorPickers(root, options = {}) {
   if (root.dataset.diagram2ColorPickersBound === "true") return;
   root.dataset.diagram2ColorPickersBound = "true";
 
+  let previewCleanup = null;
+  let previewSwatch = null;
+  const clearPreview = () => {
+    const cleanup = previewCleanup;
+    previewCleanup = null;
+    previewSwatch = null;
+    if (typeof cleanup === "function") cleanup();
+  };
+  const commitPreview = () => {
+    const cleanup = previewCleanup;
+    previewCleanup = null;
+    previewSwatch = null;
+    return cleanup;
+  };
+  const pickerForSwatch = swatch => {
+    const picker = swatch?.closest?.("[data-annotation-color-picker]");
+    if (picker) return picker;
+    const recentColors = swatch?.closest?.("[data-annotation-recent-colors]");
+    return recentColors
+      ? root.querySelector(`[data-annotation-color-picker='${cssEscapeSelector(recentColors.dataset.annotationRecentColors || "")}']`)
+      : null;
+  };
+  const preview = swatch => {
+    if (!swatch || previewSwatch === swatch || typeof options.previewColor !== "function") return;
+    const picker = pickerForSwatch(swatch);
+    const name = picker?.dataset?.annotationColorPicker || "";
+    const color = normalizeDiagram2PickerColor(swatch.dataset.richColorValue);
+    if (!picker || !name || !color) return;
+    clearPreview();
+    previewSwatch = swatch;
+    const cleanup = options.previewColor(name, color);
+    previewCleanup = typeof cleanup === "function" ? cleanup : null;
+  };
+
   const closeAll = except => {
+    clearPreview();
     root.querySelectorAll("[data-annotation-color-picker]").forEach(tool => {
       if (tool === except) return;
       closeDiagram2ColorPicker(tool);
@@ -1212,6 +1259,7 @@ export function bindDiagram2EditorColorPickers(root, options = {}) {
     const trigger = event.target?.closest?.("[data-annotation-color-trigger]");
     if (trigger && root.contains(trigger)) {
       event.preventDefault();
+      clearPreview();
       const picker = trigger.closest("[data-annotation-color-picker]");
       if (!picker) return;
       const name = picker.dataset.annotationColorPicker || "";
@@ -1232,6 +1280,7 @@ export function bindDiagram2EditorColorPickers(root, options = {}) {
     const customButton = event.target?.closest?.("[data-rich-color-custom]");
     if (customButton && root.contains(customButton)) {
       event.preventDefault();
+      clearPreview();
       const picker = customButton.closest("[data-annotation-color-picker]");
       if (picker) void chooseDiagram2CustomPickerColor(root, picker, options);
       return;
@@ -1239,14 +1288,14 @@ export function bindDiagram2EditorColorPickers(root, options = {}) {
 
     const swatch = event.target?.closest?.("[data-rich-color-value]");
     if (swatch && root.contains(swatch)) {
-      const picker = swatch.closest("[data-annotation-color-picker]");
-      const recentColors = swatch.closest("[data-annotation-recent-colors]");
-      const targetPicker = picker || (recentColors
-        ? root.querySelector(`[data-annotation-color-picker='${cssEscapeSelector(recentColors.dataset.annotationRecentColors || "")}']`)
-        : null);
+      const targetPicker = pickerForSwatch(swatch);
       if (!targetPicker) return;
       event.preventDefault();
-      void applyDiagram2PickerColor(root, targetPicker, swatch.dataset.richColorValue, options);
+      const restorePreview = commitPreview();
+      void applyDiagram2PickerColor(root, targetPicker, swatch.dataset.richColorValue, options)
+        .then(applied => {
+          if (applied === false && typeof restorePreview === "function") restorePreview();
+        });
       return;
     }
 
@@ -1255,6 +1304,29 @@ export function bindDiagram2EditorColorPickers(root, options = {}) {
 
   root.addEventListener("pointerdown", event => {
     if (!event.target?.closest?.("[data-annotation-color-picker], [data-annotation-recent-colors]")) closeAll();
+  });
+
+  root.addEventListener("pointerover", event => {
+    const swatch = event.target?.closest?.("[data-rich-color-value]");
+    if (swatch && root.contains(swatch)) preview(swatch);
+  });
+
+  root.addEventListener("pointerout", event => {
+    const swatch = event.target?.closest?.("[data-rich-color-value]");
+    if (!swatch || !root.contains(swatch) || swatch.contains(event.relatedTarget)) return;
+    const relatedSwatch = event.relatedTarget?.closest?.("[data-rich-color-value]");
+    if (relatedSwatch && pickerForSwatch(relatedSwatch) === pickerForSwatch(swatch)) return;
+    clearPreview();
+  });
+
+  root.addEventListener("focusin", event => {
+    const swatch = event.target?.closest?.("[data-rich-color-value]");
+    if (swatch && root.contains(swatch)) preview(swatch);
+  });
+
+  root.addEventListener("focusout", event => {
+    const swatch = event.target?.closest?.("[data-rich-color-value]");
+    if (swatch && root.contains(swatch)) clearPreview();
   });
 
   root.addEventListener("keydown", event => {
@@ -1512,6 +1584,7 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = [], opti
         <label class="inline-check image-annotation-wide"><input type="checkbox" data-diagram2-crop-visible checked><span>Show saved crop</span></label>
         <div class="image-annotation-field-mapping-actions">
           <button type="button" data-action="reset-diagram2-crop" data-diagram2-requires-image data-diagram2-requires-update>Reset Crop</button>
+          <button type="button" data-action="reset-diagram2-crop-radius" data-diagram2-requires-image data-diagram2-requires-update>Reset Radius</button>
           <button type="button" class="danger" data-action="permanently-crop-diagram2-image" data-diagram2-requires-image data-diagram2-requires-update>Permanently Crop</button>
         </div>
       </section>
@@ -1990,7 +2063,11 @@ function syncDiagram2CropControls(root, image, options = {}) {
   });
   const uniformRadius = root.querySelector("[data-diagram2-crop-corner-radius]");
   if (uniformRadius) {
-    uniformRadius.value = image ? diagram2DimensionText(image.cropCornerRadius || 0) : "0";
+    const cornerValues = Object.values(corners).map(Number);
+    const sharedRadius = cornerValues.every(value => Math.abs(value - cornerValues[0]) < 0.001)
+      ? cornerValues[0]
+      : 0;
+    uniformRadius.value = image ? diagram2DimensionText(sharedRadius || 0) : "0";
     uniformRadius.disabled = !canUse;
   }
   const visible = root.querySelector("[data-diagram2-crop-visible]");
@@ -2000,6 +2077,8 @@ function syncDiagram2CropControls(root, image, options = {}) {
   }
   const reset = root.querySelector("[data-action='reset-diagram2-crop']");
   if (reset) reset.disabled = !canUse || (!reversible && !Object.values(corners).some(Number));
+  const resetRadius = root.querySelector("[data-action='reset-diagram2-crop-radius']");
+  if (resetRadius) resetRadius.disabled = !canUse || !Object.values(corners).some(Number);
   const permanent = root.querySelector("[data-action='permanently-crop-diagram2-image']");
   if (permanent) permanent.disabled = !canUse || !reversible;
 }

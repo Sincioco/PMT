@@ -1,8 +1,15 @@
-import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260801-rte-link-diagram2-v1";
+import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260801-diagram2-mapping-view-v3";
 import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState
-} from "./diagram2-renderer.js?v=20260801-rte-link-diagram2-v1";
+} from "./diagram2-renderer.js?v=20260801-diagram2-mapping-view-v3";
+import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
+import {
+  bindDiagram2EditorLeftPaneResize,
+  diagram2MappingPaneHtml,
+  setDiagram2MappingPaneOpen,
+  syncDiagram2RendererViewportInset
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-color-preview-v1";
 
 const linkedDiagram2Records = new WeakMap();
 const linkedDiagram2LiveRecords = new Set();
@@ -52,6 +59,12 @@ export async function hydrateDiagram2LinkedViewer(options = {}) {
     disposed: false,
     renderer: null,
     abortController: null,
+    state: null,
+    mappingIndexes: null,
+    mappingSearch: "",
+    mappingGroupByTable: false,
+    mappingAlphabetical: false,
+    mappingHintTimer: 0,
     ready: null
   };
   linkedDiagram2Records.set(block, record);
@@ -78,10 +91,13 @@ export async function hydrateDiagram2LinkedViewer(options = {}) {
       linkedDiagram2DiagnosticsState.linkedDiagram2ScrumRehydrateCount += 1;
     }
 
-    const diagnostics = renderer.render(diagram2ReadonlyRendererState(result.state), {
+    record.state = diagram2ReadonlyRendererState(result.state);
+    record.mappingIndexes = createDiagram2FieldMappingIndexes(record.state.objects);
+    const diagnostics = renderer.render(record.state, {
       reason: "linked Diagram 2 initial"
     });
     linkedDiagram2DiagnosticsState.linkedDiagram2FullRenderCount += Number(diagnostics?.fullRenderCount || 0);
+    configureDiagram2LinkedMapping(record);
     bindDiagram2LinkedFieldMapping(record);
     publishLinkedDiagram2Diagnostics();
     dispatchDiagram2LinkedViewerReady(record, true);
@@ -138,6 +154,7 @@ export function panDiagram2LinkedViewer(block, deltaX, deltaY) {
 export function fitDiagram2LinkedViewer(block) {
   const renderer = linkedDiagram2Renderer(block);
   if (!renderer) return null;
+  syncDiagram2RendererViewportInset(block, renderer, { refit: false });
   renderer.fit();
   return diagram2OleView(renderer.viewportMatrix());
 }
@@ -181,30 +198,91 @@ function bindDiagram2LinkedFieldMapping(record) {
   const { signal } = abortController;
   const cellSelector = "[data-diagram2-field-mapping-cell]";
   let hoveredCell = null;
+  let tracePointer = null;
 
   const mappingOptions = cell => ({
     tableId: cell?.dataset?.diagram2FieldMappingTableId,
-    cellKind: cell?.dataset?.diagram2FieldMappingCellKind
+    cellKind: cell?.dataset?.diagram2FieldMappingCellKind,
+    attentionStartPoints: diagram2LinkedMappingPaneAttentionStartPoints(record, cell)
   });
   const show = cell => renderer.showFieldMappingHover?.(
     cell?.dataset?.diagram2FieldMappingId,
     mappingOptions(cell)
   );
 
-  host.addEventListener("pointermove", event => {
+  block.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || event.target.closest?.(cellSelector)) return;
+    const relationshipNode = event.target.closest?.("[data-diagram2-relationship-id]");
+    const entityNode = event.target.closest?.("[data-diagram2-object-type='entity']");
+    const traceTarget = relationshipNode || entityNode;
+    if (traceTarget && host.contains(traceTarget)) {
+      tracePointer = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        targetId: relationshipNode?.dataset?.diagram2RelationshipId
+          || entityNode?.dataset?.diagram2ObjectId
+      };
+      return;
+    }
+    if (event.target.closest?.("[data-diagram-ole-viewport]")) {
+      renderer.setRelationshipTraceSelection?.([]);
+    }
+  }, { capture: true, signal });
+  block.addEventListener("pointermove", event => {
+    if (!tracePointer || tracePointer.pointerId !== event.pointerId) return;
+    if (Math.abs(event.clientX - tracePointer.startX) > 3 || Math.abs(event.clientY - tracePointer.startY) > 3) {
+      tracePointer.moved = true;
+    }
+  }, { capture: true, signal });
+  block.addEventListener("pointerup", event => {
+    if (!tracePointer || tracePointer.pointerId !== event.pointerId) return;
+    if (!tracePointer.moved) selectLinkedRelationshipTrace(record, tracePointer.targetId);
+    tracePointer = null;
+  }, { capture: true, signal });
+  block.addEventListener("pointercancel", () => {
+    tracePointer = null;
+  }, { capture: true, signal });
+  block.addEventListener("click", event => {
+    const relationshipNode = event.target.closest?.("[data-diagram2-relationship-id]");
+    const entityNode = event.target.closest?.("[data-diagram2-object-type='entity']");
+    const traceTarget = relationshipNode || entityNode;
+    if (!traceTarget || !host.contains(traceTarget)) return;
+    selectLinkedRelationshipTrace(record, relationshipNode?.dataset?.diagram2RelationshipId
+      || entityNode?.dataset?.diagram2ObjectId);
+  }, { capture: true, signal });
+
+  block.addEventListener("pointermove", event => {
     const cell = event.target.closest?.(cellSelector);
     if (cell === hoveredCell) return;
-    hoveredCell = cell && host.contains(cell) ? cell : null;
+    hoveredCell = cell && block.contains(cell) ? cell : null;
     if (hoveredCell) show(hoveredCell);
     else renderer.clearFieldMappingHover?.();
   }, { signal });
-  host.addEventListener("pointerleave", () => {
+  block.addEventListener("pointerleave", () => {
     hoveredCell = null;
     renderer.clearFieldMappingHover?.();
   }, { signal });
-  host.addEventListener("click", event => {
+  block.addEventListener("click", event => {
+    const traceTarget = event.target.closest?.(
+      "[data-diagram2-relationship-id], [data-diagram2-object-type='entity']"
+    );
+    if (traceTarget && host.contains(traceTarget)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const toggle = event.target.closest?.("[data-diagram2-linked-mapping-toggle]");
+    if (toggle && block.contains(toggle)) {
+      event.preventDefault();
+      event.stopPropagation();
+      const open = setDiagram2MappingPaneOpen(block);
+      syncDiagram2LinkedMappingPresentation(record, open, { refit: false });
+      return;
+    }
     const cell = event.target.closest?.(cellSelector);
-    if (!cell || !host.contains(cell)) {
+    if (!cell || !block.contains(cell)) {
       renderer.clearFieldMappingSelection?.();
       return;
     }
@@ -213,17 +291,155 @@ function bindDiagram2LinkedFieldMapping(record) {
     renderer.pinFieldMapping?.(cell.dataset.diagram2FieldMappingId, mappingOptions(cell));
     cell.focus?.({ preventScroll: true });
   }, { signal });
-  host.addEventListener("keydown", event => {
+  block.addEventListener("dblclick", event => {
+    const cell = event.target.closest?.(cellSelector);
+    if (!cell || !block.contains(cell)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    renderer.pinFieldMapping?.(cell.dataset.diagram2FieldMappingId, mappingOptions(cell));
+    renderer.focusFieldMappingTarget?.(cell.dataset.diagram2FieldMappingId, {
+      cellKind: cell.dataset.diagram2FieldMappingCellKind
+    });
+  }, { signal });
+  block.addEventListener("input", event => {
+    if (!event.target.matches?.("[data-diagram2-mapping-search]")) return;
+    record.mappingSearch = String(event.target.value || "");
+    renderDiagram2LinkedMappingPane(record, { focus: "search" });
+  }, { signal });
+  block.addEventListener("change", event => {
+    if (event.target.matches?.("[data-diagram2-mapping-group-by-table]")) {
+      record.mappingGroupByTable = event.target.checked === true;
+      renderDiagram2LinkedMappingPane(record, { focus: "group" });
+    } else if (event.target.matches?.("[data-diagram2-mapping-alphabetical]")) {
+      record.mappingAlphabetical = event.target.checked === true;
+      renderDiagram2LinkedMappingPane(record, { focus: "alphabetical" });
+    }
+  }, { signal });
+  block.addEventListener("keydown", event => {
     const cell = event.target.closest?.(cellSelector);
     if (cell && ["Enter", " "].includes(event.key)) {
       event.preventDefault();
       renderer.pinFieldMapping?.(cell.dataset.diagram2FieldMappingId, mappingOptions(cell));
       return;
     }
-    if (event.key === "Escape") renderer.clearFieldMappingSelection?.();
+    if (event.key === "Escape") {
+      renderer.clearFieldMappingSelection?.();
+      renderer.setRelationshipTraceSelection?.([]);
+    }
   }, { signal });
 
   block.dataset.diagram2LinkedFieldMappingBound = "true";
+}
+
+function selectLinkedRelationshipTrace(record, targetId) {
+  record.renderer?.clearFieldMappingSelection?.();
+  record.renderer?.setRelationshipTraceSelection?.(targetId ? [targetId] : []);
+}
+
+function configureDiagram2LinkedMapping(record) {
+  const { block, renderer } = record;
+  const mappingCount = record.mappingIndexes?.mappingsById?.size || 0;
+  const toggle = block.querySelector("[data-diagram2-linked-mapping-toggle]");
+  if (toggle) toggle.hidden = mappingCount === 0;
+  scheduleDiagram2LinkedMappingHint(record, mappingCount > 0);
+
+  if (!mappingCount) {
+    block.querySelector("[data-diagram2-mapping-pane]")?.remove();
+    setDiagram2MappingPaneOpen(block, false);
+    renderer.setFieldMappingLinesVisible?.(true);
+    renderer.setFieldMappingTablesVisible?.(true);
+    syncDiagram2RendererViewportInset(block, renderer, { refit: true });
+    return;
+  }
+
+  renderDiagram2LinkedMappingPane(record);
+  const open = setDiagram2MappingPaneOpen(block, true);
+  renderer.setFieldMappingLinesVisible?.(false);
+  syncDiagram2LinkedMappingPresentation(record, open, { refit: true });
+  bindDiagram2EditorLeftPaneResize(block, {
+    onResize: () => syncDiagram2RendererViewportInset(block, renderer, { refit: false })
+  });
+}
+
+function scheduleDiagram2LinkedMappingHint(record, show) {
+  if (record.mappingHintTimer) globalThis.clearTimeout(record.mappingHintTimer);
+  record.mappingHintTimer = 0;
+  const hint = record.block.querySelector("[data-diagram2-mapping-hover-hint]");
+  if (!hint) return;
+  hint.hidden = show !== true;
+  if (!show) return;
+  record.mappingHintTimer = globalThis.setTimeout(() => {
+    record.mappingHintTimer = 0;
+    if (!linkedDiagram2RecordIsCurrent(record)) return;
+    const currentHint = record.block.querySelector("[data-diagram2-mapping-hover-hint]");
+    if (currentHint) currentHint.hidden = true;
+  }, 5000);
+}
+
+function renderDiagram2LinkedMappingPane(record, options = {}) {
+  const main = record.block.querySelector("[data-diagram2-linked-main]");
+  const viewport = main?.querySelector("[data-diagram-ole-viewport]");
+  if (!main || !viewport || !record.state || !record.mappingIndexes) return null;
+  const previousPane = main.querySelector("[data-diagram2-mapping-pane]");
+  const previousScrollTop = previousPane?.querySelector(".diagram2-editor-left-pane-scroll")?.scrollTop || 0;
+  const markup = diagram2MappingPaneHtml(record.state, {
+    indexes: record.mappingIndexes,
+    search: record.mappingSearch,
+    groupByTable: record.mappingGroupByTable,
+    alphabetical: record.mappingAlphabetical
+  });
+  if (previousPane) previousPane.outerHTML = markup;
+  else viewport.insertAdjacentHTML("beforebegin", markup);
+  const pane = main.querySelector("[data-diagram2-mapping-pane]");
+  const scroll = pane?.querySelector(".diagram2-editor-left-pane-scroll");
+  if (scroll) scroll.scrollTop = previousScrollTop;
+  if (options.focus) {
+    const controlSelector = options.focus === "group"
+      ? "[data-diagram2-mapping-group-by-table]"
+      : options.focus === "alphabetical"
+        ? "[data-diagram2-mapping-alphabetical]"
+        : "[data-diagram2-mapping-search]";
+    const control = pane?.querySelector(controlSelector);
+    control?.focus?.({ preventScroll: true });
+    if (options.focus === "search") {
+      control?.setSelectionRange?.(control.value.length, control.value.length);
+    }
+  }
+  const open = main.classList.contains("is-left-pane-open")
+    && main.classList.contains("is-mapping-open");
+  syncDiagram2LinkedMappingPresentation(record, open, { refit: false });
+  return pane;
+}
+
+function syncDiagram2LinkedMappingPresentation(record, open, options = {}) {
+  const nextOpen = open === true;
+  record.renderer?.setFieldMappingTablesVisible?.(!nextOpen);
+  syncDiagram2RendererViewportInset(record.block, record.renderer, {
+    refit: false
+  });
+  if (options.refit !== false) record.renderer?.fit?.();
+  return nextOpen;
+}
+
+function diagram2LinkedMappingPaneAttentionStartPoints(record, cell) {
+  if (!cell?.matches?.("[data-diagram2-mapping-pane-field]")) return undefined;
+  const pane = cell.closest("[data-diagram2-mapping-pane]");
+  const row = cell.closest("[data-diagram2-mapping-pane-row]");
+  if (!pane || !row || !record.renderer?.screenToWorld) return undefined;
+  const paneRect = pane.getBoundingClientRect();
+  const pointFor = kind => {
+    const field = row.querySelector(`[data-diagram2-field-mapping-cell-kind='${kind}']`);
+    const rect = field?.getBoundingClientRect?.();
+    if (!rect?.height) return null;
+    return record.renderer.screenToWorld({
+      clientX: paneRect.right + 1,
+      clientY: rect.top + (rect.height / 2)
+    });
+  };
+  return {
+    ui: pointFor("ui"),
+    database: pointFor("database")
+  };
 }
 
 function cleanupDisconnectedDiagram2LinkedViewers() {
@@ -237,6 +453,8 @@ function destroyLinkedDiagram2Record(record) {
   record.disposed = true;
   record.abortController?.abort();
   record.abortController = null;
+  if (record.mappingHintTimer) globalThis.clearTimeout(record.mappingHintTimer);
+  record.mappingHintTimer = 0;
   if (record.renderer) {
     record.renderer.destroy();
     record.renderer = null;
@@ -250,6 +468,7 @@ function destroyLinkedDiagram2Record(record) {
   linkedDiagram2LiveRecords.delete(record);
   if (linkedDiagram2Records.get(record.block) === record) linkedDiagram2Records.delete(record.block);
   delete record.block?.dataset?.diagram2LinkedFieldMappingBound;
+  delete record.block?.dataset?.diagram2LeftPaneResizeBound;
   publishLinkedDiagram2Diagnostics();
 }
 

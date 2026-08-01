@@ -52,7 +52,8 @@ test("Link Diagram 2 mounts only the production D2 read-only renderer and patche
   assert.match(adapterSource, /createDiagram2Renderer/);
   assert.match(adapterSource, /diagram2ReadonlyRendererState/);
   assert.match(adapterSource, /const linkedDiagram2Records = new WeakMap\(\)/);
-  assert.match(adapterSource, /renderer\.render\(diagram2ReadonlyRendererState\(result\.state\)/);
+  assert.match(adapterSource, /record\.state = diagram2ReadonlyRendererState\(result\.state\)/);
+  assert.match(adapterSource, /renderer\.render\(record\.state,/);
   assert.match(adapterSource, /renderer\.zoomBy\(factor, point\)/);
   assert.match(adapterSource, /renderer\.panBy\(deltaX, deltaY\)/);
   assert.match(adapterSource, /renderer\.fit\(\)/);
@@ -82,6 +83,41 @@ test("Link Diagram 2 exposes the required renderer lifecycle diagnostics", async
 
   names.forEach(name => assert.match(adapterSource, new RegExp(`\\b${name}\\b`)));
   assert.match(adapterSource, /globalThis\.__pmtLinkedDiagram2Diagnostics = linkedDiagram2DiagnosticsState/);
+});
+
+test("Diagram 2 read mode detects mappings before render and exposes the page Mapping toggle", async () => {
+  const diagram2Source = await source("wwwroot/js/features/diagram2/diagram2.js");
+  const shellSource = await source("wwwroot/js/features/diagram2/diagram2-editor-shell.js");
+
+  assert.match(diagram2Source, /data-action="toggle-diagram2-tree-pane"[\s\S]*data-diagram2-page-mapping-button/);
+  assert.match(diagram2Source, /diagram2HasFieldMappings = fieldMappingIndexes\.mappingsById\.size > 0\s*&& fieldMappingIndexes\.fieldRectanglesById\.size > 0/);
+  assert.match(diagram2Source, /if \(!isEditMode && diagram2HasFieldMappings\)[\s\S]*diagram2ReadonlyFieldMappingLinesVisible = false/);
+  assert.match(diagram2Source, /Hover on the UI to DB Field Mapping/);
+  assert.match(diagram2Source, /diagram2MappingHintExpired[\s\S]*setTimeout[\s\S]*5000/);
+  assert.match(diagram2Source, /setDiagram2MappingPaneOpen\(shell, mappingCount > 0\)/);
+  assert.match(diagram2Source, /setFieldMappingTablesVisible\?\.\(!mappingPaneOpen\)/);
+  assert.match(shellSource, /class="field diagram2-mapping-pane-search"/);
+  assert.match(shellSource, /class="diagram2-mapping-pane-options"/);
+  assert.match(shellSource, /data-diagram2-mapping-alphabetical/);
+});
+
+test("Link Diagram 2 reuses the mapping pane, links public sources, and never applies the D1 pan clamp", async () => {
+  const appSource = await source("wwwroot/js/app.js");
+  const adapterSource = await source("wwwroot/js/features/diagram2/diagram2-rte-linked-viewer.js");
+  const textSource = await source("wwwroot/js/shared/text-and-links.js");
+
+  assert.match(appSource, /data-diagram2-linked-mapping-toggle/);
+  assert.match(appSource, /diagram\?\.isPrivate === false[\s\S]*routeForContent\("diagram-2", diagram\.id\)/);
+  assert.match(appSource, /data-diagram2-linked-main/);
+  assert.doesNotMatch(appSource, /if \(diagram2\) \{\s*const hasMeasuredDiagram = clampRichDiagramOleViewport/);
+  assert.match(adapterSource, /diagram2MappingPaneHtml/);
+  assert.match(adapterSource, /setFieldMappingLinesVisible\?\.\(false\)/);
+  assert.match(adapterSource, /setFieldMappingTablesVisible\?\.\(!nextOpen\)/);
+  assert.match(adapterSource, /syncDiagram2RendererViewportInset/);
+  assert.match(adapterSource, /focusFieldMappingTarget\?\./);
+  assert.match(adapterSource, /scheduleDiagram2LinkedMappingHint[\s\S]*setTimeout[\s\S]*5000/);
+  assert.match(textSource, /removeAttribute\("data-diagram2-linked-shell"\)/);
+  assert.match(textSource, /removeAttribute\("data-diagram2-left-pane-resize-bound"\)/);
 });
 
 test("Scrum disposes D2 linked renderers before replacement and restores viewer dimensions", async () => {

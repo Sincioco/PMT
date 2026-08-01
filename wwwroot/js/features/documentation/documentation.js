@@ -14,7 +14,7 @@ import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260801-rte-link-diagram2-v1";
+} from "./documentation-export.js?v=20260801-diagram2-mapping-view-v3";
 import {
   field,
   optionalNumberValue,
@@ -23,8 +23,8 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
+} from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -56,7 +56,7 @@ import {
   escapeHtml,
   normalizeLinksInElement,
   normalizeRichHtml
-} from "../../shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
+} from "../../shared/text-and-links.js?v=20260801-diagram2-mapping-view-v3";
 import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-html-images.js";
 import {
   captureTreeNavState,

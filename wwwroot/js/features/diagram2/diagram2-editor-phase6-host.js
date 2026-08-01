@@ -7,7 +7,8 @@ import {
   createDiagram2CropNumericAdjustmentScheduler,
   diagram2CropOptionsPatch,
   diagram2ImageHasReversibleCrop,
-  diagram2ResetCropPatch
+  diagram2ResetCropPatch,
+  diagram2ResetCropRadiusPatch
 } from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
 import {
   isDiagram2ImageFile,
@@ -21,7 +22,7 @@ import {
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor,
   setDiagram2InspectorActiveTab
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-color-preview-v1";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;
@@ -102,6 +103,12 @@ export function createDiagram2Phase6Host(options = {}) {
       await finishCropAdjustment("reset crop");
       const reset = await resetCrop();
       if (reset) notify("Crop reset. Undo restores the previous crop.");
+      return true;
+    }
+    if (action === "reset-diagram2-crop-radius") {
+      await finishCropAdjustment("reset crop radius");
+      const reset = await resetCropRadius();
+      if (reset) notify("Crop radius reset.");
       return true;
     }
     if (action === "permanently-crop-diagram2-image") {
@@ -227,35 +234,17 @@ export function createDiagram2Phase6Host(options = {}) {
       return false;
     }
 
-    if (!diagram2ImageHasReversibleCrop(image)) {
-      controller.setActiveTool("crop");
-      cropModeImageId = image.id;
-      renderer.setCropTarget?.(image.id);
-      renderer.setSelectionChromeSuppressed?.(image.id, true);
-      setDiagram2InspectorActiveTab(root, "crop");
-      notify("Drag the image crop handles inward. The crop cannot extend outside the image.");
-      focusWorkspace();
-      return true;
-    }
-
-    controller.setActiveTool("select");
-    closeCropMode();
-    const choice = await openDiagram2CropOptionsDialog(root?.ownerDocument);
-    if (choice === "remove") {
-      const removed = await resetCrop();
-      if (removed) notify("Crop removed. The full source is visible again.");
-      focusWorkspace();
-      return removed;
-    }
-    if (choice !== "permanent") {
-      notify("Crop left unchanged.");
-      focusWorkspace();
-      return false;
-    }
-
-    const applied = await permanentlyCrop();
+    const continuingCrop = diagram2ImageHasReversibleCrop(image);
+    controller.setActiveTool("crop");
+    cropModeImageId = image.id;
+    renderer.setCropTarget?.(image.id);
+    renderer.setSelectionChromeSuppressed?.(image.id, true);
+    setDiagram2InspectorActiveTab(root, "crop");
+    notify(continuingCrop
+      ? "Adjust the existing crop handles to reveal or hide more of the original image."
+      : "Drag the image crop handles inward. The crop cannot extend outside the image.");
     focusWorkspace();
-    return applied;
+    return true;
   }
 
   async function setCropVisibility(visible) {
@@ -276,6 +265,12 @@ export function createDiagram2Phase6Host(options = {}) {
       controller.setActiveTool("select");
     }
     return reset;
+  }
+
+  async function resetCropRadius() {
+    await finishCropAdjustment("reset crop radius");
+    const image = selectedImage();
+    return updateCrop(image, image ? diagram2ResetCropRadiusPatch() : null, "Reset image crop radius");
   }
 
   async function permanentlyCrop() {
@@ -440,6 +435,9 @@ export function createDiagram2Phase6Host(options = {}) {
       root.querySelectorAll("[data-diagram2-crop-corner]").forEach(corner => {
         corner.value = control.value;
       });
+    } else if (control.matches("[data-diagram2-crop-corner]")) {
+      const radius = root.querySelector("[data-diagram2-crop-corner-radius]");
+      if (radius) radius.value = "0";
     }
     cropNumericScheduler.schedule({
       imageId: image.id,
@@ -546,6 +544,7 @@ export function createDiagram2Phase6Host(options = {}) {
     cropAdjustmentDiagnostics: () => cropNumericScheduler.diagnostics(),
     setCropVisibility,
     resetCrop,
+    resetCropRadius,
     permanentlyCrop,
     editEntityAnnotation,
     renameFieldRectangle,
@@ -565,48 +564,4 @@ function diagram2DragHasImage(dataTransfer) {
 function finiteControlNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function openDiagram2CropOptionsDialog(documentRef = globalThis.document) {
-  return new Promise(resolve => {
-    if (!documentRef?.createElement) {
-      resolve("");
-      return;
-    }
-    const dialog = documentRef.createElement("dialog");
-    dialog.className = "dialog mini-dialog image-annotation-crop-options-dialog";
-    dialog.setAttribute("aria-labelledby", "diagram2CropOptionsTitle");
-    dialog.innerHTML = `
-      <div class="dialog-head">
-        <h2 id="diagram2CropOptionsTitle">Crop Options</h2>
-      </div>
-      <div class="dialog-body">
-        <p>This image already has a crop. You can remove the crop or permanently replace the source with only the cropped area.</p>
-        <p class="image-annotation-crop-warning">Applying the crop permanently cannot be undone.</p>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-diagram2-crop-choice=""><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
-        <button type="button" class="secondary text-icon-button" data-diagram2-crop-choice="remove"><span class="button-icon" aria-hidden="true">&#8634;</span><span>Remove Crop</span></button>
-        <button type="button" class="danger text-icon-button" data-diagram2-crop-choice="permanent"><span class="button-icon" aria-hidden="true">&#9888;</span><span>Apply Crop Permanently</span></button>
-      </div>
-    `;
-    documentRef.body.appendChild(dialog);
-    let finished = false;
-    const finish = value => {
-      if (finished) return;
-      finished = true;
-      if (dialog.open) dialog.close();
-      dialog.remove();
-      resolve(value);
-    };
-    dialog.querySelectorAll("[data-diagram2-crop-choice]").forEach(button => {
-      button.addEventListener("click", () => finish(button.dataset.diagram2CropChoice || ""));
-    });
-    dialog.addEventListener("cancel", event => {
-      event.preventDefault();
-      finish("");
-    });
-    dialog.showModal();
-    dialog.querySelector("[data-diagram2-crop-choice='']")?.focus();
-  });
 }

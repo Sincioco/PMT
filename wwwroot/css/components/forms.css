@@ -1306,7 +1306,11 @@ body.has-pmt-diagram-ole-maximized {
 }
 
 .pmt-diagram-ole-actions button,
+.pmt-diagram-ole-actions a,
 .pmt-diagram-ole-tab-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 30px;
   height: 28px;
   padding: 0 var(--space-2);
@@ -1314,11 +1318,15 @@ body.has-pmt-diagram-ole-maximized {
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text-primary);
+  font: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .pmt-diagram-ole-actions button:hover,
 .pmt-diagram-ole-actions button:focus-visible,
+.pmt-diagram-ole-actions a:hover,
+.pmt-diagram-ole-actions a:focus-visible,
 .pmt-diagram-ole-tab-actions button:hover,
 .pmt-diagram-ole-tab-actions button:focus-visible {
   border-color: var(--color-border-strong);
@@ -1377,6 +1385,10 @@ body.has-pmt-diagram-ole-maximized {
   gap: var(--space-2);
 }
 
+[data-diagram2-linked-mapping-toggle][hidden] {
+  display: none !important;
+}
+
 .pmt-diagram-ole-viewport {
   position: relative;
   flex: 1 1 auto;
@@ -1392,6 +1404,39 @@ body.has-pmt-diagram-ole-maximized {
 .pmt-diagram-ole-viewport:active,
 .pmt-diagram-ole-viewport.is-panning {
   cursor: grabbing;
+}
+
+.pmt-diagram2-ole-main {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pmt-diagram2-ole-main > .pmt-diagram-ole-viewport {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pmt-diagram2-ole-main.is-left-pane-open.is-mapping-open {
+  grid-template-columns:
+    clamp(200px, var(--diagram2-mapping-pane-width, 320px), min(600px, calc(100% - 120px)))
+    minmax(0, 1fr);
+}
+
+.pmt-diagram2-ole-main.is-left-pane-open.is-mapping-open > .diagram2-mapping-pane {
+  position: relative;
+  inset: auto;
+  grid-area: 1 / 1;
+  width: auto;
+  max-width: none;
+}
+
+.pmt-diagram2-ole-main.is-left-pane-open.is-mapping-open > .pmt-diagram-ole-viewport {
+  grid-area: 1 / 2;
 }
 
 .pmt-diagram-ole-surface {

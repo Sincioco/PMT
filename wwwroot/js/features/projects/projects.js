@@ -9,7 +9,7 @@ import {
   nullableDateValue,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
+} from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   projectOverallProgressHtml,
@@ -17,7 +17,7 @@ import {
   projectStatusMetricsHtml,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
 import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";

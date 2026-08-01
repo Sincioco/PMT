@@ -350,9 +350,13 @@ test("Annotation 2.0 keeps RTE pointer movement and drawing responsive on a save
   );
   await expect(object).toBeVisible();
   const box = await object.boundingBox();
+  const workspaceBox = await dialog.locator("[data-diagram2-workspace]").boundingBox();
   expect(box).toBeTruthy();
-  const startX = box.x + (box.width / 2);
-  const startY = box.y + (box.height / 2);
+  expect(workspaceBox).toBeTruthy();
+  const visibleLeft = Math.max(box.x, workspaceBox.x);
+  const visibleRight = Math.min(box.x + box.width, workspaceBox.x + workspaceBox.width);
+  const startX = visibleLeft + ((visibleRight - visibleLeft) * 0.65);
+  const startY = Math.min(box.y + box.height - 2, workspaceBox.y + workspaceBox.height - 2);
 
   await page.mouse.move(startX, startY);
   await page.evaluate(() => {

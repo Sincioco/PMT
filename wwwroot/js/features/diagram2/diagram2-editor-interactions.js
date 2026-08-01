@@ -1,7 +1,7 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260731-diagram2-rte-interactions-v1";
+} from "./diagram2-editor-controller.js?v=20260801-diagram2-color-preview-v1";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath
@@ -43,6 +43,12 @@ export function bindDiagram2EditorInteractions(options = {}) {
     options.root?.classList?.remove("rich-image-menu-open");
   };
 
+  const restoreGestureSelectionChrome = active => {
+    if (active?.selectionChromeIds?.length) {
+      renderer.setSelectionChromeSuppressed?.(active.selectionChromeIds, false);
+    }
+  };
+
   const finishGesture = async commit => {
     const pointerupReceivedAt = interactionNow();
     const active = gesture;
@@ -57,33 +63,41 @@ export function bindDiagram2EditorInteractions(options = {}) {
     renderer.clearMarquee?.();
 
     if (active.kind === "move") {
-      if (!commit || !active.changed) {
-        renderer.cancelGeometryPreview();
-        options.onDiagnostics?.(renderer.diagnostics?.());
+      try {
+        if (!commit || !active.changed) {
+          renderer.cancelGeometryPreview();
+          options.onDiagnostics?.(renderer.diagnostics?.());
+          return;
+        }
+        renderer.commitGeometryPreview(active.geometry);
+        await controller.moveObjects(active.objectIds, active.geometry.deltaX, active.geometry.deltaY, {
+          reason: "pointer drag",
+          rendererAlreadyUpdated: true
+        });
+        await afterMutation(options);
         return;
+      } finally {
+        restoreGestureSelectionChrome(active);
       }
-      renderer.commitGeometryPreview(active.geometry);
-      await controller.moveObjects(active.objectIds, active.geometry.deltaX, active.geometry.deltaY, {
-        reason: "pointer drag",
-        rendererAlreadyUpdated: true
-      });
-      await afterMutation(options);
-      return;
     }
 
     if (active.kind === "resize") {
-      if (!commit || !active.changed) {
-        renderer.cancelGeometryPreview();
-        options.onDiagnostics?.(renderer.diagnostics?.());
+      try {
+        if (!commit || !active.changed) {
+          renderer.cancelGeometryPreview();
+          options.onDiagnostics?.(renderer.diagnostics?.());
+          return;
+        }
+        renderer.commitGeometryPreview({ objects: active.objects });
+        await controller.resizeObjects(active.objects, {
+          reason: "pointer resize",
+          rendererAlreadyUpdated: true
+        });
+        await afterMutation(options);
         return;
+      } finally {
+        restoreGestureSelectionChrome(active);
       }
-      renderer.commitGeometryPreview({ objects: active.objects });
-      await controller.resizeObjects(active.objects, {
-        reason: "pointer resize",
-        rendererAlreadyUpdated: true
-      });
-      await afterMutation(options);
-      return;
     }
 
     if (active.kind === "relationship-route") {
@@ -126,22 +140,26 @@ export function bindDiagram2EditorInteractions(options = {}) {
     }
 
     if (active.kind === "crop") {
-      if (!commit || !active.changed) {
+      try {
+        if (!commit || !active.changed) {
+          renderer.clearCropPreview?.({ keepTarget: true });
+          options.onDiagnostics?.(renderer.diagnostics?.());
+          return;
+        }
         renderer.clearCropPreview?.({ keepTarget: true });
-        options.onDiagnostics?.(renderer.diagnostics?.());
+        const applied = await controller.updateEmbeddedImageCrop?.(active.objectId, {
+          imageClip: active.clip,
+          cropVisible: true
+        }, {
+          label: "Crop image",
+          reason: "pointer crop"
+        });
+        renderer.setCropTarget?.(active.objectId);
+        if (applied) await afterMutation(options);
         return;
+      } finally {
+        restoreGestureSelectionChrome(active);
       }
-      renderer.clearCropPreview?.({ keepTarget: true });
-      const applied = await controller.updateEmbeddedImageCrop?.(active.objectId, {
-        imageClip: active.clip,
-        cropVisible: true
-      }, {
-        label: "Crop image",
-        reason: "pointer crop"
-      });
-      renderer.setCropTarget?.(active.objectId);
-      if (applied) await afterMutation(options);
-      return;
     }
 
     if (active.kind === "marquee" && commit) {
@@ -663,10 +681,12 @@ export function bindDiagram2EditorInteractions(options = {}) {
       kind: "move",
       abortController,
       objectIds: selectedIds,
+      selectionChromeIds: selectedIds,
       start: renderer.screenToWorld(event),
       geometry: { deltaX: 0, deltaY: 0 },
       changed: false
     };
+    renderer.setSelectionChromeSuppressed?.(selectedIds, true);
     renderer.beginGeometryPreview({ objectIds: selectedIds, mode: "move" });
     canvas.classList.add("is-moving-object");
     capturePointer(event);
@@ -768,6 +788,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
       kind: "crop",
       abortController,
       objectId,
+      selectionChromeIds: [objectId],
       direction,
       image: cloneValue(image),
       originalClip,
@@ -775,6 +796,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
       changed: false
     };
     controller.setSelection([objectId], { expandGroups: false });
+    renderer.setSelectionChromeSuppressed?.([objectId], true);
     renderer.setCropTarget?.(objectId);
     canvas.classList.add("is-cropping");
     capturePointer(event);
@@ -813,6 +835,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
       abortController,
       handle: handleName,
       objectIds: resizeIds,
+      selectionChromeIds: resizeIds,
       originals,
       objects: originals.map(cloneValue),
       bounds: diagram2SelectionResizeBounds(originals),
@@ -825,6 +848,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
       x: anchor.x - startPoint.x,
       y: anchor.y - startPoint.y
     };
+    renderer.setSelectionChromeSuppressed?.(resizeIds, true);
     renderer.beginGeometryPreview({ objectIds: resizeIds, mode: "resize" });
     canvas.classList.add("is-resizing-object");
     capturePointer(event);

@@ -91,7 +91,8 @@ test("Diagram 1 and Diagram 2 mirror Documentation filter options and behavior",
       closeSelector: "[data-close-diagram-filters]",
       resetSelector: "[data-reset-diagram-filters]",
       filterPrefix: "diagram",
-      viewAction: "set-diagram-view"
+      viewAction: "set-diagram-view",
+      treeAction: "set-diagram-view"
     },
     {
       hash: "#/diagram-2",
@@ -102,7 +103,8 @@ test("Diagram 1 and Diagram 2 mirror Documentation filter options and behavior",
       closeSelector: "[data-close-diagram2-filters]",
       resetSelector: "[data-reset-diagram2-filters]",
       filterPrefix: "diagram2",
-      viewAction: "set-diagram2-view"
+      viewAction: "set-diagram2-view",
+      treeAction: "toggle-diagram2-tree-pane"
     }
   ]) {
     await openTreeNavScreen(page, configuration);
@@ -120,7 +122,7 @@ test("Diagram 1 and Diagram 2 mirror Documentation filter options and behavior",
     await expect(cardDialog.locator(`select[data-filter='${configuration.filterPrefix}-tree-group']`)).toHaveCount(1);
     await expect(cardDialog.locator(`select[data-filter='${configuration.filterPrefix}-tree-layout']`)).toHaveCount(0);
     await cardDialog.locator(configuration.closeSelector).first().click();
-    await page.locator(`[data-action='${configuration.viewAction}'][data-mode='tree']`).click();
+    await page.locator(`[data-action='${configuration.treeAction}'][data-mode='tree']`).click();
   }
 });
 

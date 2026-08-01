@@ -8,9 +8,9 @@ import {
 import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   userCardCheckListLabelHtml
-} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
+} from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-da79982b9e77";
 import {
   bugFixIconHtml,
   createWorkItemTableMode

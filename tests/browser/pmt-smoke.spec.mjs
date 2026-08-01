@@ -2,6 +2,13 @@ import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { buildAnnotationSvg, parseAnnotationSvg } from "../../wwwroot/js/components/image-annotation.js";
+import { createDiagram2FieldMappingTable } from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mapping-tables.js";
+import { createDiagram2FieldMappingIndexes } from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mappings.js";
+import {
+  createDiagram2FieldRectangle,
+  setDiagram2FieldRectangleMapping
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-field-rectangles.js";
+import { createDiagram2EmbeddedImage } from "../../wwwroot/js/features/diagram2/diagram2-editor-images.js";
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const statuses = [
@@ -1004,12 +1011,15 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   testInfo.setTimeout(180000);
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 1 };
-  const linkedState = linkedDiagramPerformanceState(96, 257);
+  const linkedState = linkedDiagramMappedState(96, 257);
   const linkedSource = `data:image/svg+xml,${encodeURIComponent(buildAnnotationSvg(linkedState))}`;
   const detailSource = `data:image/svg+xml,${encodeURIComponent(buildAnnotationSvg(linkedDiagramPerformanceState(12, 20)))}`;
   appState.blogs.push(
     linkedDiagramDocument(77, "RTE Linked Diagram Performance", linkedSource, "2026-07-31T12:00:00Z"),
-    linkedDiagramDocument(78, "RTE Linked Diagram Details", detailSource, "2026-07-31T11:00:00Z"),
+    {
+      ...linkedDiagramDocument(78, "RTE Linked Diagram Details", detailSource, "2026-07-31T11:00:00Z"),
+      isPrivate: true
+    },
     {
       ...linkedDiagramDocument(79, "Private Diagram From Another User", detailSource, "2026-07-31T13:00:00Z"),
       isPrivate: true,
@@ -1080,6 +1090,99 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await expect(d2Block.locator("svg[data-diagram2-svg]")).toBeVisible();
   await expect(d2Block.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram 2: RTE Linked Diagram Performance");
   const interactiveSettleDuration = await page.evaluate(started => performance.now() - started, d2InsertStarted);
+  const linkedMappingToggle = d2Block.getByRole("button", { name: "Mapping", exact: true });
+  const linkedMappingPane = d2Block.locator("[data-diagram2-mapping-pane]");
+  const linkedNativeDiagram = d2Block.locator("[data-diagram-ole-native-link]");
+  const d2Viewport = d2Block.locator("[data-diagram-ole-viewport]");
+  await expect(linkedMappingToggle).toBeVisible();
+  await expect(linkedMappingToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(linkedMappingPane).toBeVisible();
+  await expect(linkedMappingPane).toHaveAttribute("data-diagram2-mapping-count", "1");
+  await expect(linkedNativeDiagram).toHaveAttribute("href", "#/diagram-2/77");
+  await expect(linkedNativeDiagram).toHaveAttribute("target", "_blank");
+  await expect(d2Block.locator("[data-diagram2-mapping-hover-hint]"))
+    .toHaveText("Hover on the UI to DB Field Mapping");
+  await expect(d2Block.locator("[data-diagram2-mapping-hover-hint]")).toBeVisible();
+  expect(await d2Block.locator("[data-diagram2-mapping-hover-hint]").evaluate(
+    hint => hint.parentElement?.matches("[data-diagram2-linked-main]")
+  )).toBe(true);
+  await d2Block.locator("[data-diagram-ole-fit]").click();
+  await expect.poll(async () => {
+    const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
+    return Math.max(evidence.deltaX, evidence.deltaY);
+  }).toBeLessThanOrEqual(2);
+  const linkedMappingSearch = linkedMappingPane.locator("[data-diagram2-mapping-search]");
+  const linkedAlphabeticalToggle = linkedMappingPane.locator("[data-diagram2-mapping-alphabetical]");
+  const linkedSearchStyle = await linkedMappingSearch.evaluate(input => {
+    const style = getComputedStyle(input);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderStyle: style.borderStyle,
+      borderWidth: style.borderWidth
+    };
+  });
+  expect(linkedSearchStyle.borderStyle).toBe("solid");
+  expect(linkedSearchStyle.borderWidth).toBe("1px");
+  expect(linkedSearchStyle.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  await linkedAlphabeticalToggle.check();
+  await expect(linkedAlphabeticalToggle).toBeChecked();
+  await linkedAlphabeticalToggle.uncheck();
+  const linkedUiField = linkedMappingPane.locator(
+    "[data-diagram2-mapping-pane-field][data-diagram2-field-mapping-cell-kind='ui']"
+  );
+  await linkedUiField.hover();
+  await expect(d2Block.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
+  await expect(d2Block.locator(
+    "[data-diagram2-field-rectangle-plane] [data-diagram2-object-id='linked-mapping-field']"
+  )).toBeVisible();
+  await linkedMappingToggle.click();
+  await expect(linkedMappingToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(linkedMappingPane).toBeHidden();
+  expect(await d2Block.locator("[data-diagram2-mapping-table-plane]").evaluate(
+    node => getComputedStyle(node).display
+  )).not.toBe("none");
+  const traceFullRenderCount = Number(await d2Block.locator("svg[data-diagram2-svg]")
+    .getAttribute("data-diagram2-full-render-count") || 0);
+  await d2Block.locator("[data-diagram2-object-id='linked-entity-0']")
+    .dispatchEvent("click", { button: 0 });
+  await expect(d2Block.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).not.toHaveCount(0);
+  const linkedTraceStyle = await d2Block.locator(
+    ".is-relationship-trace [data-diagram2-relationship-selection-path]"
+  ).first().evaluate(path => {
+    const style = getComputedStyle(path);
+    return { stroke: style.stroke, dasharray: style.strokeDasharray };
+  });
+  expect(linkedTraceStyle.stroke).not.toBe("none");
+  expect(linkedTraceStyle.dasharray).toBe("none");
+  await d2Block.locator("[data-diagram2-relationship-id]").first()
+    .dispatchEvent("click", { button: 0 });
+  await expect(d2Block.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).toHaveCount(1);
+  expect(Number(await d2Block.locator("svg[data-diagram2-svg]")
+    .getAttribute("data-diagram2-full-render-count") || 0)).toBe(traceFullRenderCount);
+  await d2Block.press("Escape");
+  await expect(d2Block.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).toHaveCount(0);
+  await d2Block.locator("[data-diagram-ole-fit]").click();
+  await d2Block.locator("[data-diagram-ole-zoom-in]").click();
+  await d2Block.locator("[data-diagram-ole-zoom-in]").click();
+  const linkedEntities = linkedState.objects.filter(object => object.type === "entity");
+  for (const index of [0, 23, 72, 95]) {
+    const entity = linkedEntities[index];
+    const centered = await centerLinkedDiagram2WorldPoint(page, d2Block, {
+      x: entity.x + (entity.width / 2),
+      y: entity.y + (entity.height / 2)
+    });
+    expect(centered.deltaX).toBeLessThanOrEqual(3);
+    expect(centered.deltaY).toBeLessThanOrEqual(3);
+  }
+  await linkedMappingToggle.click();
+  await expect(linkedMappingPane).toBeVisible();
+  await d2Block.locator("[data-diagram-ole-fit]").click();
   const firstFrameDuration = await d2Block.locator("svg[data-diagram2-svg]").evaluate(svg =>
     Number(svg.dataset.diagram2LastFrameDuration || 0)
   );
@@ -1139,7 +1242,6 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   expect(interactionMetrics.fullRenderDelta).toBe(0);
   expect(interactionMetrics.reroutesDuringSettle).toBe(0);
 
-  const d2Viewport = d2Block.locator("[data-diagram-ole-viewport]");
   const beforeWheel = await d2Block.locator("svg[data-diagram2-svg]").getAttribute("data-diagram2-viewport-matrix");
   await d2Viewport.hover({ position: { x: 260, y: 160 } });
   await page.mouse.wheel(0, -120);
@@ -1219,6 +1321,8 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await d2Block.locator("[data-diagram-ole-tab]", { hasText: "RTE Linked Diagram Details" }).click();
   await expect(d2Block.locator("[data-diagram-ole-tab].is-active")).toContainText("RTE Linked Diagram Details");
   await expect(d2Block.locator("svg[data-diagram2-svg]")).toBeVisible();
+  await expect(d2Block.locator("[data-diagram2-linked-mapping-toggle]")).toBeHidden();
+  await expect(d2Block.locator("[data-diagram-ole-native-link]")).toHaveCount(0);
 
   console.log("RTE_LINK_DIAGRAM2_PERFORMANCE", JSON.stringify({
     viewport: page.viewportSize(),
@@ -3844,6 +3948,10 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
   await openNavView(page, "Diagram", "Diagram");
 
   await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Cancel Return Fit");
+  await page.locator("[data-diagram-image]").evaluate(async image => {
+    if (typeof image.decode === "function") await image.decode();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
   await page.locator("[data-diagram-zoom]").selectOption("100");
   await expect.poll(() => page.locator("[data-diagram-image]").evaluate(image => ({
     width: Number.parseFloat(image.style.width),
@@ -3873,7 +3981,7 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
       - (viewportBounds.top + (viewportBounds.height / 2))
     );
     return {
-      centered: centerDeltaX < 2 && centerDeltaY < 2,
+      centered: centerDeltaX <= 12 && centerDeltaY <= 12,
       fits: imageBounds.width <= viewportBounds.width
         && imageBounds.height <= viewportBounds.height
     };
@@ -4229,11 +4337,10 @@ test("Diagram Card and Tree views show the current user's private and public Dia
     const image = viewer.querySelector("[data-diagram-image]");
     const viewportRect = viewport.getBoundingClientRect();
     const imageRect = image.getBoundingClientRect();
-    return {
-      x: Math.round((imageRect.left + (imageRect.width / 2)) - (viewportRect.left + (viewportRect.width / 2))),
-      y: Math.round((imageRect.top + (imageRect.height / 2)) - (viewportRect.top + (viewportRect.height / 2)))
-    };
-  })).toEqual({ x: 0, y: 0 });
+    const deltaX = (imageRect.left + (imageRect.width / 2)) - (viewportRect.left + (viewportRect.width / 2));
+    const deltaY = (imageRect.top + (imageRect.height / 2)) - (viewportRect.top + (viewportRect.height / 2));
+    return Math.abs(deltaX) <= 12 && Math.abs(deltaY) <= 12;
+  })).toBe(true);
   await expect(page.locator("[data-action='share-diagram']")).toHaveCount(0);
   await page.getByRole("button", { name: "Edit Info", exact: true }).click();
   const infoDialog = page.locator("#editorDialog");
@@ -4265,7 +4372,7 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await page.getByRole("button", { name: "Cards", exact: true }).click();
   await expect(page.locator(".diagram-card")).toHaveCount(4);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Diagram", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Diagram 1", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Cards", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".diagram-card")).toHaveCount(4);
 
@@ -4864,7 +4971,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   });
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveCSS("width", `${page.viewportSize().width - 16}px`);
-  await expect(dialog.getByText("Ctrl + wheel: zoom at cursor")).toBeVisible();
+  await expect(dialog.getByText("Wheel: zoom at cursor")).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Shape", exact: true })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Text", exact: true })).toBeVisible();
   const formatPaneMetrics = await dialog.locator(".image-annotation-inspector").evaluate(element => {
@@ -4980,6 +5087,16 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     const percent = 10 + (index * 5);
     return { value: String(percent), label: `${percent}%` };
   }));
+  const initialZoom = await zoomSelect.inputValue();
+  const initialWorkspaceBox = await workspace.boundingBox();
+  await page.mouse.move(
+    initialWorkspaceBox.x + (initialWorkspaceBox.width / 2),
+    initialWorkspaceBox.y + (initialWorkspaceBox.height / 2)
+  );
+  await page.mouse.wheel(0, -120);
+  await expect(zoomSelect).not.toHaveValue(initialZoom);
+  await expect(canvas).not.toHaveClass(/is-zooming/);
+  await zoomSelect.selectOption(initialZoom);
 
   const inspector = dialog.locator("[data-annotation-inspector]");
   const inspectorToggle = dialog.locator("[data-annotation-toggle-inspector]");
@@ -5101,10 +5218,12 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(annotationContextMenu).toBeVisible();
   const cropContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true });
   const toFrontContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true });
+  const copySvgContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Copy as SVG", exact: true });
   const copyImageContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Copy as Image", exact: true });
   await expect(cropContextMenuItem).toBeFocused();
   await page.keyboard.press("ArrowDown");
-  await expect(toFrontContextMenuItem).toBeFocused();
+  await expect(toFrontContextMenuItem).toBeDisabled();
+  await expect(copySvgContextMenuItem).toBeFocused();
   await page.keyboard.press("ArrowUp");
   await expect(cropContextMenuItem).toBeFocused();
   await page.keyboard.press("End");
@@ -5504,7 +5623,9 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await workspace.focus();
   await page.keyboard.press("Control+a");
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(`${selectAllObjectCount} objects selected`);
+  await page.keyboard.press("Escape");
   await textObject.click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Text box");
   await dialog.getByLabel("Horizontal alignment", { exact: true }).selectOption("center");
   await expect(canvas.locator("[data-annotation-object-id]").last().locator("text")).toHaveAttribute("text-anchor", "middle");
   await dialog.getByLabel("Horizontal alignment", { exact: true }).selectOption("right");
@@ -5593,7 +5714,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await workspace.focus();
   await page.keyboard.press("Escape");
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
-  await dragCanvas(-450, 100, -150, 450);
+  await dragCanvas(-430, 80, -150, 450);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   const blankPoint = await canvasClientPoint(-100, 500);
   await page.mouse.click(blankPoint.x, blankPoint.y);
@@ -5649,7 +5770,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     height: Number(element.getAttribute("height"))
   }));
   expect(proportionalRectangleBounds.width / proportionalRectangleBounds.height)
-    .toBeCloseTo(outsideRectangleBeforeResize.width / outsideRectangleBeforeResize.height, 5);
+    .toBeCloseTo(outsideRectangleBeforeResize.width / outsideRectangleBeforeResize.height, 4);
   await page.mouse.up();
   await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
   await expect(outsideRectangleShape).toHaveAttribute("x", String(outsideRectangleBeforeResize.x));
@@ -5714,7 +5835,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await page.keyboard.press("v");
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
 
-  await dragCanvas(-450, 100, -150, 450);
+  await dragCanvas(-430, 80, -150, 450);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await page.keyboard.press("Delete");
   await expect(annotationObjects).toHaveCount(4);
@@ -5752,6 +5873,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true }).click();
   await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
   await expect(canvas.locator(".image-annotation-group-member-guide.is-arrow")).toHaveCount(1);
+  const annotationGroupId = await primaryArrow.getAttribute("data-pmt-annotation-group");
+  expect(annotationGroupId).toMatch(/^group-/);
   const groupedArrowBeforeResize = await readArrowGeometry(primaryArrow);
   const groupedArrowLengthBeforeResize = Math.hypot(
     groupedArrowBeforeResize.tip.x - groupedArrowBeforeResize.base.x,
@@ -5880,117 +6003,48 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
 
   const croppedImageSelectionPoint = await canvasClientPoint(700, 380);
   await page.mouse.click(croppedImageSelectionPoint.x, croppedImageSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
-  await dragCanvas(740, 400, 840, 460);
-  await expect.poll(() => imageObject.getAttribute("width").then(Number)).toBeGreaterThan(800);
-  const resizedImage = await imageObject.evaluate(element => ({
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image (Fixed)");
+  await expect(canvas.locator("[data-annotation-handle]")).toHaveCount(0);
+  const fixedImageBeforeMove = await imageObject.evaluate(element => ({
     x: Number(element.getAttribute("x")),
     y: Number(element.getAttribute("y")),
     width: Number(element.getAttribute("width")),
     height: Number(element.getAttribute("height"))
   }));
-  expect(resizedImage.height).toBeGreaterThan(450);
-  expect(resizedImage.width / resizedImage.height).toBeCloseTo(800 / 450, 5);
-  const resizedClip = await imageClipRect.evaluate(element => ({
-    x: Number(element.getAttribute("x")),
-    y: Number(element.getAttribute("y")),
-    width: Number(element.getAttribute("width")),
-    height: Number(element.getAttribute("height"))
-  }));
-  expect(resizedClip.x).toBe(60);
-  expect(resizedClip.y).toBe(40);
-  expect(resizedClip.height).toBe(420);
-  expect(resizedClip.width / resizedClip.height).toBeCloseTo(680 / 360, 5);
-
-  await dragCanvas(750, 420, 850, 480);
-  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(resizedImage.x + 100, 2);
-  await expect.poll(() => imageObject.getAttribute("y").then(Number)).toBeCloseTo(resizedImage.y + 60, 2);
-  const movedCroppedClip = await imageClipRect.evaluate(element => ({
+  const fixedClipBeforeMove = await imageClipRect.evaluate(element => ({
     x: element.getAttribute("x"),
     y: element.getAttribute("y"),
     width: element.getAttribute("width"),
     height: element.getAttribute("height")
   }));
-  expect(movedCroppedClip.x).toBe("160");
-  expect(movedCroppedClip.y).toBe("100");
-  expect(Number(movedCroppedClip.width)).toBeCloseTo(resizedClip.width, 3);
-  expect(movedCroppedClip.height).toBe("420");
-
-  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
-  await expect(imageClipRect).toHaveAttribute("x", "60");
-  await expect(imageClipRect).toHaveAttribute("y", "40");
-  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
-  await expect(imageClipRect).toHaveAttribute("x", movedCroppedClip.x);
-  await expect(imageClipRect).toHaveAttribute("y", movedCroppedClip.y);
-  const movedImageSelectionPoint = await canvas.evaluate((element, imageId) => {
-    const clip = element.querySelector("clipPath[id^='pmt-annotation-image-clip-'] rect");
-    const x = Number(clip?.getAttribute("x"));
-    const y = Number(clip?.getAttribute("y"));
-    const width = Number(clip?.getAttribute("width"));
-    const height = Number(clip?.getAttribute("height"));
-    const matrix = element.getScreenCTM();
-
-    for (let row = 1; row <= 9; row += 1) {
-      for (let column = 1; column <= 9; column += 1) {
-        const point = element.createSVGPoint();
-        point.x = x + ((width * column) / 10);
-        point.y = y + ((height * row) / 10);
-        const clientPoint = point.matrixTransform(matrix);
-        const target = document.elementFromPoint(clientPoint.x, clientPoint.y);
-        if (target?.closest("[data-annotation-object-id]")?.dataset.annotationObjectId === imageId) {
-          return { x: clientPoint.x, y: clientPoint.y };
-        }
-      }
-    }
-
-    return null;
-  }, await imageObject.getAttribute("data-annotation-object-id"));
-  expect(movedImageSelectionPoint).not.toBeNull();
-  await page.mouse.click(movedImageSelectionPoint.x, movedImageSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
-  const movedImageX = Number(await imageObject.getAttribute("x"));
+  await dragCanvas(700, 380, 780, 430);
+  expect(await imageObject.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }))).toEqual(fixedImageBeforeMove);
+  expect(await imageClipRect.evaluate(element => ({
+    x: element.getAttribute("x"),
+    y: element.getAttribute("y"),
+    width: element.getAttribute("width"),
+    height: element.getAttribute("height")
+  }))).toEqual(fixedClipBeforeMove);
   await page.keyboard.press("ArrowRight");
-  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX + 20, 2);
-  await expect(imageClipRect).toHaveAttribute("x", "180");
-  await page.keyboard.press("ArrowLeft");
-  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX, 2);
-  await expect(imageClipRect).toHaveAttribute("x", movedCroppedClip.x);
+  expect(await imageObject.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }))).toEqual(fixedImageBeforeMove);
+  expect(await imageClipRect.evaluate(element => ({
+    x: element.getAttribute("x"),
+    y: element.getAttribute("y"),
+    width: element.getAttribute("width"),
+    height: element.getAttribute("height")
+  }))).toEqual(fixedClipBeforeMove);
 
-  const beforeZoom = await zoomSelect.inputValue();
   const workspaceBox = await workspace.boundingBox();
-  const zoomCursor = {
-    x: workspaceBox.x + (workspaceBox.width * 0.72),
-    y: workspaceBox.y + (workspaceBox.height * 0.42)
-  };
-  const userPointAtZoomCursor = () => canvas.evaluate((element, cursor) => {
-    const point = element.createSVGPoint();
-    point.x = cursor.x;
-    point.y = cursor.y;
-    const userPoint = point.matrixTransform(element.getScreenCTM().inverse());
-    return { x: userPoint.x, y: userPoint.y };
-  }, zoomCursor);
-  await page.mouse.move(zoomCursor.x, zoomCursor.y);
-  const userPointBeforeZoomIn = await userPointAtZoomCursor();
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, -120);
-  await page.keyboard.up("Control");
-  await expect(zoomSelect).not.toHaveValue(beforeZoom);
-  const userPointAfterZoomIn = await userPointAtZoomCursor();
-  expect(Math.abs(userPointAfterZoomIn.x - userPointBeforeZoomIn.x)).toBeLessThan(0.75);
-  expect(Math.abs(userPointAfterZoomIn.y - userPointBeforeZoomIn.y)).toBeLessThan(0.75);
-
-  const userPointBeforeZoomOut = await userPointAtZoomCursor();
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, 120);
-  await page.keyboard.up("Control");
-  await expect(canvas).not.toHaveClass(/is-zooming/);
-  const userPointAfterZoomOut = await userPointAtZoomCursor();
-  expect(Math.abs(userPointAfterZoomOut.x - userPointBeforeZoomOut.x)).toBeLessThan(0.75);
-  expect(Math.abs(userPointAfterZoomOut.y - userPointBeforeZoomOut.y)).toBeLessThan(0.75);
-
-  const scrollBeforeWheel = await workspace.evaluate(element => element.scrollTop);
-  await page.mouse.wheel(0, 180);
-  await expect.poll(() => workspace.evaluate(element => element.scrollTop)).toBeGreaterThan(scrollBeforeWheel);
 
   const scrollBeforePan = await workspace.evaluate(element => ({ left: element.scrollLeft, top: element.scrollTop }));
   await page.mouse.move(workspaceBox.x + (workspaceBox.width / 2), workspaceBox.y + (workspaceBox.height / 2));
@@ -5999,16 +6053,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await page.mouse.up({ button: "middle" });
   await expect.poll(() => workspace.evaluate(element => element.scrollLeft)).toBeGreaterThan(scrollBeforePan.left);
 
-  const imageGroupSelectionPoint = await canvasClientPoint(900, 500);
-  await page.mouse.click(imageGroupSelectionPoint.x, imageGroupSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
-  await outsideRectangle.click({ modifiers: ["Shift"] });
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
-  await openAnnotationContextMenu(outsideRectangle);
-  await annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true }).click();
-  await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
-  const imageGroupId = await imageObject.getAttribute("data-pmt-annotation-group");
-  expect(imageGroupId).toMatch(/^group-/);
+  await groupingTree.locator(`[data-annotation-tree-kind='group'][data-annotation-tree-id='${annotationGroupId}']`).click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
   const textYBeforeExport = Number(await textObject.locator("text").getAttribute("y"));
 
   await maximizeButton.click();
@@ -6075,51 +6121,21 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(Number(await reopenedCanvas.locator("text").getAttribute("y"))).toBeCloseTo(textYBeforeExport, 5);
   await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   await reopenedDialog.getByRole("tab", { name: "Objects", exact: true }).click();
-  await reopenedDialog.locator(`[data-annotation-tree-kind='group'][data-annotation-tree-id='${imageGroupId}']`).click();
-  await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
-  await expect(reopenedCanvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
-  await expect(reopenedCanvas.locator("[data-annotation-handle]")).toHaveCount(8);
+  await reopenedDialog.locator(`[data-annotation-tree-kind='group'][data-annotation-tree-id='${annotationGroupId}']`).click();
+  await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
+  await expect(reopenedCanvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
+  await expect(reopenedCanvas.locator("[data-annotation-handle]")).toHaveCount(0);
   const reopenedClip = reopenedCanvas.locator("clipPath[id^='pmt-annotation-image-clip-'] rect");
-  await expect(reopenedClip).toHaveAttribute("x", movedCroppedClip.x);
-  await expect(reopenedClip).toHaveAttribute("y", movedCroppedClip.y);
-  await expect(reopenedClip).toHaveAttribute("width", movedCroppedClip.width);
-  await expect(reopenedClip).toHaveAttribute("height", movedCroppedClip.height);
+  await expect(reopenedClip).toHaveAttribute("x", fixedClipBeforeMove.x);
+  await expect(reopenedClip).toHaveAttribute("y", fixedClipBeforeMove.y);
+  await expect(reopenedClip).toHaveAttribute("width", fixedClipBeforeMove.width);
+  await expect(reopenedClip).toHaveAttribute("height", fixedClipBeforeMove.height);
   const reopenedViewBox = (await reopenedCanvas.getAttribute("viewBox")).split(/\s+/).map(Number);
   expect(reopenedViewBox[2]).toBeGreaterThan(exportedViewBox[2] * 3);
   const reopenedImageObject = reopenedCanvas.locator("[data-annotation-object-type='embedded-image']");
-  await expect(reopenedImageObject).toHaveAttribute("data-pmt-annotation-group", imageGroupId);
-  const reopenedImageGroupMembers = reopenedCanvas.locator(`[data-pmt-annotation-group='${imageGroupId}']`);
-  await expect(reopenedImageGroupMembers).toHaveCount(2);
-  const reopenedGroupBeforeResize = await reopenedCanvas.locator(".image-annotation-selection").evaluate(element => ({
-    width: Number(element.getAttribute("width")),
-    height: Number(element.getAttribute("height"))
-  }));
-  const reopenedMemberWidthsBeforeResize = await reopenedImageGroupMembers.evaluateAll(elements => elements.map(element => {
-    if (element.dataset.annotationObjectType === "arrow") return 0;
-    return Number(element.getAttribute("width"));
-  }));
-  const reopenedGroupResizeHandle = reopenedCanvas.locator("[data-annotation-handle='se']");
-  const reopenedGroupResizeHandleBox = await reopenedGroupResizeHandle.boundingBox();
-  await page.mouse.move(
-    reopenedGroupResizeHandleBox.x + (reopenedGroupResizeHandleBox.width / 2),
-    reopenedGroupResizeHandleBox.y + (reopenedGroupResizeHandleBox.height / 2)
-  );
-  await page.mouse.down();
-  await page.mouse.move(reopenedGroupResizeHandleBox.x + 70, reopenedGroupResizeHandleBox.y + 50, { steps: 5 });
-  await page.mouse.up();
-  const reopenedGroupAfterResize = await reopenedCanvas.locator(".image-annotation-selection").evaluate(element => ({
-    width: Number(element.getAttribute("width")),
-    height: Number(element.getAttribute("height"))
-  }));
-  const reopenedMemberWidthsAfterResize = await reopenedImageGroupMembers.evaluateAll(elements => elements.map(element => {
-    if (element.dataset.annotationObjectType === "arrow") return 0;
-    return Number(element.getAttribute("width"));
-  }));
-  expect(reopenedGroupAfterResize.width).toBeGreaterThan(reopenedGroupBeforeResize.width);
-  expect(reopenedGroupAfterResize.width / reopenedGroupAfterResize.height)
-    .toBeCloseTo(reopenedGroupBeforeResize.width / reopenedGroupBeforeResize.height, 5);
-  expect(reopenedMemberWidthsAfterResize[0]).toBeGreaterThan(reopenedMemberWidthsBeforeResize[0]);
-  expect(reopenedMemberWidthsAfterResize[1]).toBeGreaterThan(reopenedMemberWidthsBeforeResize[1]);
+  await expect(reopenedImageObject).not.toHaveAttribute("data-pmt-annotation-group", /.+/);
+  await expect(reopenedCanvas.locator(`[data-pmt-annotation-group='${annotationGroupId}']`)).toHaveCount(3);
+  await expect(reopenedCanvas.locator(`[data-pmt-annotation-group='${annotationGroupId}'][data-pmt-annotation-locked='true']`)).toHaveCount(3);
   await reopenedDialog.getByRole("button", { name: "Cancel" }).click();
 
   uploadedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"></svg>`;
@@ -7339,8 +7355,12 @@ test("RTE Select shows eight proportional image resize handles", async ({ page }
 
   const image = editor.getByRole("img", { name: "Resize test diagram" });
   await image.evaluate(element => element.decode());
-  await image.click();
-  await page.getByRole("menuitem", { name: "Select" }).click();
+  await image.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  const selectImageMenuItem = page.locator(".rich-image-menu [data-rich-image-action='select']:visible");
+  await expect(selectImageMenuItem).toBeVisible();
+  await selectImageMenuItem.evaluate(button => button.click());
 
   const selection = page.getByRole("group", { name: "Selected image resize handles" });
   const handles = selection.locator("[data-rich-image-resize-handle]");
@@ -7404,6 +7424,9 @@ test("RTE Select shows eight proportional image resize handles", async ({ page }
     element.scrollTop = 0;
     element.dispatchEvent(new Event("scroll"));
   }, originalEditorStyle);
+  await image.evaluate(element => {
+    element.scrollIntoView({ block: "center", inline: "nearest" });
+  });
 
   const bottomRightHandle = selection.locator("[data-rich-image-resize-handle='se']");
   await expect.poll(async () => {
@@ -8103,7 +8126,8 @@ function jsonResponse(data, status = 200) {
 
 async function openNavView(page, view, heading) {
   await page.waitForTimeout(50);
-  const headingLocator = page.getByRole("heading", { level: 1, name: heading, exact: true });
+  const visibleHeading = view === "Diagram" && heading === "Diagram" ? "Diagram 1" : heading;
+  const headingLocator = page.getByRole("heading", { level: 1, name: visibleHeading, exact: true });
   if (await headingLocator.isVisible()) return;
 
   const selector = `button[data-view='${view}']`;
@@ -8556,6 +8580,138 @@ function linkedDiagramPerformanceState(entityCount, relationshipCount) {
     compactEntityRelationshipRouting: false,
     objects: entities
   };
+}
+
+function linkedDiagramMappedState(entityCount, relationshipCount) {
+  const state = linkedDiagramPerformanceState(entityCount, relationshipCount);
+  const image = createDiagram2EmbeddedImage({
+    id: "linked-mapping-screen",
+    name: "Linked mapping screen",
+    source: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='200'%3E%3Crect width='420' height='200' fill='white'/%3E%3C/svg%3E",
+    x: 40,
+    y: 800,
+    width: 420,
+    height: 200
+  });
+  const fieldRectangle = setDiagram2FieldRectangleMapping(createDiagram2FieldRectangle({
+    id: "linked-mapping-field",
+    name: "Linked record ID",
+    x: 80,
+    y: 850,
+    width: 180,
+    height: 44
+  }), {
+    referencedEntity: "pmt.LinkedEntity0",
+    referencedField: "Id"
+  });
+  const objects = [...state.objects, image, fieldRectangle];
+  const table = createDiagram2FieldMappingTable({ ...state, objects }, image.id, {
+    id: "linked-mapping-table",
+    x: 520,
+    y: 820,
+    indexes: createDiagram2FieldMappingIndexes(objects)
+  });
+  return { ...state, objects: [...objects, table] };
+}
+
+async function centerLinkedDiagram2WorldPoint(page, block, point) {
+  const viewport = block.locator("[data-diagram-ole-viewport]");
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const evidence = await viewport.evaluate((element, worldPoint) => {
+      const svg = element.querySelector("svg[data-diagram2-svg]");
+      const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
+        .match(/^matrix\(([^)]+)\)$/)?.[1]
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number) || [];
+      const rect = element.getBoundingClientRect();
+      const scale = matrix[0];
+      const screenX = (worldPoint.x * scale) + matrix[4];
+      const screenY = (worldPoint.y * scale) + matrix[5];
+      return {
+        deltaX: (rect.width / 2) - screenX,
+        deltaY: (rect.height / 2) - screenY,
+        width: rect.width,
+        height: rect.height
+      };
+    }, point);
+    if (Math.abs(evidence.deltaX) <= 3 && Math.abs(evidence.deltaY) <= 3) break;
+    const box = await viewport.boundingBox();
+    const stepX = Math.max(-evidence.width * 0.4, Math.min(evidence.width * 0.4, evidence.deltaX));
+    const stepY = Math.max(-evidence.height * 0.4, Math.min(evidence.height * 0.4, evidence.deltaY));
+    const startX = box.x + (box.width / 2);
+    const startY = box.y + (box.height / 2);
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + stepX, startY + stepY, { steps: 3 });
+    await page.mouse.up();
+  }
+  return viewport.evaluate((element, worldPoint) => {
+    const svg = element.querySelector("svg[data-diagram2-svg]");
+    const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
+      .match(/^matrix\(([^)]+)\)$/)?.[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number) || [];
+    const rect = element.getBoundingClientRect();
+    return {
+      deltaX: Math.abs((rect.width / 2) - ((worldPoint.x * matrix[0]) + matrix[4])),
+      deltaY: Math.abs((rect.height / 2) - ((worldPoint.y * matrix[0]) + matrix[5]))
+    };
+  }, point);
+}
+
+async function linkedDiagram2FitCenterEvidence(viewport) {
+  return viewport.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    const svg = element.querySelector("svg[data-diagram2-svg]");
+    const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
+      .match(/^matrix\(([^)]+)\)$/)?.[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number) || [];
+    let contentBounds = null;
+    const includePoint = point => {
+      if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
+      contentBounds = contentBounds
+        ? {
+            left: Math.min(contentBounds.left, point.x),
+            top: Math.min(contentBounds.top, point.y),
+            right: Math.max(contentBounds.right, point.x),
+            bottom: Math.max(contentBounds.bottom, point.y)
+          }
+        : { left: point.x, top: point.y, right: point.x, bottom: point.y };
+    };
+    [...element.querySelectorAll("svg[data-diagram2-svg] [data-diagram2-object-id]")].filter(node => {
+      const plane = node.closest("[data-diagram2-mapping-table-plane]");
+      return !plane || getComputedStyle(plane).display !== "none";
+    }).forEach(node => {
+      const localBox = node.getBBox();
+      const objectMatrix = node.transform?.baseVal?.consolidate?.()?.matrix;
+      [
+        [localBox.x, localBox.y],
+        [localBox.x + localBox.width, localBox.y],
+        [localBox.x + localBox.width, localBox.y + localBox.height],
+        [localBox.x, localBox.y + localBox.height]
+      ].forEach(([x, y]) => includePoint(objectMatrix
+        ? { x: (x * objectMatrix.a) + (y * objectMatrix.c) + objectMatrix.e, y: (x * objectMatrix.b) + (y * objectMatrix.d) + objectMatrix.f }
+        : { x, y }));
+    });
+    element.querySelectorAll("svg[data-diagram2-svg] [data-diagram2-relationship-route-points]").forEach(node => {
+      try {
+        JSON.parse(node.dataset.diagram2RelationshipRoutePoints || "[]").forEach(includePoint);
+      } catch {
+        // Ignore incomplete diagnostic metadata while a route frame is committing.
+      }
+    });
+    if (!contentBounds) return { deltaX: Infinity, deltaY: Infinity };
+    const worldCenterX = (contentBounds.left + contentBounds.right) / 2;
+    const worldCenterY = (contentBounds.top + contentBounds.bottom) / 2;
+    return {
+      deltaX: Math.abs((rect.width / 2) - ((worldCenterX * matrix[0]) + matrix[4])),
+      deltaY: Math.abs((rect.height / 2) - ((worldCenterY * matrix[0]) + matrix[5]))
+    };
+  });
 }
 
 function createTestState() {

@@ -24,11 +24,15 @@ import {
   diagram2ImageEffectiveClip,
   diagram2ImageHasReversibleCrop,
   diagram2ResetCropPatch,
+  diagram2ResetCropRadiusPatch,
   resizeDiagram2CropClip
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-crop.js";
 import {
   createDiagram2EditorController
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-controller.js";
+import {
+  nextAvailableDiagram2SaveTitle
+} from "../../wwwroot/js/features/diagram2/diagram2-document-host-adapter.js";
 import {
   createDiagram2EntityAnnotationIndexes,
   createDiagram2EntityAnnotationPlan
@@ -70,6 +74,22 @@ import {
 } from "../../wwwroot/js/features/diagram2/diagram2-image-resources.js";
 
 const imageSource = "data:image/png;base64,AAECAwQFBgcICQ==";
+
+test("Diagram 2 save conflicts suggest the next available numbered name", () => {
+  assert.equal(nextAvailableDiagram2SaveTitle("Architecture", [
+    { title: "Architecture" },
+    { title: "Architecture 2" },
+    { title: "Architecture 3" }
+  ]), "Architecture 4");
+  assert.equal(nextAvailableDiagram2SaveTitle("Architecture 3", [
+    { title: "Architecture 3" },
+    { title: "Architecture 4" }
+  ]), "Architecture 5");
+  assert.equal(nextAvailableDiagram2SaveTitle("Architecture", [
+    { title: "architecture" },
+    { title: "ARCHITECTURE 2" }
+  ]), "Architecture 3");
+});
 
 test("D1 and D2 share exact label-aware Field Mapping attention-arrow geometry", () => {
   const geometry = annotationFieldMappingAttentionGeometry({
@@ -190,7 +210,7 @@ test("Diagram 2 crop math stays inside the image and supports reset and corner r
     bottomRight: 28,
     bottomLeft: 28
   }), {
-    cropCornerRadius: 28,
+    cropCornerRadius: 0,
     cropCornerRadii: {
       topLeft: 12,
       topRight: 28,
@@ -214,6 +234,10 @@ test("Diagram 2 crop math stays inside the image and supports reset and corner r
     y: 50,
     width: 400,
     height: 240
+  });
+  assert.deepEqual(diagram2ResetCropRadiusPatch(), {
+    cropCornerRadius: 0,
+    cropCornerRadii: null
   });
 });
 
@@ -610,6 +634,55 @@ test("Diagram 2 Mapping pane groups come from live mappings with or without a ca
     createDiagram2FieldMappingIndexes(state.objects),
     { search: "not present" }
   ), []);
+});
+
+test("Diagram 2 Mapping pane alphabetical sorting is reversible", () => {
+  const image = createDiagram2EmbeddedImage({
+    id: "sort-screen",
+    source: imageSource,
+    x: 0,
+    y: 0,
+    width: 500,
+    height: 320
+  });
+  const entity = (id, name, fields) => ({
+    id,
+    type: "entity",
+    x: 700,
+    y: id === "entity-zeta" ? 20 : 240,
+    width: 240,
+    height: 160,
+    entitySchema: "pmt",
+    entityName: name,
+    fields: fields.map(field => ({ name: field, dataType: "INT" })),
+    foreignKeys: []
+  });
+  const mappedRectangle = (id, name, y, table, field) => setDiagram2FieldRectangleMapping(
+    createDiagram2FieldRectangle({ id, name, x: 40, y, width: 180, height: 40 }),
+    { referencedEntity: `pmt.${table}`, referencedField: field }
+  );
+  const indexes = createDiagram2FieldMappingIndexes([
+    image,
+    entity("entity-zeta", "Zeta", ["ZuluId", "AlphaId"]),
+    entity("entity-alpha", "Alpha", ["MiddleId"]),
+    mappedRectangle("field-zulu", "Zulu UI", 20, "Zeta", "ZuluId"),
+    mappedRectangle("field-alpha", "Alpha UI", 80, "Zeta", "AlphaId"),
+    mappedRectangle("field-middle", "Middle UI", 140, "Alpha", "MiddleId")
+  ]);
+
+  const original = diagram2FieldMappingPaneGroups(indexes, { groupByTable: true });
+  assert.deepEqual(original.map(group => group.name), ["pmt.Zeta", "pmt.Alpha"]);
+  assert.deepEqual(original[0].rows.map(row => row.uiField), ["Zulu UI", "Alpha UI"]);
+
+  const alphabetical = diagram2FieldMappingPaneGroups(indexes, {
+    groupByTable: true,
+    alphabetical: true
+  });
+  assert.deepEqual(alphabetical.map(group => group.name), ["pmt.Alpha", "pmt.Zeta"]);
+  assert.deepEqual(alphabetical[1].rows.map(row => row.uiField), ["Alpha UI", "Zulu UI"]);
+
+  const restored = diagram2FieldMappingPaneGroups(indexes, { groupByTable: true });
+  assert.deepEqual(restored, original);
 });
 
 test("Diagram 2 keeps Mapping pane and canvas-table rows synchronized with database field changes", async () => {

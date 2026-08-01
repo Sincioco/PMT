@@ -7,6 +7,7 @@ import {
   createDiagram2EmbeddedImage
 } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 import {
+  diagram2ImageEffectiveClip,
   permanentlyCropDiagram2Image
 } from "./diagram2-editor-crop.js?v=20260731-diagram2-crop-preview-v1";
 import {
@@ -24,13 +25,13 @@ import {
 import {
   createDiagram2FieldMappingIndexes,
   patchDiagram2FieldMappingIndexes
-} from "./diagram2-editor-field-mappings.js?v=20260731-diagram2-mapping-pane-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
 import {
   createDiagram2FieldMappingTable,
   planDiagram2FieldMappingTableSync,
   syncDiagram2FieldMappingTableForFieldRectangle,
   syncDiagram2FieldMappingTableForImage
-} from "./diagram2-editor-field-mapping-tables.js?v=20260731-diagram2-mapping-pane-v2";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260801-diagram2-mapping-view-v3";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
@@ -565,6 +566,59 @@ export function createDiagram2EditorController(options = {}) {
     await history.execute(command, commandContext());
     emit("history");
     return true;
+  }
+
+  function previewSelectedObjectsStyle(styleNameInput, valueInput) {
+    if (busy || destroyed || !canMutate() || !renderer) return null;
+    const styleName = normalizeDiagram2StyleName(styleNameInput);
+    const value = normalizeDiagram2StyleValue(styleName, valueInput);
+    if (!styleName || value === undefined) return null;
+
+    const originalState = canonicalState;
+    const objectIds = selectedObjectIds.filter(id => {
+      const object = getObjectById(id);
+      return object
+        && object.locked !== true
+        && !objectPositionFixed(object)
+        && diagram2ObjectSupportsStyle(object, styleName);
+    });
+    let previewState = null;
+    let affectedObjectIds = objectIds;
+    let affectedRelationshipIds = [];
+
+    if (objectIds.length) {
+      const targetIds = new Set(objectIds);
+      previewState = {
+        ...originalState,
+        objects: originalState.objects.map(object => targetIds.has(object.id)
+          ? { ...object, [styleName]: value }
+          : object)
+      };
+    } else {
+      const relationshipIds = selectedRelationshipIds();
+      if (!relationshipIds.length || !diagram2RelationshipSupportsStyle(styleName)) return null;
+      const plan = diagram2SetRelationshipStylePlan(originalState, relationshipIds, styleName, value);
+      if (!plan?.nextState) return null;
+      previewState = plan.nextState;
+      affectedObjectIds = plan.affectedObjectIds;
+      affectedRelationshipIds = plan.affectedRelationshipIds;
+    }
+
+    const rendererOptions = {
+      affectedObjectIds,
+      affectedRelationshipIds,
+      reason: `preview ${styleName}`
+    };
+    renderer.setStructureState?.(previewState, rendererOptions);
+    let active = true;
+    return () => {
+      if (!active || destroyed || !renderer) return;
+      active = false;
+      renderer.setStructureState?.(canonicalState === originalState ? originalState : canonicalState, {
+        ...rendererOptions,
+        reason: `clear ${styleName} preview`
+      });
+    };
   }
 
   async function moveObjects(objectIds, deltaX, deltaY, commandOptions = {}) {
@@ -2844,6 +2898,7 @@ export function createDiagram2EditorController(options = {}) {
     reorderStructureNode,
     moveSelectedObjects,
     updateSelectedObjectsStyle,
+    previewSelectedObjectsStyle,
     moveObjects,
     resizeObjects,
     createDefaultObject,
@@ -3845,6 +3900,10 @@ function diagram2ObjectResizeBounds(object) {
       width: Math.max(1, Math.abs(x2 - x1)),
       height: Math.max(1, Math.abs(y2 - y1))
     };
+  }
+  if (object.type === "embedded-image") {
+    const clip = diagram2ImageEffectiveClip(object);
+    if (clip) return clip;
   }
   return {
     x: finiteNumber(object.x, 0),

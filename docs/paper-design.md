@@ -62,6 +62,7 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 
 ## Filters and forms
 
+- Every new input, select, textarea, checkbox, and command control must use PMT's shared component styling and include its normal, hover, focus, and disabled states before handoff. Unstyled browser-default controls are not acceptable.
 - Every field that must contain a value before a create or edit can be saved shows a red asterisk immediately after its visible label.
 - Required-field indicators stay on the existing label line and must not add a message row, reserve extra height, or shift neighboring controls.
 - Related controls use equal-width columns and balanced outer and middle spacing.

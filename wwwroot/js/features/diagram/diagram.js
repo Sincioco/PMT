@@ -33,7 +33,7 @@ import {
   filterCheckList,
   filterSelect
 } from "../../components/filters.js";
-import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
+import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
 import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=20260718-diagram-library-v8";
