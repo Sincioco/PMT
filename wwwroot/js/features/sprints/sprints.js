@@ -14,7 +14,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
+} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,

@@ -10,7 +10,7 @@ import {
   normalizeCodeBlocksForStorage,
   normalizeCollapsibleBlocksForStorage,
   normalizeDiagramOleBlocksForStorage
-} from "../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
+} from "../shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
 
 const renderedMentionSelector = [
   ".rich-readonly",

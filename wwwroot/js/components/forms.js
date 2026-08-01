@@ -2,7 +2,7 @@ import {
   escapeAttr,
   escapeHtml,
   normalizeRichHtml
-} from "../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
+} from "../shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
 import { roleLabel } from "../shared/selectors.js?v=20260713-managed-roles";
 
 export function field(label, name, currentValue, type, min = "", max = "", maxLength = "", options = {}) {
@@ -234,6 +234,15 @@ export function richTextToolsHtml(options = {}) {
           </svg>
         </button>
         <button type="button" data-command="insertLinkedDiagram" title="${escapeAttr(linkedDiagramTitle)}" aria-label="${escapeAttr(linkedDiagramTitle)}" class="rich-linked-diagram-insert-tool"${linkedDiagramDisabledAttributes}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="5" width="14" height="12" rx="2"></rect>
+            <path d="M7 9h4"></path>
+            <path d="M7 12h6"></path>
+            <path d="M15 15h2a3 3 0 0 0 0-6h-2"></path>
+            <path d="M18 9h1a3 3 0 0 1 0 6h-1"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="insertLinkedDiagram2" title="${escapeAttr(linkedDiagramDisabled ? linkedDiagramTitle : "Insert Linked Diagram 2")}" aria-label="${escapeAttr(linkedDiagramDisabled ? linkedDiagramTitle : "Insert Linked Diagram 2")}" class="rich-linked-diagram-insert-tool rich-linked-diagram2-insert-tool"${linkedDiagramDisabledAttributes}>
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect x="3" y="5" width="14" height="12" rx="2"></rect>
             <path d="M7 9h4"></path>

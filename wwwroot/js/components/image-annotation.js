@@ -1,4 +1,4 @@
-import { richTextToolsHtml, sharedRichColorPickerHtml } from "./forms.js?v=20260722-rte-toggle-state-v1";
+import { richTextToolsHtml, sharedRichColorPickerHtml } from "./forms.js?v=20260801-rte-link-diagram2-v1";
 import { copyTextToClipboard } from "./clipboard.js?v=20260714-invite-email-body";
 import { normalizeRichHtml } from "../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {

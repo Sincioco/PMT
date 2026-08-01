@@ -12,7 +12,7 @@ import {
   selectOptionsField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
+} from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
 import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
@@ -177,6 +177,7 @@ export function createScrumFeature({
   app,
   askYesNo,
   deleteItem,
+  disposeLinkedDiagrams,
   hydrateLinkedDiagrams,
   loadState,
   openEditor,
@@ -211,7 +212,7 @@ export function createScrumFeature({
   bindScrumColumnDragEvents();
   window.addEventListener("resize", scheduleScrumHeaderFit);
 
-  function renderDevLogs() {
+  function renderDevLogs(viewState = null) {
     scrumIsActive = true;
     if (scrumFilters.projectId && !state.projects.some(project => project.id === Number(scrumFilters.projectId))) {
       scrumFilters.projectId = "";
@@ -235,6 +236,7 @@ export function createScrumFeature({
     const canCreateAttendance = canAccessResource("Scrum", "Create");
     const canUpdateAttendance = canAccessResource("Scrum", "Update");
 
+    disposeLinkedDiagrams?.(app);
     app.innerHTML = `
       <section class="scrum-screen work-item-screen">
         ${sectionHead("Scrum", `
@@ -275,6 +277,7 @@ export function createScrumFeature({
         </div>
       </section>
     `;
+    restoreScrumLinkedDiagramSizes(viewState);
     fitScrumHeader();
     restoreScrumCalendarFocus();
     hydrateLinkedDiagrams?.(app);
@@ -311,7 +314,7 @@ export function createScrumFeature({
       if (!scrumIsActive || !app.querySelector(".scrum-screen") || scrumAutoRefreshIsBlocked()) return;
 
       const viewState = captureScrumViewState();
-      renderDevLogs();
+      renderDevLogs(viewState);
       restoreScrumViewState(viewState);
     } catch {
       // A later cycle retries without replacing the current Scrum screen.
@@ -338,6 +341,11 @@ export function createScrumFeature({
       calendarScrollLeft: calendarWrap?.scrollLeft || 0,
       calendarScrollTop: calendarWrap?.scrollTop || 0,
       focusSelector: scrumFocusSelector(document.activeElement),
+      linkedDiagramSizes: [...app.querySelectorAll(".pmt-diagram-ole[data-block-id]")].map(block => ({
+        blockId: block.dataset.blockId,
+        width: Math.max(320, Math.round(block.getBoundingClientRect().width || Number(block.dataset.viewWidth || 900))),
+        height: Math.max(220, Math.round(block.getBoundingClientRect().height || Number(block.dataset.viewHeight || 520)))
+      })),
       menuOpen: Boolean(app.querySelector(".page-actions-menu[open]")),
       tableScrollLeft: app.querySelector(".scrum-table-wrap")?.scrollLeft || 0
     };
@@ -345,6 +353,7 @@ export function createScrumFeature({
 
   function restoreScrumViewState(viewState) {
     if (!viewState) return;
+    restoreScrumLinkedDiagramSizes(viewState);
     if (viewState.menuOpen) app.querySelector(".page-actions-menu")?.setAttribute("open", "");
     const focused = viewState.focusSelector ? app.querySelector(viewState.focusSelector) : null;
     focused?.focus({ preventScroll: true });
@@ -356,6 +365,20 @@ export function createScrumFeature({
       calendarWrap.scrollTop = viewState.calendarScrollTop;
     }
     app.scrollTop = viewState.appScrollTop;
+  }
+
+  function restoreScrumLinkedDiagramSizes(viewState) {
+    if (!viewState) return;
+    (viewState.linkedDiagramSizes || []).forEach(size => {
+      const block = [...app.querySelectorAll(".pmt-diagram-ole[data-block-id]")]
+        .find(candidate => candidate.dataset.blockId === size.blockId);
+      if (!block) return;
+      block.dataset.viewWidth = String(size.width);
+      block.dataset.viewHeight = String(size.height);
+      block.style.width = `${size.width}px`;
+      block.style.height = `${size.height}px`;
+      block.dispatchEvent(new CustomEvent("diagram-ole-resized"));
+    });
   }
 
   function scrumFocusSelector(element) {

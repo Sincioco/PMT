@@ -5958,7 +5958,7 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /if \(command === "insertLinkedDiagram"\)[\s\S]*insertRichLinkedDiagram\(editor, savedSelection\)/);
   assert.match(appSource, /async function insertRichLinkedDiagram/);
   assert.match(appSource, /await loadState\(\)/);
-  assert.match(appSource, /data-pmt-ole="diagram"/);
+  assert.match(appSource, /data-pmt-ole="\$\{renderer === "2" \? "diagram2" : "diagram"\}"/);
   assert.match(appSource, /data-diagram-id=/);
   assert.match(appSource, /data-active-tab-id=/);
   assert.match(appSource, /data-header="\$\{escapeAttr\(header\)\}"/);
@@ -5993,8 +5993,8 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /data-diagram-ole-maximize/);
   assert.match(appSource, /data-diagram-ole-rename-header/);
   assert.match(appSource, /data-diagram-ole-rename-header[\s\S]*>Rename<\/button>/);
-  assert.match(appSource, /askForText\("Viewer header", "Rename Linked Diagram Header", currentHeader\)/);
-  assert.match(appSource, /showToast\("Linked Diagram header renamed\. Save the record to keep it\."\)/);
+  assert.match(appSource, /askForText\("Viewer header", `Rename \$\{featureName\} Header`, currentHeader\)/);
+  assert.match(appSource, /showToast\(`\$\{featureName\} header renamed\. Save the record to keep it\.`\)/);
   assert.match(appSource, /function richDiagramOleMaximizedStorageKey/);
   assert.match(appSource, /function readRichDiagramOleStoredMaximized/);
   assert.match(appSource, /function rememberRichDiagramOleMaximized/);
@@ -6015,7 +6015,7 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /block\.remove\(\)/);
   assert.match(appSource, /tab\.diagramId = Number\(nextDiagram\.id\)/);
   assert.match(appSource, /askForRichLinkedDiagram\(\{[\s\S]*selectedId:\s*diagram\?\.id \|\| activeTab\?\.diagramId[\s\S]*actionLabel:\s*"Change Tab Diagram"/);
-  assert.match(appSource, /showToast\("Linked Diagram tab changed\. Save the record to keep it\."\)/);
+  assert.match(appSource, /showToast\(`\$\{featureName\} tab changed\. Save the record to keep it\.`\)/);
   assert.match(appSource, /block\.dataset\.diagramOleHydratedKey === hydratedKey/);
   assert.match(appSource, /bindRichDiagramOleViewer\(block, diagram, activeTab, tabs\);[\s\S]*bindRichDiagramOleResizePersistence\(block, diagram, activeTab\);[\s\S]*return;/);
   assert.match(appSource, /clampRichDiagramOleViewport\(block, viewport, surface, view\)/);

@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { buildAnnotationSvg, parseAnnotationSvg } from "../../wwwroot/js/components/image-annotation.js";
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
@@ -998,12 +1000,288 @@ test("Scrum New/Edit editor maximize uses the true full-screen layout", async ({
   await expect(dialog).not.toBeVisible();
 });
 
-test("Scrum auto-refresh updates the table and attendance without reload or interaction loss", async ({ page }) => {
+test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ page }, testInfo) => {
+  testInfo.setTimeout(180000);
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0, sessionUserId: 1 };
+  const linkedState = linkedDiagramPerformanceState(96, 257);
+  const linkedSource = `data:image/svg+xml,${encodeURIComponent(buildAnnotationSvg(linkedState))}`;
+  const detailSource = `data:image/svg+xml,${encodeURIComponent(buildAnnotationSvg(linkedDiagramPerformanceState(12, 20)))}`;
+  appState.blogs.push(
+    linkedDiagramDocument(77, "RTE Linked Diagram Performance", linkedSource, "2026-07-31T12:00:00Z"),
+    linkedDiagramDocument(78, "RTE Linked Diagram Details", detailSource, "2026-07-31T11:00:00Z"),
+    {
+      ...linkedDiagramDocument(79, "Private Diagram From Another User", detailSource, "2026-07-31T13:00:00Z"),
+      isPrivate: true,
+      createdByUserId: 2,
+      updatedByUserId: 2
+    }
+  );
+
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
+  await installApiMocks(page, appState, apiCalls);
+
+  await page.goto("/");
+  await openNavView(page, "Documentation", "Documentation");
+  await page.locator("[data-action='new-blog']").click();
+  const form = page.locator("[data-documentation-inline-editor][data-blog-id='-1']");
+  await expect(form).toBeVisible();
+  const editor = form.locator("[data-rich='bodyHtml']");
+  const linkDiagram = form.locator("[data-command='insertLinkedDiagram']");
+  const linkDiagram2 = form.locator("[data-command='insertLinkedDiagram2']");
+  await expect(linkDiagram).toHaveAttribute("title", "Insert Linked Diagram");
+  await expect(linkDiagram2).toHaveAttribute("title", "Insert Linked Diagram 2");
+  expect(await form.locator("[data-command]").evaluateAll((buttons, commands) => {
+    const indexes = commands.map(command => buttons.findIndex(button => button.dataset.command === command));
+    return indexes[1] - indexes[0];
+  }, ["insertLinkedDiagram", "insertLinkedDiagram2"])).toBe(1);
+
+  if (page.viewportSize()?.width === 1366) {
+    await saveLinkDiagramScreenshot(page, "link-diagram-and-link-diagram-2-toolbar-1366x768.png");
+  }
+
+  await linkDiagram.click();
+  let picker = page.locator(".pmt-diagram-ole-picker-dialog");
+  await expect(picker.getByRole("heading", { name: "Insert Linked Diagram", exact: true })).toBeVisible();
+  await expect(picker.locator("[data-diagram-ole-picker-item]")).toHaveCount(2);
+  await picker.locator("[data-diagram-ole-search]").fill("performance");
+  await expect(picker.locator("[data-diagram-ole-picker-item]")).toHaveCount(1);
+  const d1PickerBox = await picker.boundingBox();
+  if (page.viewportSize()?.width === 1366) {
+    await saveLinkDiagramScreenshot(page, "link-diagram-picker-1366x768.png");
+  }
+  await picker.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await linkDiagram2.click();
+  picker = page.locator(".pmt-diagram-ole-picker-dialog");
+  await expect(picker.getByRole("heading", { name: "Insert Linked Diagram 2", exact: true })).toBeVisible();
+  await expect(picker.locator("[data-diagram-ole-picker-item]")).toHaveCount(2);
+  const d2PickerBox = await picker.boundingBox();
+  expect(d2PickerBox.width).toBeCloseTo(d1PickerBox.width, 0);
+  expect(d2PickerBox.height).toBeCloseTo(d1PickerBox.height, 0);
+  await picker.locator("[data-diagram-ole-search]").fill("performance");
+  if (page.viewportSize()?.width === 1366) {
+    await saveLinkDiagramScreenshot(page, "link-diagram-2-picker-1366x768.png");
+  }
+  await picker.locator("[data-diagram-ole-picker-item][data-id='77']").click();
+  const d2InsertStarted = await page.evaluate(() => performance.now());
+  await picker.getByRole("button", { name: "Insert Linked Diagram 2", exact: true }).click();
+
+  const d2Block = editor.locator("[data-pmt-ole='diagram2']");
+  await expect(d2Block).toHaveCount(1);
+  await expect(d2Block.locator("svg[data-diagram2-svg]")).toBeVisible();
+  await expect(d2Block.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram 2: RTE Linked Diagram Performance");
+  const interactiveSettleDuration = await page.evaluate(started => performance.now() - started, d2InsertStarted);
+  const firstFrameDuration = await d2Block.locator("svg[data-diagram2-svg]").evaluate(svg =>
+    Number(svg.dataset.diagram2LastFrameDuration || 0)
+  );
+  expect(firstFrameDuration).toBeLessThanOrEqual(500);
+  expect(interactiveSettleDuration).toBeLessThanOrEqual(500);
+
+  await editor.evaluate(element => {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    element.focus();
+  });
+  await linkDiagram.click();
+  picker = page.locator(".pmt-diagram-ole-picker-dialog");
+  await picker.locator("[data-diagram-ole-picker-item][data-id='77']").click();
+  await picker.getByRole("button", { name: "Insert Linked Diagram", exact: true }).click();
+
+  const d1Block = editor.locator("[data-pmt-ole='diagram']");
+  await expect(d1Block).toHaveCount(1);
+  await expect(d1Block.locator("svg[data-diagram-ole-media]")).toBeVisible();
+  await expect(d1Block.locator("svg[data-diagram2-svg]")).toHaveCount(0);
+  await expect(d2Block.locator("[data-diagram-ole-media]")).toHaveCount(0);
+  const wrapperBoxes = await Promise.all([d1Block.boundingBox(), d2Block.boundingBox()]);
+  expect(Math.abs(wrapperBoxes[0].width - wrapperBoxes[1].width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(wrapperBoxes[0].height - wrapperBoxes[1].height)).toBeLessThanOrEqual(2);
+
+  if (page.viewportSize()?.width === 1920) {
+    await revealLinkedDiagramForScreenshot(page, d1Block);
+    await saveLinkDiagramScreenshot(page, "link-diagram-d1-viewer-1920x1080.png");
+    await revealLinkedDiagramForScreenshot(page, d2Block);
+    await saveLinkDiagramScreenshot(page, "link-diagram-2-d2-viewer-1920x1080.png");
+    await saveLinkDiagramScreenshot(page, "link-diagram-2-large-diagram-1920x1080.png");
+  }
+
+  const interactionMetrics = await d2Block.evaluate(async block => {
+    const rendererSvg = block.querySelector("svg[data-diagram2-svg]");
+    const initialFullRenders = Number(rendererSvg.dataset.diagram2FullRenderCount || 0);
+    const samples = [];
+    for (let index = 0; index < 20; index += 1) {
+      const started = performance.now();
+      block.querySelector(index % 2 ? "[data-diagram-ole-zoom-out]" : "[data-diagram-ole-zoom-in]").click();
+      await new Promise(resolve => requestAnimationFrame(() => resolve()));
+      if (index >= 4) samples.push(performance.now() - started);
+    }
+    samples.sort((left, right) => left - right);
+    return {
+      buttonP95: samples[Math.ceil(samples.length * 0.95) - 1],
+      fullRenderDelta: Number(rendererSvg.dataset.diagram2FullRenderCount || 0) - initialFullRenders,
+      reroutesDuringSettle: Number(rendererSvg.dataset.diagram2RoutesRecalculatedDuringSettle || 0)
+    };
+  });
+  expect(interactionMetrics.buttonP95).toBeLessThanOrEqual(50);
+  expect(interactionMetrics.buttonP95).toBeLessThanOrEqual(100);
+  expect(interactionMetrics.fullRenderDelta).toBe(0);
+  expect(interactionMetrics.reroutesDuringSettle).toBe(0);
+
+  const d2Viewport = d2Block.locator("[data-diagram-ole-viewport]");
+  const beforeWheel = await d2Block.locator("svg[data-diagram2-svg]").getAttribute("data-diagram2-viewport-matrix");
+  await d2Viewport.hover({ position: { x: 260, y: 160 } });
+  await page.mouse.wheel(0, -120);
+  await expect.poll(() => d2Block.locator("svg[data-diagram2-svg]").getAttribute("data-diagram2-viewport-matrix"))
+    .not.toBe(beforeWheel);
+  const viewportBox = await d2Viewport.boundingBox();
+  await d2Viewport.evaluate(viewport => {
+    const renderer = viewport.querySelector("svg[data-diagram2-svg]");
+    const probe = {
+      beforeFullRenders: Number(renderer?.dataset.diagram2FullRenderCount || 0),
+      handler: null,
+      samples: [],
+      seen: 0
+    };
+    probe.handler = () => {
+      const started = performance.now();
+      requestAnimationFrame(() => {
+        if (probe.seen >= 4) probe.samples.push(performance.now() - started);
+        probe.seen += 1;
+      });
+    };
+    viewport.addEventListener("pointermove", probe.handler);
+    window.__pmtLinkedDiagram2PanProbe = probe;
+  });
+  await page.mouse.move(viewportBox.x + 280, viewportBox.y + 180);
+  await page.mouse.down();
+  for (let index = 0; index < 20; index += 1) {
+    await page.mouse.move(
+      viewportBox.x + 250 + (index % 2 ? -18 : 18),
+      viewportBox.y + 200 + (index % 3 ? -12 : 12)
+    );
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+  }
+  await page.mouse.up();
+  await expect(d2Viewport).not.toHaveClass(/is-panning/);
+  const panMetrics = await d2Viewport.evaluate(viewport => {
+    const probe = window.__pmtLinkedDiagram2PanProbe;
+    viewport.removeEventListener("pointermove", probe.handler);
+    const samples = [...probe.samples].sort((left, right) => left - right);
+    const renderer = viewport.querySelector("svg[data-diagram2-svg]");
+    delete window.__pmtLinkedDiagram2PanProbe;
+    return {
+      p95: samples[Math.ceil(samples.length * 0.95) - 1],
+      fullRenderDelta: Number(renderer?.dataset.diagram2FullRenderCount || 0) - probe.beforeFullRenders,
+      reroutesDuringSettle: Number(renderer?.dataset.diagram2RoutesRecalculatedDuringSettle || 0)
+    };
+  });
+  expect(panMetrics.p95).toBeLessThanOrEqual(50);
+  expect(panMetrics.fullRenderDelta).toBe(0);
+  expect(panMetrics.reroutesDuringSettle).toBe(0);
+  const fitDuration = await d2Block.evaluate(async block => {
+    const started = performance.now();
+    block.querySelector("[data-diagram-ole-fit]").click();
+    await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    return performance.now() - started;
+  });
+  expect(fitDuration).toBeLessThanOrEqual(100);
+  await d2Block.locator("[data-diagram-ole-reset]").click();
+
+  await d2Block.locator("[data-diagram-ole-add-tab]").click();
+  picker = page.locator(".pmt-diagram-ole-picker-dialog");
+  await picker.locator("[data-diagram-ole-picker-item][data-id='78']").click();
+  await picker.getByRole("button", { name: "Add Tab", exact: true }).click();
+  await expect(d2Block.locator("[data-diagram-ole-tab]")).toHaveCount(2);
+  await expect(d2Block.locator("[data-diagram-ole-tab].is-active")).toContainText("RTE Linked Diagram Details");
+  if (page.viewportSize()?.width === 1920) {
+    await revealLinkedDiagramForScreenshot(page, d2Block);
+    await saveLinkDiagramScreenshot(page, "link-diagram-2-tabs-1920x1080.png");
+  }
+  const tabSwitchStarted = await page.evaluate(() => performance.now());
+  await d2Block.locator("[data-diagram-ole-tab]", { hasText: "RTE Linked Diagram Performance" }).click();
+  await expect(d2Block.locator("[data-diagram-ole-tab].is-active")).toContainText("RTE Linked Diagram Performance");
+  await expect(d2Block.locator("svg[data-diagram2-svg]")).toBeVisible();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+  const tabSwitchDuration = await page.evaluate(started => performance.now() - started, tabSwitchStarted);
+  expect(tabSwitchDuration).toBeLessThanOrEqual(500);
+  await d2Block.locator("[data-diagram-ole-tab]", { hasText: "RTE Linked Diagram Details" }).click();
+  await expect(d2Block.locator("[data-diagram-ole-tab].is-active")).toContainText("RTE Linked Diagram Details");
+  await expect(d2Block.locator("svg[data-diagram2-svg]")).toBeVisible();
+
+  console.log("RTE_LINK_DIAGRAM2_PERFORMANCE", JSON.stringify({
+    viewport: page.viewportSize(),
+    entityCount: 96,
+    relationshipCount: 257,
+    firstFrameDuration,
+    interactiveSettleDuration,
+    zoomP95: interactionMetrics.buttonP95,
+    panP95: panMetrics.p95,
+    fitDuration,
+    tabSwitchDuration,
+    fullRenderDelta: interactionMetrics.fullRenderDelta + panMetrics.fullRenderDelta,
+    unrelatedReroutes: Math.max(interactionMetrics.reroutesDuringSettle, panMetrics.reroutesDuringSettle)
+  }));
+
+  await d2Block.locator("[data-diagram-ole-maximize]").click();
+  await expect(d2Block).toHaveClass(/is-maximized/);
+  await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
+  if (page.viewportSize()?.width === 1920) {
+    await saveLinkDiagramScreenshot(page, "link-diagram-2-maximized-1920x1080.png");
+  }
+  await d2Block.press("Escape");
+  await expect(d2Block).not.toHaveClass(/is-maximized/);
+
+  await form.locator("[name='title']").fill("RTE Link Diagram 2 Browser Test");
+  await form.locator("[data-action='save-documentation-inline-edit']").first().click();
+  await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(1);
+  const savedHtml = apiCalls.blogCreates[0].bodyHtml;
+  expect(savedHtml).toContain('data-pmt-ole="diagram"');
+  expect(savedHtml).toContain('data-pmt-ole="diagram2"');
+  expect(savedHtml).toContain('data-diagram-renderer="2"');
+  expect(savedHtml).not.toContain("data-diagram2-svg");
+  expect(savedHtml).not.toContain("data-diagram2-linked-renderer-host");
+
+  const savedBlog = appState.blogs.find(blog => blog.title === "RTE Link Diagram 2 Browser Test");
+  await openNavView(page, "Documentation", "Documentation");
+  const savedCard = page.locator(`.documentation-card[data-id='${savedBlog.id}']`);
+  if (await savedCard.count()) await savedCard.click();
+  else await page.locator(`.documentation-tree-document[data-id='${savedBlog.id}']`).click();
+  const readOnly = page.locator(".documentation-tree-preview-body");
+  await expect(readOnly).toBeVisible();
+  await expect(readOnly.locator("[data-pmt-ole='diagram2'] svg[data-diagram2-svg]")).toBeVisible();
+  await expect(readOnly.locator("[data-pmt-ole='diagram'] svg[data-diagram-ole-media]")).toBeVisible();
+
+  const diagnostics = await page.evaluate(() => ({ ...window.__pmtLinkedDiagram2Diagnostics }));
+  expect(diagnostics.linkedDiagram2RendererCreateCount).toBeGreaterThan(0);
+  expect(diagnostics.linkedDiagram2RendererCreateCount)
+    .toBe(diagnostics.linkedDiagram2RendererDestroyCount + diagnostics.linkedDiagram2RendererLiveCount);
+  expect(browserErrors).toEqual([]);
+});
+
+test("Scrum auto-refresh updates the table and attendance without reload or interaction loss", async ({ page }, testInfo) => {
+  testInfo.setTimeout(180000);
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 1, stateGets: 0 };
-  const linkedDiagramSvg = buildAnnotationSvg({ width: 420, height: 240, objects: [] });
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+  const linkedDiagramSvg = buildAnnotationSvg(linkedDiagramPerformanceState(96, 257));
   const linkedDiagramSource = `data:image/svg+xml,${encodeURIComponent(linkedDiagramSvg)}`;
-  const linkedDiagramPageSvg = buildAnnotationSvg({ width: 360, height: 220, objects: [] });
+  const linkedDiagramPageSvg = buildAnnotationSvg(linkedDiagramPerformanceState(96, 257));
   const linkedDiagramPageSource = `data:image/svg+xml,${encodeURIComponent(linkedDiagramPageSvg)}`;
   const linkedDiagramTabs = JSON.stringify([
     { id: "scrum-tab-one", diagramId: 77, title: "Overview", view: { x: -42, y: -24, zoom: 0.5 } },
@@ -1012,6 +1290,13 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   const singleLinkedDiagramTabs = JSON.stringify([
     { id: "scrum-single-tab", diagramId: 77, title: "Single", view: { x: -10, y: -8, zoom: 0.6 } }
   ]);
+  const linkedDiagram2Tabs = JSON.stringify([
+    { id: "scrum-d2-tab-one", diagramId: 77, title: "Overview", view: { x: -32, y: -20, zoom: 0.55 } },
+    { id: "scrum-d2-tab-two", diagramId: 78, title: "Details", view: { x: -16, y: -10, zoom: 0.7 } }
+  ]);
+  const scrumLinkedDiagramHtml = `<figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-auto-refresh-ole" data-active-tab-id="scrum-tab-one" data-tabs='${linkedDiagramTabs}' data-view-width="420" data-view-height="240" data-view-x="-42" data-view-y="-24" data-view-zoom="0.5" style="width: 420px; height: 240px;"><figcaption>Linked Diagram tabs</figcaption></figure>`;
+  const scrumLinkedDiagram2Html = `<figure class="pmt-diagram-ole pmt-diagram2-ole" contenteditable="false" data-pmt-ole="diagram2" data-diagram-renderer="2" data-diagram-id="77" data-block-id="scrum-auto-refresh-d2-ole" data-active-tab-id="scrum-d2-tab-one" data-tabs='${linkedDiagram2Tabs}' data-view-width="460" data-view-height="280" data-view-x="-32" data-view-y="-20" data-view-zoom="0.55" style="width: 460px; height: 280px;"><figcaption>Linked Diagram 2 tabs</figcaption></figure>`;
+  const scrumSingleLinkedDiagramHtml = `<figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-single-ole" data-active-tab-id="scrum-single-tab" data-tabs='${singleLinkedDiagramTabs}' data-view-width="360" data-view-height="220" data-view-x="-10" data-view-y="-8" data-view-zoom="0.6" style="width: 360px; height: 220px;"><figcaption>Linked Diagram #77</figcaption></figure>`;
   const scrumCollapsibleHtml = `<details class="rich-collapsible-block" data-collapsible-id="scrum-refresh-collapsible" data-collapsible-readonly-open="false"><summary><span class="rich-collapsible-title">Refresh notes</span></summary><div class="rich-collapsible-content"><p>Keep the collapsible open across refresh.</p></div></details>`;
   const scrumCodeBlockHtml = `<details class="rich-code-block" data-code-block-id="scrum-refresh-code"><summary><span class="rich-code-caption">Refresh code</span></summary><pre><code>SELECT 1;</code></pre></details>`;
   appState.blogs.push({
@@ -1042,7 +1327,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
       userId: 2,
       logDate: smokeToday,
       bodyHtml: index === 0
-        ? `<p>Existing Bill Scrum row ${index + 1}</p><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-auto-refresh-ole" data-active-tab-id="scrum-tab-one" data-tabs='${linkedDiagramTabs}' data-view-width="420" data-view-height="240" data-view-x="-42" data-view-y="-24" data-view-zoom="0.5" style="width: 420px; height: 240px;"><figcaption>Linked Diagram tabs</figcaption></figure><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-single-ole" data-active-tab-id="scrum-single-tab" data-tabs='${singleLinkedDiagramTabs}' data-view-width="360" data-view-height="220" data-view-x="-10" data-view-y="-8" data-view-zoom="0.6" style="width: 360px; height: 220px;"><figcaption>Linked Diagram #77</figcaption></figure>${scrumCollapsibleHtml}${scrumCodeBlockHtml}`
+        ? `<p>Existing Bill Scrum row ${index + 1}</p>${scrumLinkedDiagramHtml}${scrumLinkedDiagram2Html}${scrumSingleLinkedDiagramHtml}${scrumCollapsibleHtml}${scrumCodeBlockHtml}`
         : `<p>Existing Bill Scrum row ${index + 1}</p>`,
       isPinned: false,
       createdAt: `${smokeToday}T00:00:00Z`,
@@ -1067,6 +1352,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await openNavView(page, "Scrum", "Scrum");
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
   const linkedDiagramOle = page.locator(".scrum-table [data-block-id='scrum-auto-refresh-ole']");
+  const linkedDiagram2Ole = page.locator(".scrum-table [data-block-id='scrum-auto-refresh-d2-ole']");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] svg[data-diagram-ole-media]")).toBeVisible();
   await expect(linkedDiagramOle.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram tabs");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab]")).toHaveCount(2);
@@ -1110,6 +1396,91 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
     /^translate\((-?\d+(?:\.\d+)?)px, (-?\d+(?:\.\d+)?)px\) scale\((\d+(?:\.\d+)?)\)$/
   ).slice(1).map(Number);
   await expect(page.locator(".scrum-table [data-block-id='scrum-single-ole'] [data-diagram-ole-tab]")).toHaveCount(0);
+
+  await expect(linkedDiagram2Ole.locator("[data-diagram-ole-viewport] svg[data-diagram2-svg]")).toBeVisible();
+  await expect(linkedDiagram2Ole.locator("svg[data-diagram2-svg]")).toHaveCount(1);
+  await expect(linkedDiagram2Ole.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram 2 tabs");
+  await expect(linkedDiagram2Ole.locator("[data-diagram-ole-tab]")).toHaveCount(2);
+  await linkedDiagram2Ole.locator("[data-diagram-ole-tab]", { hasText: "Details" }).click();
+  await expect(linkedDiagram2Ole.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
+  await linkedDiagram2Ole.locator("[data-diagram-ole-zoom-in]").click();
+  await linkedDiagram2Ole.locator("[data-diagram-ole-zoom-in]").click();
+  const linkedDiagram2Viewport = linkedDiagram2Ole.locator("[data-diagram-ole-viewport]");
+  const linkedDiagram2ViewportBox = await linkedDiagram2Viewport.boundingBox();
+  expect(linkedDiagram2ViewportBox).toBeTruthy();
+  await page.mouse.move(
+    linkedDiagram2ViewportBox.x + (linkedDiagram2ViewportBox.width * 0.68),
+    linkedDiagram2ViewportBox.y + (linkedDiagram2ViewportBox.height * 0.32)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    linkedDiagram2ViewportBox.x + (linkedDiagram2ViewportBox.width * 0.68) - 54,
+    linkedDiagram2ViewportBox.y + (linkedDiagram2ViewportBox.height * 0.32) + 36,
+    { steps: 6 }
+  );
+  await page.mouse.up();
+  await linkedDiagram2Ole.evaluate(block => {
+    block.style.width = "500px";
+    block.style.height = "310px";
+    block.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+  });
+  const readLinkedDiagram2State = () => linkedDiagram2Ole.evaluate(block => {
+    const bounds = block.getBoundingClientRect();
+    const renderer = block.querySelector("svg[data-diagram2-svg]");
+    const matrixText = renderer?.dataset.diagram2ViewportMatrix
+      || renderer?.dataset.diagram2CommittedMatrix
+      || renderer?.querySelector(":scope > g[data-diagram2-viewport-plane]")?.getAttribute("transform")
+      || "";
+    const matrix = matrixText.match(/^matrix\(([^)]+)\)$/)?.[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number) || [];
+    const tabs = JSON.parse(block.dataset.tabs || "[]");
+    const activeTab = tabs.find(tab => tab.id === block.dataset.activeTabId);
+    const currentView = {
+      x: Number(block.dataset.currentViewX ?? activeTab?.currentView?.x),
+      y: Number(block.dataset.currentViewY ?? activeTab?.currentView?.y),
+      zoom: Number(block.dataset.currentViewZoom ?? activeTab?.currentView?.zoom)
+    };
+    const hasCurrentView = Number.isFinite(currentView.x)
+      && Number.isFinite(currentView.y)
+      && Number.isFinite(currentView.zoom)
+      && currentView.zoom > 0;
+    return {
+      activeTabId: block.dataset.activeTabId,
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height),
+      x: hasCurrentView ? currentView.x : matrix[4],
+      y: hasCurrentView ? currentView.y : matrix[5],
+      zoom: hasCurrentView ? currentView.zoom : matrix[0],
+      header: block.querySelector("[data-diagram-ole-header]")?.textContent || "",
+      rendererRoots: block.querySelectorAll("svg[data-diagram2-svg]").length
+    };
+  });
+  let linkedDiagram2StateBeforeRefresh = await readLinkedDiagram2State();
+  expect(linkedDiagram2StateBeforeRefresh.rendererRoots).toBe(1);
+  expect(linkedDiagram2StateBeforeRefresh.activeTabId).toBe("scrum-d2-tab-two");
+  const assertLinkedDiagram2StatePreserved = async () => {
+    await page.clock.runFor(32);
+    await expect(linkedDiagram2Ole.locator("svg[data-diagram2-svg]")).toHaveCount(1);
+    await expect(linkedDiagram2Ole.locator("canvas")).toHaveCount(0);
+    await expect(linkedDiagram2Ole.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
+    const current = await readLinkedDiagram2State();
+    const viewMessage = JSON.stringify({ current, before: linkedDiagram2StateBeforeRefresh });
+    expect(Math.abs(current.x - linkedDiagram2StateBeforeRefresh.x), viewMessage).toBeLessThanOrEqual(2);
+    expect(Math.abs(current.y - linkedDiagram2StateBeforeRefresh.y), viewMessage).toBeLessThanOrEqual(2);
+    expect(Math.abs(current.zoom - linkedDiagram2StateBeforeRefresh.zoom), viewMessage).toBeLessThanOrEqual(0.001);
+    expect(current.width, JSON.stringify(current)).toBe(linkedDiagram2StateBeforeRefresh.width);
+    expect(current.height, JSON.stringify(current)).toBe(linkedDiagram2StateBeforeRefresh.height);
+    expect(current.header).toBe(linkedDiagram2StateBeforeRefresh.header);
+    await expect(linkedDiagramOle.locator("svg[data-diagram-ole-media]")).toHaveCount(1);
+    await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
+    const diagnostics = await page.evaluate(() => ({ ...window.__pmtLinkedDiagram2Diagnostics }));
+    expect(diagnostics.linkedDiagram2RendererCreateCount)
+      .toBe(diagnostics.linkedDiagram2RendererDestroyCount + diagnostics.linkedDiagram2RendererLiveCount);
+    expect(diagnostics.linkedDiagram2RendererLiveCount).toBe(1);
+    expect(diagnostics.linkedDiagram2ResourceReleaseCount).toBe(diagnostics.linkedDiagram2RendererDestroyCount);
+  };
   const refreshCollapsible = page.locator(".scrum-table [data-collapsible-id='scrum-refresh-collapsible']");
   await expect(refreshCollapsible).toHaveCount(1);
   await expect(refreshCollapsible.locator(".rich-collapsible-actions")).toHaveCount(0);
@@ -1125,6 +1496,23 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect.poll(() => refreshCodeBlock.evaluate(node => node.open)).toBe(true);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-rich-code-open:devLog:100:bodyHtml:id:scrum-refresh-code")))
     .toBe("true");
+
+  await linkedDiagram2Viewport.scrollIntoViewIfNeeded();
+  await linkedDiagram2Viewport.focus();
+  const stateGetsWhileDiagram2Focused = apiCalls.stateGets;
+  await page.clock.fastForward(5000);
+  expect(apiCalls.stateGets).toBe(stateGetsWhileDiagram2Focused);
+
+  const linkedDiagram2PanBox = await linkedDiagram2Viewport.boundingBox();
+  await page.mouse.move(linkedDiagram2PanBox.x + 200, linkedDiagram2PanBox.y + 120);
+  await page.mouse.down();
+  await expect(linkedDiagram2Viewport).toHaveClass(/is-panning/);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  const stateGetsWhileDiagram2Panning = apiCalls.stateGets;
+  await page.clock.fastForward(5000);
+  expect(apiCalls.stateGets).toBe(stateGetsWhileDiagram2Panning);
+  await page.mouse.up();
+  await expect(linkedDiagram2Viewport).not.toHaveClass(/is-panning/);
 
   const initialStateGets = apiCalls.stateGets;
   await page.locator("[data-action='check-in-attendance']").click();
@@ -1153,6 +1541,26 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(pageActions).toHaveAttribute("open", "");
   await expect(page.locator("[data-action='toggle-scrum-auto-refresh']")).toHaveAttribute("aria-checked", "true");
 
+  await expect(linkedDiagram2Ole.locator("svg[data-diagram2-svg]")).toBeVisible();
+  await expect(linkedDiagram2Ole.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
+  await linkedDiagram2Ole.locator("[data-diagram-ole-zoom-in]").click();
+  await linkedDiagram2Ole.locator("[data-diagram-ole-zoom-in]").click();
+  const linkedDiagram2FinalPanBox = await linkedDiagram2Viewport.boundingBox();
+  await page.mouse.move(linkedDiagram2FinalPanBox.x + 180, linkedDiagram2FinalPanBox.y + 110);
+  await page.mouse.down();
+  await page.mouse.move(
+    linkedDiagram2FinalPanBox.x + 138,
+    linkedDiagram2FinalPanBox.y + 138,
+    { steps: 5 }
+  );
+  await page.mouse.up();
+  await linkedDiagram2Ole.evaluate(block => {
+    block.style.width = "500px";
+    block.style.height = "310px";
+    block.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+  });
+  linkedDiagram2StateBeforeRefresh = await readLinkedDiagram2State();
+  expect(linkedDiagram2StateBeforeRefresh.zoom).not.toBe(1);
   const scrollBefore = await page.evaluate(() => {
     const app = document.querySelector("#app");
     const tableWrap = document.querySelector(".scrum-table-wrap");
@@ -1167,7 +1575,8 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(linkedDiagramOle).toHaveClass(/is-maximized/);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-maximize]")).toHaveText("Restore");
   await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
-  await pageActionsSummary.evaluate(node => node.focus());
+  await pageActions.evaluate(menu => { menu.open = true; });
+  await pageActionsSummary.evaluate(node => node.focus({ preventScroll: true }));
 
   appState.devLogs.push({
     id: 999,
@@ -1201,6 +1610,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab]")).toHaveCount(2);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
   await expect(page.locator(".scrum-table [data-block-id='scrum-single-ole'] [data-diagram-ole-tab]")).toHaveCount(0);
+  await assertLinkedDiagram2StatePreserved();
   await expect(linkedDiagramOle).toHaveClass(/is-maximized/);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-maximize]")).toHaveText("Restore");
   await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
@@ -1237,6 +1647,29 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await linkedDiagramOle.locator("[data-diagram-ole-maximize]").evaluate(button => button.click());
   await expect(linkedDiagramOle).not.toHaveClass(/is-maximized/);
   await expect(page.locator("body")).not.toHaveClass(/has-pmt-diagram-ole-maximized/);
+
+  for (let cycle = 2; cycle <= 12; cycle += 1) {
+    const stateGetsBeforeCycle = apiCalls.stateGets;
+    await page.clock.fastForward(5000);
+    await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeCycle + 1);
+    await assertLinkedDiagram2StatePreserved();
+  }
+  const linkedDiagram2Diagnostics = await page.evaluate(() => ({ ...window.__pmtLinkedDiagram2Diagnostics }));
+  expect(linkedDiagram2Diagnostics.linkedDiagram2ScrumRehydrateCount).toBeGreaterThanOrEqual(12);
+  expect(linkedDiagram2Diagnostics.linkedDiagram2RendererCreateCount)
+    .toBe(linkedDiagram2Diagnostics.linkedDiagram2RendererDestroyCount + 1);
+  console.log("RTE_LINK_DIAGRAM2_SCRUM_SOAK", JSON.stringify({
+    viewport: page.viewportSize(),
+    refreshCycles: 12,
+    ...linkedDiagram2Diagnostics
+  }));
+  await expect(linkedDiagram2Viewport).not.toHaveClass(/is-panning/);
+  await expect(page.locator("body")).not.toHaveClass(/has-pmt-diagram-ole-maximized/);
+  expect(browserErrors).toEqual([]);
+  if (page.viewportSize()?.width === 1920) {
+    await linkedDiagram2Ole.scrollIntoViewIfNeeded();
+    await saveLinkDiagramScreenshot(page, "link-diagram-2-scrum-after-refresh-1920x1080.png");
+  }
 
   await page.locator("[data-action='toggle-scrum-auto-refresh']").click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-auto-refresh"))).toBe("false");
@@ -8030,6 +8463,99 @@ function wfhRowCompare(a, b) {
   return (a.sortOrder || 0) - (b.sortOrder || 0)
     || String(a.nickname || "").localeCompare(String(b.nickname || ""))
     || (a.userId || 0) - (b.userId || 0);
+}
+
+const linkDiagramScreenshotDirectory = fileURLToPath(
+  new URL("../../docs/screenshots/link-diagram-2/", import.meta.url)
+);
+
+async function saveLinkDiagramScreenshot(page, fileName) {
+  await mkdir(linkDiagramScreenshotDirectory, { recursive: true });
+  await page.screenshot({
+    path: `${linkDiagramScreenshotDirectory}/${fileName}`,
+    animations: "disabled"
+  });
+}
+
+async function revealLinkedDiagramForScreenshot(page, block) {
+  await block.evaluate(element => {
+    element.scrollIntoView({ block: "start" });
+    let scrollParent = element.parentElement;
+    while (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight) {
+      scrollParent = scrollParent.parentElement;
+    }
+    const delta = element.getBoundingClientRect().top - 120;
+    if (scrollParent) scrollParent.scrollTop += delta;
+    else window.scrollBy(0, delta);
+  });
+}
+
+function linkedDiagramDocument(id, title, source, updatedAt) {
+  return {
+    id,
+    projectId: 10,
+    sprintId: 101,
+    title,
+    bodyHtml: `<p><img src="${source}" alt="${title}" data-pmt-diagram="true" data-pmt-annotation-version="1"></p>`,
+    isPrivate: false,
+    createdByUserId: 1,
+    updatedByUserId: 1,
+    createdAt: updatedAt,
+    updatedAt,
+    attachments: []
+  };
+}
+
+function linkedDiagramPerformanceState(entityCount, relationshipCount) {
+  const columns = entityCount >= 500 ? 40 : 24;
+  const entities = Array.from({ length: entityCount }, (_value, index) => ({
+    id: `linked-entity-${index}`,
+    type: "entity",
+    x: 40 + ((index % columns) * 220),
+    y: 40 + (Math.floor(index / columns) * 180),
+    width: 180,
+    height: 120,
+    entitySchema: "pmt",
+    entityName: `LinkedEntity${index}`,
+    fields: [{
+      name: "Id",
+      dataType: "int",
+      nullable: false,
+      isPrimaryKey: true
+    }],
+    foreignKeys: []
+  }));
+
+  for (let index = 0; index < relationshipCount; index += 1) {
+    const sourceIndex = index % entityCount;
+    const targetIndex = (sourceIndex + 1 + Math.floor(index / entityCount)) % entityCount;
+    const source = entities[sourceIndex];
+    const fieldName = `Target${index}Id`;
+    source.fields.push({
+      name: fieldName,
+      dataType: "int",
+      nullable: false,
+      isForeignKey: true
+    });
+    source.foreignKeys.push({
+      name: `FK_Linked_${index}`,
+      columns: [fieldName],
+      referencedSchema: "pmt",
+      referencedTable: entities[targetIndex].entityName,
+      referencedColumns: ["Id"],
+      relationshipType: "many-to-one"
+    });
+    source.height = Math.max(source.height, 72 + (source.fields.length * 24));
+  }
+
+  return {
+    version: 1,
+    width: Math.max(1920, columns * 220),
+    height: Math.max(1080, Math.ceil(entityCount / columns) * 180),
+    manualEntityRelationshipRoutes: false,
+    compactEntityRelationshipRouting: false,
+    objects: entities
+  };
 }
 
 function createTestState() {

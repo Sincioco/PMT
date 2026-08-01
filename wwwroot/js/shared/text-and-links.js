@@ -52,7 +52,11 @@ export function normalizeCollapsibleBlocksForStorage(root) {
 
 export function normalizeDiagramOleBlocksForStorage(root) {
   const usedBlockIds = new Set();
-  matchingElements(root, "[data-pmt-ole='diagram']").forEach(block => {
+  matchingElements(root, "[data-pmt-ole='diagram'], [data-pmt-ole='diagram2']").forEach(block => {
+    const renderer = block.getAttribute("data-pmt-ole") === "diagram2"
+      || block.getAttribute("data-diagram-renderer") === "2"
+      ? "2"
+      : "1";
     const fallbackDiagramId = Number(block.getAttribute("data-diagram-id") || 0);
     const tabs = normalizeDiagramOleTabsForStorage(block, fallbackDiagramId);
     if (!tabs.length) {
@@ -70,9 +74,11 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     const header = diagramOleHeaderForStorage(block, activeTab, tabs);
     const width = Math.max(320, Math.round(Number(block.style.width?.replace("px", "") || block.getAttribute("data-view-width") || 900) || 900));
     const height = Math.max(220, Math.round(Number(block.style.height?.replace("px", "") || block.getAttribute("data-view-height") || 520) || 520));
-    block.className = "pmt-diagram-ole";
+    block.className = renderer === "2" ? "pmt-diagram-ole pmt-diagram2-ole" : "pmt-diagram-ole";
     block.setAttribute("contenteditable", "false");
-    block.setAttribute("data-pmt-ole", "diagram");
+    block.setAttribute("data-pmt-ole", renderer === "2" ? "diagram2" : "diagram");
+    if (renderer === "2") block.setAttribute("data-diagram-renderer", "2");
+    else block.removeAttribute("data-diagram-renderer");
     block.setAttribute("data-diagram-id", String(activeTab.diagramId));
     block.setAttribute("data-block-id", blockId);
     block.setAttribute("data-active-tab-id", activeTab.id);
@@ -93,6 +99,7 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     block.removeAttribute("data-diagram-ole-resize-bound");
     block.removeAttribute("data-diagram-ole-view-clamped");
     block.removeAttribute("data-diagram-ole-viewer-bound");
+    block.removeAttribute("data-diagram2-linked-field-mapping-bound");
     block.removeAttribute("data-current-view-x");
     block.removeAttribute("data-current-view-y");
     block.removeAttribute("data-current-view-zoom");

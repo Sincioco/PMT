@@ -7,7 +7,7 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260731-rte-checkbox-layout-v2";
+} from "./components/image-annotation.js?v=20260801-rte-link-diagram2-v1";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
@@ -16,7 +16,7 @@ import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-0
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
-} from "./components/user-mentions.js?v=20260722-rich-entity-mentions-v1";
+} from "./components/user-mentions.js?v=20260801-rte-link-diagram2-v1";
 import {
   askForText,
   askYesNo,
@@ -33,7 +33,7 @@ import {
   richTextField,
   richValue,
   value
-} from "./components/forms.js?v=20260722-rte-toggle-state-v1";
+} from "./components/forms.js?v=20260801-rte-link-diagram2-v1";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
@@ -72,29 +72,39 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260722-login-flyby-v1";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
-import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260801-rte-link-diagram2-v1";
+import { createBoardFeature } from "./features/board/board.js?v=20260801-rte-link-diagram2-v1";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-rte-link-diagram2-v1";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260731-rte-checkbox-layout-v2";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-readonly-fit-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-rte-link-diagram2-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-rte-link-diagram2-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-rte-link-diagram2-v1";
+import {
+  diagram2LinkedViewerViewport,
+  disposeDiagram2LinkedViewer,
+  disposeDiagram2LinkedViewers,
+  fitDiagram2LinkedViewer,
+  hydrateDiagram2LinkedViewer,
+  panDiagram2LinkedViewer,
+  restoreDiagram2LinkedViewerViewport,
+  zoomDiagram2LinkedViewer
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-rte-link-diagram2-v1";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-rte-link-diagram2-v1";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260801-rte-link-diagram2-v1";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260801-rte-link-diagram2-v1";
 import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260731-diagram1-overflow-v1";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260801-rte-link-diagram2-v1";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260801-rte-link-diagram2-v1";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260801-rte-link-diagram2-v1";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260801-rte-link-diagram2-v1";
 import { createSuggestionsFeature } from "./features/suggestions/suggestions.js?v=20260725-day36-v1";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260722-rte-toggle-state-v1";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260801-rte-link-diagram2-v1";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260720-work-item-export-images-v4";
 import {
   fallbackEnvironments,
@@ -129,7 +139,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
+} from "./shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
 import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
@@ -473,6 +483,7 @@ const scrumFeature = createScrumFeature({
   app,
   askYesNo,
   deleteItem,
+  disposeLinkedDiagrams: disposeRichDiagramOleBlocks,
   hydrateLinkedDiagrams: hydrateRichDiagramOleBlocks,
   loadState,
   openEditor,
@@ -822,6 +833,7 @@ function renderCurrentScreen() {
   if (currentView !== "Diagram 2") diagram2Feature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
+  disposeRichDiagramOleBlocks(app);
   if (registeredScreen?.render) registeredScreen.render();
   /*
   if (!state.projects.length && currentView === "Projects" && !dialog.open) {
@@ -2710,6 +2722,11 @@ function bindRichTextButtons(root) {
         return;
       }
 
+      if (command === "insertLinkedDiagram2") {
+        await insertRichLinkedDiagram(editor, savedSelection, { renderer: "2" });
+        return;
+      }
+
       document.execCommand(command, false, null);
 
       // Chrome/Chromium can ignore insertUnorderedList in an empty editor. This gives
@@ -3247,12 +3264,12 @@ function richToggleableBlockIdentity(block, options) {
 }
 
 function refreshRichDiagramOleBlocks(root) {
-  const blocks = [];
-  if (root?.matches?.("[data-pmt-ole='diagram']")) blocks.push(root);
-  root?.querySelectorAll?.("[data-pmt-ole='diagram']").forEach(block => blocks.push(block));
+  const blocks = richDiagramOleBlocks(root);
   blocks.forEach(block => {
-    delete block.dataset.diagramOleHydratedKey;
-    delete block.dataset.diagramOleViewerBound;
+    if (!richDiagramOleIsDiagram2(block)) {
+      delete block.dataset.diagramOleHydratedKey;
+      delete block.dataset.diagramOleViewerBound;
+    }
     hydrateRichDiagramOleBlock(block);
   });
   requestAnimationFrame(() => blocks.forEach(block => hydrateRichDiagramOleBlock(block)));
@@ -3854,6 +3871,7 @@ function askForRichCheckboxLabel(initialHtml = "") {
       "[data-command='insertSvg']",
       "[data-command='insertDiagram']",
       "[data-command='insertLinkedDiagram']",
+      "[data-command='insertLinkedDiagram2']",
       "[data-command='insertHorizontalRule']",
       "[data-command='insertCollapsible']",
       "[data-command='insertCodeBlock']"
@@ -5763,32 +5781,38 @@ function richUploadedDiagramHtml(upload, version) {
   return `<img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(appUrl(upload.url))}" alt="Diagram" data-pmt-annotation-version="${escapeAttr(Number(version || 1))}">`;
 }
 
-async function insertRichLinkedDiagram(editor, savedSelection) {
+async function insertRichLinkedDiagram(editor, savedSelection, options = {}) {
+  const renderer = options.renderer === "2" ? "2" : "1";
+  const featureName = renderer === "2" ? "Linked Diagram 2" : "Linked Diagram";
   try {
     await loadState();
-    const diagram = await askForRichLinkedDiagram();
+    const diagram = await askForRichLinkedDiagram(renderer === "2"
+      ? { title: "Insert Linked Diagram 2", actionLabel: "Insert Linked Diagram 2", featureName }
+      : {});
     if (!diagram || !editor.isConnected) return;
 
     editor.focus({ preventScroll: true });
     restoreEditorSelection(savedSelection);
-    insertRichHtmlAtSelection(editor, richLinkedDiagramHtml(diagram));
+    insertRichHtmlAtSelection(editor, richLinkedDiagramHtml(diagram, { renderer }));
     hydrateRichDiagramOleBlocks(editor);
-    showToast("Linked Diagram inserted. Save the document to keep the link.");
+    showToast(`${featureName} inserted. Save the document to keep the link.`);
   } catch (error) {
-    showToast(error.message || "The linked Diagram could not be inserted.");
+    showToast(error.message || `The ${featureName.toLowerCase()} could not be inserted.`);
   }
 }
 
-function richLinkedDiagramHtml(diagram) {
+function richLinkedDiagramHtml(diagram, options = {}) {
+  const renderer = options.renderer === "2" ? "2" : "1";
+  const featureName = renderer === "2" ? "Linked Diagram 2" : "Linked Diagram";
   const blockId = createRichDiagramOleBlockId();
-  const header = `Linked Diagram: ${diagram.title || "Diagram"}`;
+  const header = `${featureName}: ${diagram.title || "Diagram"}`;
   const tab = {
     id: createRichDiagramOleTabId(),
     diagramId: Number(diagram.id),
     title: diagram.title || "Diagram"
   };
   return `
-    <figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="${escapeAttr(diagram.id)}" data-block-id="${escapeAttr(blockId)}" data-active-tab-id="${escapeAttr(tab.id)}" data-tabs="${escapeAttr(JSON.stringify([tab]))}" data-header="${escapeAttr(header)}" data-view-width="900" data-view-height="520" style="width: 900px; height: 520px;">
+    <figure class="pmt-diagram-ole${renderer === "2" ? " pmt-diagram2-ole" : ""}" contenteditable="false" data-pmt-ole="${renderer === "2" ? "diagram2" : "diagram"}"${renderer === "2" ? ` data-diagram-renderer="2"` : ""} data-diagram-id="${escapeAttr(diagram.id)}" data-block-id="${escapeAttr(blockId)}" data-active-tab-id="${escapeAttr(tab.id)}" data-tabs="${escapeAttr(JSON.stringify([tab]))}" data-header="${escapeAttr(header)}" data-view-width="900" data-view-height="520" style="width: 900px; height: 520px;">
       <figcaption>${escapeHtml(header)}</figcaption>
     </figure>
     <p><br></p>
@@ -5797,6 +5821,7 @@ function richLinkedDiagramHtml(diagram) {
 
 const diagramOleViewerSourceCache = new Map();
 const diagramOleViewerSourceLoads = new Map();
+const RICH_DIAGRAM_OLE_SELECTOR = "[data-pmt-ole='diagram'], [data-pmt-ole='diagram2']";
 const RICH_DIAGRAM_OLE_MIN_ZOOM = 0.01;
 const RICH_DIAGRAM_OLE_MAX_ZOOM = 5;
 
@@ -5909,8 +5934,11 @@ function decodeDiagramOleSvgDataUrl(sourceInput) {
 
 function askForRichLinkedDiagram(options = {}) {
   const diagrams = diagramOleDocuments();
+  const featureName = String(options.featureName || "Linked Diagram").trim() || "Linked Diagram";
   if (!diagrams.length) {
-    showToast("Create a Diagram first, then insert it as a linked Diagram.");
+    showToast(featureName === "Linked Diagram"
+      ? "Create a Diagram first, then insert it as a linked Diagram."
+      : `Create a Diagram first, then insert it as a ${featureName}.`);
     return Promise.resolve(null);
   }
 
@@ -6022,12 +6050,29 @@ function richLinkedDiagramPickerItemHtml(diagram, selected) {
 }
 
 function hydrateRichDiagramOleBlocks(root = document) {
-  const blocks = [];
-  if (root?.matches?.("[data-pmt-ole='diagram']")) blocks.push(root);
-  root?.querySelectorAll?.("[data-pmt-ole='diagram']").forEach(block => blocks.push(block));
+  const blocks = richDiagramOleBlocks(root);
   ensureRichDiagramOleBlockIds(blocks);
   blocks.forEach(hydrateRichDiagramOleBlock);
   syncRichDiagramOleMaximizedBodyClass();
+}
+
+function disposeRichDiagramOleBlocks(root = document) {
+  disposeDiagram2LinkedViewers(root);
+}
+
+function richDiagramOleBlocks(root) {
+  const blocks = [];
+  if (root?.matches?.(RICH_DIAGRAM_OLE_SELECTOR)) blocks.push(root);
+  root?.querySelectorAll?.(RICH_DIAGRAM_OLE_SELECTOR).forEach(block => blocks.push(block));
+  return blocks;
+}
+
+function richDiagramOleIsDiagram2(block) {
+  return block?.dataset?.pmtOle === "diagram2" || block?.dataset?.diagramRenderer === "2";
+}
+
+function richDiagramOleFeatureName(block) {
+  return richDiagramOleIsDiagram2(block) ? "Linked Diagram 2" : "Linked Diagram";
 }
 
 function ensureRichDiagramOleBlockIds(blocks) {
@@ -6039,6 +6084,10 @@ function ensureRichDiagramOleBlockIds(blocks) {
     if (!blockId || usedBlockIds.has(blockId)) {
       blockId = createRichDiagramOleBlockId(usedBlockIds);
       block.dataset.blockId = blockId;
+      delete block.dataset.diagramOleHydratedKey;
+      delete block.dataset.diagramOleViewerBound;
+      delete block.dataset.diagramOleResizeBound;
+      delete block.dataset.diagramOleSourceRequestKey;
     }
     usedBlockIds.add(blockId);
     usedByScope.set(scope, usedBlockIds);
@@ -6062,13 +6111,19 @@ function createRichDiagramOleTabId(usedTabIds = new Set()) {
 }
 
 function hydrateRichDiagramOleBlock(block) {
+  const diagram2 = richDiagramOleIsDiagram2(block);
+  const featureName = richDiagramOleFeatureName(block);
   let tabs = richDiagramOleTabs(block);
   let activeTab = richDiagramOleActiveTab(block, tabs);
   const width = Math.max(320, Math.round(Number(block.dataset.viewWidth || block.style.width?.replace("px", "") || 900) || 900));
   const height = Math.max(220, Math.round(Number(block.dataset.viewHeight || block.style.height?.replace("px", "") || 520) || 520));
   const editable = Boolean(block.closest(".rich-editor"));
   block.classList.add("pmt-diagram-ole");
+  block.classList.toggle("pmt-diagram2-ole", diagram2);
   block.setAttribute("contenteditable", "false");
+  block.dataset.pmtOle = diagram2 ? "diagram2" : "diagram";
+  if (diagram2) block.dataset.diagramRenderer = "2";
+  else delete block.dataset.diagramRenderer;
   block.dataset.viewWidth = String(width);
   block.dataset.viewHeight = String(height);
   block.style.width = `${width}px`;
@@ -6080,12 +6135,13 @@ function hydrateRichDiagramOleBlock(block) {
   }
 
   if (!activeTab) {
+    if (diagram2) disposeDiagram2LinkedViewer(block);
     block.classList.remove("is-maximized");
     syncRichDiagramOleMaximizedBodyClass();
     delete block.dataset.diagramOleHydratedKey;
     block.innerHTML = `
-      <figcaption class="pmt-diagram-ole-caption">Linked Diagram unavailable</figcaption>
-      <div class="pmt-diagram-ole-placeholder">This linked Diagram could not be found or you do not have permission to view it.</div>
+      <figcaption class="pmt-diagram-ole-caption">${escapeHtml(featureName)} unavailable</figcaption>
+      <div class="pmt-diagram-ole-placeholder">This ${escapeHtml(featureName.toLowerCase())} could not be found or you do not have permission to view it.</div>
     `;
     return;
   }
@@ -6094,7 +6150,7 @@ function hydrateRichDiagramOleBlock(block) {
   const title = activeTab.title || diagram?.title || "Diagram";
   const header = richDiagramOleHeader(block, activeTab, diagram);
   const sourceUrl = diagram ? diagramOleSourceUrl(diagram) : "";
-  const hydratedKey = `${block.dataset.activeTabId || activeTab.id}:${richDiagramOleTabsSignature(tabs)}:${richDiagramOleSourceSignature(tabs)}:${width}:${height}:${editable ? "edit" : "read"}`;
+  const hydratedKey = `${diagram2 ? "2" : "1"}:${block.dataset.activeTabId || activeTab.id}:${richDiagramOleTabsSignature(tabs)}:${richDiagramOleSourceSignature(tabs)}:${width}:${height}:${editable ? "edit" : "read"}`;
   block.dataset.header = header;
   if (block.dataset.diagramOleHydratedKey === hydratedKey
     && block.querySelector("[data-diagram-ole-viewport]")) {
@@ -6108,6 +6164,7 @@ function hydrateRichDiagramOleBlock(block) {
   block.dataset.diagramOleHydratedKey = hydratedKey;
   delete block.dataset.diagramOleViewerBound;
   delete block.dataset.diagramOleResizeBound;
+  if (diagram2) disposeDiagram2LinkedViewer(block);
   block.innerHTML = `
     <figcaption class="pmt-diagram-ole-caption">
       <span data-diagram-ole-header>${escapeHtml(header)}</span>
@@ -6115,29 +6172,37 @@ function hydrateRichDiagramOleBlock(block) {
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
         <button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>
         <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">Fit</button>
-        <button type="button" data-diagram-ole-maximize title="Maximize Linked Diagram viewer" aria-label="Maximize Linked Diagram viewer">Max</button>
+        <button type="button" data-diagram-ole-maximize title="Maximize ${escapeAttr(featureName)} viewer" aria-label="Maximize ${escapeAttr(featureName)} viewer">Max</button>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
-        ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-rename-header title="Rename the viewer header" aria-label="Rename Linked Diagram viewer header">Rename</button>` : ""}
-        ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change the active tab's Diagram" aria-label="Change active tab Diagram">Change</button>` : ""}
-        ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete linked Diagram" aria-label="Delete linked Diagram">&#128465;</button>` : ""}
+        ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-rename-header title="Rename the viewer header" aria-label="Rename ${escapeAttr(featureName)} viewer header">Rename</button>` : ""}
+        ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change the active tab's Diagram" aria-label="Change active ${escapeAttr(featureName)} tab Diagram">Change</button>` : ""}
+        ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete ${escapeAttr(featureName)}" aria-label="Delete ${escapeAttr(featureName)}">&#128465;</button>` : ""}
       </span>
     </figcaption>
-    ${richDiagramOleTabsHtml(tabs, activeTab.id, editable)}
-    <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} linked Diagram viewer`)}">
+    ${richDiagramOleTabsHtml(tabs, activeTab.id, editable, featureName)}
+    <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} ${featureName} viewer`)}">
       ${diagram
-        ? `<div class="pmt-diagram-ole-surface" data-diagram-ole-surface>
-            <img src="${escapeAttr(sourceUrl)}" alt="${escapeAttr(title)}" draggable="false" data-diagram-ole-media="true">
-          </div>`
-        : `<div class="pmt-diagram-ole-placeholder">This linked Diagram tab could not be found or you do not have permission to view it.</div>`}
+        ? (diagram2
+          ? `<div class="pmt-diagram-ole-surface diagram2-renderer-surface" data-diagram-ole-surface data-diagram2-linked-renderer-host></div>`
+          : `<div class="pmt-diagram-ole-surface" data-diagram-ole-surface>
+              <img src="${escapeAttr(sourceUrl)}" alt="${escapeAttr(title)}" draggable="false" data-diagram-ole-media="true">
+            </div>`)
+        : `<div class="pmt-diagram-ole-placeholder">This ${escapeHtml(featureName.toLowerCase())} tab could not be found or you do not have permission to view it.</div>`}
     </div>
   `;
 
+  if (diagram2) {
+    bindRichDiagramOleViewer(block, diagram, activeTab, tabs);
+    bindRichDiagramOleResizePersistence(block, diagram, activeTab);
+  }
   if (diagram) refreshRichDiagramOleViewerSource(block, diagram, sourceUrl, activeTab);
-  bindRichDiagramOleViewer(block, diagram, activeTab, tabs);
-  bindRichDiagramOleResizePersistence(block, diagram, activeTab);
+  if (!diagram2) {
+    bindRichDiagramOleViewer(block, diagram, activeTab, tabs);
+    bindRichDiagramOleResizePersistence(block, diagram, activeTab);
+  }
 }
 
-function richDiagramOleTabsHtml(tabs, activeTabId, editable) {
+function richDiagramOleTabsHtml(tabs, activeTabId, editable, featureName = "Linked Diagram") {
   if (!tabs.length) return "";
   if (!editable && tabs.length <= 1) return "";
   const tabButtons = tabs.map((tab, index) => {
@@ -6159,7 +6224,7 @@ function richDiagramOleTabsHtml(tabs, activeTabId, editable) {
     : "";
   return `
     <div class="pmt-diagram-ole-tabs" data-diagram-ole-tabs>
-      <div class="pmt-diagram-ole-tab-strip" role="tablist" aria-label="Linked Diagram pages">${tabButtons}</div>
+      <div class="pmt-diagram-ole-tab-strip" role="tablist" aria-label="${escapeAttr(`${featureName} pages`)}">${tabButtons}</div>
       ${editActions}
     </div>
   `;
@@ -6175,12 +6240,23 @@ function richDiagramOleHeader(block, activeTab = null, diagram = null) {
     const captionText = captionCopy.textContent.replace(/\s+/g, " ").trim();
     if (captionText) return captionText;
   }
-  return `Linked Diagram: ${activeTab?.title || diagram?.title || "Diagram"}`;
+  return `${richDiagramOleFeatureName(block)}: ${activeTab?.title || diagram?.title || "Diagram"}`;
 }
 
 function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl, activeTab = null) {
   const requestKey = `${activeTab?.id || "tab"}:${diagram?.id || 0}:${fallbackSourceUrl}:${diagramOleSourceVersion(diagram)}`;
   block.dataset.diagramOleSourceRequestKey = requestKey;
+  if (richDiagramOleIsDiagram2(block)) {
+    const surface = block.querySelector("[data-diagram-ole-surface]");
+    if (!surface) return;
+    void hydrateDiagram2LinkedViewer({
+      block,
+      host: surface,
+      source: fallbackSourceUrl,
+      sourceKey: requestKey
+    });
+    return;
+  }
   diagramOleViewerSourceUrl(diagram).then(viewerSourceUrl => {
     if (!block.isConnected || block.dataset.diagramOleSourceRequestKey !== requestKey) return;
     const surface = block.querySelector("[data-diagram-ole-surface]");
@@ -6217,6 +6293,8 @@ function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl, ac
 function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   const viewport = block.querySelector("[data-diagram-ole-viewport]");
   const surface = block.querySelector("[data-diagram-ole-surface]");
+  const diagram2 = richDiagramOleIsDiagram2(block);
+  const featureName = richDiagramOleFeatureName(block);
   if (!viewport) return;
   if (block.dataset.diagramOleViewerBound === "true") return;
   block.dataset.diagramOleViewerBound = "true";
@@ -6229,6 +6307,17 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     view.zoom = clampZoom(view.zoom);
     view.x = Math.round(Number(view.x || 0));
     view.y = Math.round(Number(view.y || 0));
+    if (diagram2) {
+      const hasMeasuredDiagram = clampRichDiagramOleViewport(block, viewport, surface, view);
+      const restoredView = restoreDiagram2LinkedViewerViewport(block, view, {
+        count: options.restore === true
+      });
+      if (restoredView) view = restoredView;
+      if (hasMeasuredDiagram && restoredView && options.remember) {
+        rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: options.notify === true });
+      }
+      return;
+    }
     const hasMeasuredDiagram = clampRichDiagramOleViewport(block, viewport, surface, view);
     surface.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
     if (hasMeasuredDiagram && options.remember) {
@@ -6237,6 +6326,15 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   };
   const zoomBy = (factor, anchor = null) => {
     if (!diagram) return;
+    if (diagram2) {
+      const currentView = diagram2LinkedViewerViewport(block) || view;
+      const nextZoom = clampZoom(currentView.zoom * factor);
+      const nextView = zoomDiagram2LinkedViewer(block, nextZoom / currentView.zoom, anchor || {});
+      if (!nextView) return;
+      view = nextView;
+      render({ remember: true, notify: true });
+      return;
+    }
     const previousZoom = clampZoom(view.zoom);
     const nextZoom = clampZoom(previousZoom * factor);
     const anchorPoint = anchor || {
@@ -6255,6 +6353,15 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   };
   const fitView = (options = {}) => {
     if (!surface || !diagram) return;
+    if (diagram2) {
+      const nextView = fitDiagram2LinkedViewer(block);
+      if (!nextView) return;
+      view = nextView;
+      if (options.remember) {
+        rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: options.notify === true });
+      }
+      return;
+    }
     const media = richDiagramOleMedia(surface);
     const mediaSize = richDiagramOleMediaSize(media);
     const viewportWidth = Math.round(viewport.clientWidth || 0);
@@ -6290,8 +6397,8 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     const button = block.querySelector("[data-diagram-ole-maximize]");
     if (button) {
       button.textContent = nextMaximized ? "Restore" : "Max";
-      button.setAttribute("aria-label", nextMaximized ? "Restore Linked Diagram viewer" : "Maximize Linked Diagram viewer");
-      button.setAttribute("title", nextMaximized ? "Restore Linked Diagram viewer" : "Maximize Linked Diagram viewer");
+      button.setAttribute("aria-label", nextMaximized ? `Restore ${featureName} viewer` : `Maximize ${featureName} viewer`);
+      button.setAttribute("title", nextMaximized ? `Restore ${featureName} viewer` : `Maximize ${featureName} viewer`);
     }
     requestAnimationFrame(() => render());
   };
@@ -6341,13 +6448,13 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     const editor = block.closest(".rich-editor");
     if (!editor) return;
     const currentHeader = richDiagramOleHeader(block, activeTab, diagram);
-    const nextHeader = String(await askForText("Viewer header", "Rename Linked Diagram Header", currentHeader) || "").trim();
+    const nextHeader = String(await askForText("Viewer header", `Rename ${featureName} Header`, currentHeader) || "").trim();
     if (!nextHeader || !editor.contains(block)) return;
     block.dataset.header = nextHeader;
     const headerNode = block.querySelector("[data-diagram-ole-header]");
     if (headerNode) headerNode.textContent = nextHeader;
     richDiagramOleDispatchInput(block);
-    showToast("Linked Diagram header renamed. Save the record to keep it.");
+    showToast(`${featureName} header renamed. Save the record to keep it.`);
   });
   block.querySelector("[data-diagram-ole-add-tab]")?.addEventListener("click", async event => {
     event.preventDefault();
@@ -6356,8 +6463,9 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     const editor = block.closest(".rich-editor");
     if (!editor) return;
     const nextDiagram = await askForRichLinkedDiagram({
-      title: "Add Linked Diagram Tab",
-      actionLabel: "Add Tab"
+      title: `Add ${featureName} Tab`,
+      actionLabel: "Add Tab",
+      featureName
     });
     if (!nextDiagram || !editor.contains(block)) return;
 
@@ -6371,7 +6479,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     nextTabs.push(nextTab);
     richDiagramOleWriteTabs(block, nextTabs, nextTab.id, { includeCurrent: true });
     rehydrateRichDiagramOleBlock(block, { notify: true });
-    showToast("Linked Diagram tab added. Save the record to keep it.");
+    showToast(`${featureName} tab added. Save the record to keep it.`);
   });
   block.querySelector("[data-diagram-ole-rename-tab]")?.addEventListener("click", async event => {
     event.preventDefault();
@@ -6382,12 +6490,12 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     const nextTabs = richDiagramOleTabs(block);
     const tab = richDiagramOleActiveTab(block, nextTabs);
     if (!tab) return;
-    const nextTitle = String(await askForText("Tab name", "Rename Linked Diagram Tab", tab.title || "Diagram") || "").trim();
+    const nextTitle = String(await askForText("Tab name", `Rename ${featureName} Tab`, tab.title || "Diagram") || "").trim();
     if (!nextTitle || !editor.contains(block)) return;
     tab.title = nextTitle;
     richDiagramOleWriteTabs(block, nextTabs, tab.id, { includeCurrent: true });
     rehydrateRichDiagramOleBlock(block, { notify: true });
-    showToast("Linked Diagram tab renamed. Save the record to keep it.");
+    showToast(`${featureName} tab renamed. Save the record to keep it.`);
   });
   block.querySelector("[data-diagram-ole-move-tab-left]")?.addEventListener("click", event => {
     event.preventDefault();
@@ -6409,17 +6517,17 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     const tab = richDiagramOleActiveTab(block, nextTabs);
     if (!tab) return;
     if (nextTabs.length <= 1) {
-      showToast("A Linked Diagram viewer needs at least one tab. Use the trash button to remove the whole viewer.");
+      showToast(`A ${featureName} viewer needs at least one tab. Use the trash button to remove the whole viewer.`);
       return;
     }
-    const confirmed = await askYesNo(`Delete the "${tab.title || "Diagram"}" tab?`, "Delete Linked Diagram Tab", "Delete Tab");
+    const confirmed = await askYesNo(`Delete the "${tab.title || "Diagram"}" tab?`, `Delete ${featureName} Tab`, "Delete Tab");
     if (!confirmed || !editor.contains(block)) return;
     const index = nextTabs.findIndex(item => item.id === tab.id);
     nextTabs.splice(index, 1);
     const nextActive = nextTabs[Math.max(0, Math.min(index, nextTabs.length - 1))];
     richDiagramOleWriteTabs(block, nextTabs, nextActive?.id, { includeCurrent: true });
     rehydrateRichDiagramOleBlock(block, { notify: true });
-    showToast("Linked Diagram tab deleted. Save the record to keep it.");
+    showToast(`${featureName} tab deleted. Save the record to keep it.`);
   });
   block.querySelector("[data-diagram-ole-change]")?.addEventListener("click", async event => {
     event.preventDefault();
@@ -6429,8 +6537,9 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     if (!editor) return;
     const nextDiagram = await askForRichLinkedDiagram({
       selectedId: diagram?.id || activeTab?.diagramId,
-      title: "Change Linked Diagram Tab",
-      actionLabel: "Change Tab Diagram"
+      title: `Change ${featureName} Tab`,
+      actionLabel: "Change Tab Diagram",
+      featureName
     });
     if (!nextDiagram || !editor.contains(block)) return;
 
@@ -6444,7 +6553,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     richDiagramOleWriteTabs(block, nextTabs, tab.id, { includeCurrent: true });
     clearRichDiagramOleSavedView(block, tab);
     rehydrateRichDiagramOleBlock(block, { notify: true });
-    showToast("Linked Diagram tab changed. Save the record to keep it.");
+    showToast(`${featureName} tab changed. Save the record to keep it.`);
   });
   ["pointerdown", "pointermove", "pointerup", "pointercancel", "click", "dblclick"].forEach(eventName => {
     viewport.addEventListener(eventName, event => event.stopPropagation());
@@ -6471,7 +6580,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   });
   viewport.addEventListener("pointerdown", event => {
     if ((event.button !== 0 && event.button !== 1) || event.target.closest("button")) return;
-    if (event.target.closest?.("[data-annotation-field-mapping-cell]")) return;
+    if (event.target.closest?.("[data-annotation-field-mapping-cell], [data-diagram2-field-mapping-cell]")) return;
     if (richDiagramOlePointerIsInResizeCorner(block, event)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -6480,7 +6589,9 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
       startX: event.clientX,
       startY: event.clientY,
       viewX: view.x,
-      viewY: view.y
+      viewY: view.y,
+      lastX: event.clientX,
+      lastY: event.clientY
     };
     viewport.setPointerCapture?.(event.pointerId);
     viewport.classList.add("is-panning");
@@ -6488,6 +6599,16 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   viewport.addEventListener("pointermove", event => {
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault();
+    if (diagram2) {
+      const nextView = panDiagram2LinkedViewer(block, event.clientX - drag.lastX, event.clientY - drag.lastY);
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+      if (nextView) {
+        view = nextView;
+        render();
+      }
+      return;
+    }
     view.x = drag.viewX + event.clientX - drag.startX;
     view.y = drag.viewY + event.clientY - drag.startY;
     render();
@@ -6498,7 +6619,8 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
       viewport.releasePointerCapture?.(event.pointerId);
       drag = null;
       viewport.classList.remove("is-panning");
-      render({ remember: true, notify: true });
+      if (diagram2) rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: true });
+      else render({ remember: true, notify: true });
     });
   });
   block.addEventListener("keydown", event => {
@@ -6512,9 +6634,11 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   if (!diagram) return;
 
   block.addEventListener("diagram-ole-source-ready", () => {
-    if (hasStoredView) render();
+    if (hasStoredView) render({ restore: diagram2 });
     else fitView();
   });
+
+  if (diagram2) return;
 
   if (hasStoredView) {
     render();
@@ -6548,10 +6672,11 @@ function moveRichDiagramOleActiveTab(block, direction) {
   tabs.splice(nextIndex, 0, tab);
   richDiagramOleWriteTabs(block, tabs, tab.id, { includeCurrent: true });
   rehydrateRichDiagramOleBlock(block, { notify: true });
-  showToast("Linked Diagram tab moved. Save the record to keep it.");
+  showToast(`${richDiagramOleFeatureName(block)} tab moved. Save the record to keep it.`);
 }
 
 function rehydrateRichDiagramOleBlock(block, options = {}) {
+  if (richDiagramOleIsDiagram2(block)) disposeDiagram2LinkedViewer(block);
   delete block.dataset.diagramOleHydratedKey;
   delete block.dataset.diagramOleViewerBound;
   delete block.dataset.diagramOleResizeBound;
@@ -6760,6 +6885,7 @@ function richDiagramOleSourceSignature(tabs) {
 
 function deleteRichDiagramOleBlock(editor, block) {
   if (!editor?.contains(block) || !block?.isConnected) return;
+  if (richDiagramOleIsDiagram2(block)) disposeDiagram2LinkedViewer(block);
   if (block.classList.contains("is-maximized")) {
     block.classList.remove("is-maximized");
     syncRichDiagramOleMaximizedBodyClass();

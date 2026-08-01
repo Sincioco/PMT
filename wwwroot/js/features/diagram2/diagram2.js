@@ -8,7 +8,7 @@ import {
   filterCheckList,
   filterSelect
 } from "../../components/filters.js";
-import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
+import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260801-rte-link-diagram2-v1";
 import {
   buildAnnotationSvg,
   buildPortableAnnotationState,
@@ -91,7 +91,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260731-diagram2-crop-preview-v1";
+} from "./diagram2-editor-shell.js?v=20260801-rte-link-diagram2-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -105,7 +105,7 @@ import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-fit-v1";
+} from "./diagram2-renderer.js?v=20260801-rte-link-diagram2-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);

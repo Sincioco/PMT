@@ -11,7 +11,7 @@ import {
 import {
   escapeAttr,
   escapeHtml
-} from "../../shared/text-and-links.js";
+} from "../../shared/text-and-links.js?v=20260801-rte-link-diagram2-v1";
 import {
   appAbsoluteUrl,
   appUrl
@@ -221,7 +221,8 @@ async function buildDocumentationExportParts(blog, imageMode, options = {}) {
 }
 
 function resolveDiagramOleBlocksForExport(body) {
-  body.querySelectorAll("[data-pmt-ole='diagram']").forEach((block, index) => {
+  body.querySelectorAll("[data-pmt-ole='diagram'], [data-pmt-ole='diagram2']").forEach((block, index) => {
+    const featureName = block.getAttribute("data-pmt-ole") === "diagram2" ? "Linked Diagram 2" : "Linked Diagram";
     const diagramId = Number(block.getAttribute("data-diagram-id") || 0);
     const diagram = state.blogs.find(item => item.id === diagramId && diagramExportCanRead(item) && diagramExportSource(item));
     const width = Math.max(320, Math.round(Number(block.getAttribute("data-view-width") || block.style.width?.replace("px", "") || 900) || 900));
@@ -232,14 +233,14 @@ function resolveDiagramOleBlocksForExport(body) {
 
     const caption = body.ownerDocument.createElement("figcaption");
     caption.textContent = diagram
-      ? `Linked Diagram: ${diagram.title || "Diagram"}`
-      : `Linked Diagram #${diagramId || index + 1}`;
+      ? `${featureName}: ${diagram.title || "Diagram"}`
+      : `${featureName} #${diagramId || index + 1}`;
     figure.appendChild(caption);
 
     if (diagram) {
       const image = body.ownerDocument.createElement("img");
       image.src = diagramExportSourceUrl(diagram);
-      image.alt = diagram.title || "Linked Diagram";
+      image.alt = diagram.title || featureName;
       image.style.maxHeight = `${height}px`;
       figure.appendChild(image);
     } else {
