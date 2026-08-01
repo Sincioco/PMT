@@ -77,7 +77,7 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-31-day-40-0d03efae0b2c";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260731-rte-checkbox-layout-v2";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260731-diagram2-rte-interactions-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-readonly-fit-v1";
 import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260731-diagram2-rte-interactions-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {

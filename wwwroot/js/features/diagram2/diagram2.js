@@ -105,7 +105,7 @@ import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-diagram2-rte-interactions-v1";
+} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-fit-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2TreeGroups = new Set(["all", "project", "project-sprint"]);
@@ -185,6 +185,7 @@ export function createDiagram2Feature({
   let diagram2IgnoringScrollEvent = false;
   let diagram2IgnoreScrollTimer = 0;
   let diagram2ReadonlyScrollPosition = null;
+  let diagram2ViewportLayoutToken = 0;
   let diagram2Controller = null;
   let diagram2HostAdapter = null;
   let diagram2Phase6Host = null;
@@ -328,10 +329,16 @@ export function createDiagram2Feature({
       return true;
     }
     if (action === "toggle-diagram2-tree-pane") {
-      if (diagram2ViewMode !== "tree" || diagram2Creating || diagram2DocumentMode === "edit") return true;
-      diagram2TreePaneHidden = !diagram2TreePaneHidden;
-      writePreference(preferenceKeys.diagramTreePaneHidden, diagram2TreePaneHidden);
-      render();
+      if (diagram2Creating || diagram2DocumentMode === "edit") return true;
+      if (diagram2ViewMode !== "tree") {
+        diagram2ViewMode = "tree";
+        diagram2TreePaneHidden = false;
+        writePreference(preferenceKeys.diagramViewMode, diagram2ViewMode);
+        writePreference(preferenceKeys.diagramTreePaneHidden, diagram2TreePaneHidden);
+        render();
+        return true;
+      }
+      setDiagram2TreePaneHidden(!diagram2TreePaneHidden);
       return true;
     }
     if (action === "new-diagram2") {
@@ -893,7 +900,7 @@ export function createDiagram2Feature({
         <button class="secondary text-icon-button documentation-view-toggle-button ${diagram2ViewMode === "cards" ? "is-on" : ""}" type="button" data-action="set-diagram2-view" data-mode="cards" aria-pressed="${diagram2ViewMode === "cards"}" title="Cards" aria-label="Cards" ${busy ? "disabled" : ""}>
           ${buttonContent("&#9638;", "Cards")}
         </button>
-        <button class="secondary text-icon-button documentation-view-toggle-button ${diagram2ViewMode === "tree" ? "is-on" : ""}" type="button" data-action="set-diagram2-view" data-mode="tree" aria-pressed="${diagram2ViewMode === "tree"}" title="Treeview" aria-label="Treeview" ${busy ? "disabled" : ""}>
+        <button class="secondary text-icon-button documentation-view-toggle-button ${diagram2ViewMode === "tree" && !diagram2TreePaneHidden ? "is-on" : ""}" type="button" data-action="toggle-diagram2-tree-pane" data-mode="tree" aria-pressed="${diagram2ViewMode === "tree" && !diagram2TreePaneHidden}" title="Treeview" aria-label="Treeview" ${busy ? "disabled" : ""}>
           ${buttonContent("&#9776;", "Treeview")}
         </button>
       </div>
@@ -1953,6 +1960,47 @@ export function createDiagram2Feature({
     scheduleDiagram2ZoomControlSync();
   }
 
+  function setDiagram2TreePaneHidden(hidden) {
+    diagram2TreePaneHidden = hidden === true;
+    writePreference(preferenceKeys.diagramTreePaneHidden, diagram2TreePaneHidden);
+    const layout = app.querySelector("[data-diagram2-tree-layout]");
+    const tree = app.querySelector("[data-diagram2-tree]");
+    const splitter = app.querySelector("[data-diagram2-tree-splitter]");
+    layout?.classList.toggle("is-tree-hidden", diagram2TreePaneHidden);
+    if (tree) tree.hidden = diagram2TreePaneHidden;
+    if (splitter) splitter.hidden = diagram2TreePaneHidden;
+    syncDiagram2TreePaneToggleState();
+    if (!diagram2TreePaneHidden) bindDiagram2TreeSplitter();
+    scheduleDiagram2ViewerLayoutRecenter("Tree navigation toggled");
+  }
+
+  function syncDiagram2TreePaneToggleState() {
+    const visible = diagram2ViewMode === "tree" && !diagram2TreePaneHidden;
+    const toolbarButton = app.querySelector(".diagram2-view-toggle [data-action='toggle-diagram2-tree-pane']");
+    toolbarButton?.classList.toggle("is-on", visible);
+    toolbarButton?.setAttribute("aria-pressed", String(visible));
+    const menuButton = app.querySelector(".page-actions-item[data-action='toggle-diagram2-tree-pane']");
+    menuButton?.classList.toggle("is-checked", visible);
+    menuButton?.setAttribute("aria-checked", String(visible));
+    const check = menuButton?.querySelector(".page-actions-check");
+    if (check) check.innerHTML = visible ? "&#10003;" : "";
+  }
+
+  function scheduleDiagram2ViewerLayoutRecenter(reason) {
+    const renderer = diagram2Renderer;
+    const token = ++diagram2ViewportLayoutToken;
+    const requestFrame = globalThis.window?.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
+    requestFrame(() => {
+      if (token !== diagram2ViewportLayoutToken || renderer !== diagram2Renderer) return;
+      syncDiagram2VisibleViewportInset({ refit: false });
+      const diagnostics = renderer?.recenter?.({ reason });
+      syncDiagram2ReadonlyScrollbars({ reset: true });
+      scheduleDiagram2ReadonlyScrollSync({ reset: true });
+      scheduleDiagram2ZoomControlSync();
+      if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    });
+  }
+
   function syncDiagram2VisibleViewportInset(options = {}) {
     return syncDiagram2RendererViewportInset(app, diagram2Renderer, options);
   }
@@ -2059,6 +2107,7 @@ export function createDiagram2Feature({
   }
 
   function resetDiagram2Renderer() {
+    diagram2ViewportLayoutToken += 1;
     abortDiagram2ViewportControls();
     resetDiagram2ReadonlyViewOptions();
     if (diagram2IgnoreScrollTimer) globalThis.clearTimeout(diagram2IgnoreScrollTimer);
@@ -2166,7 +2215,7 @@ export function createDiagram2Feature({
     const shell = app.querySelector("[data-diagram2-editor-shell], [data-diagram2-readonly-shell]");
     if (!shell) return;
     bindDiagram2EditorLeftPaneResize(shell, {
-      onResize: () => syncDiagram2VisibleViewportInset({ refit: false })
+      onResize: () => scheduleDiagram2ViewerLayoutRecenter("Left pane resized")
     });
   }
 
@@ -2843,7 +2892,9 @@ export function createDiagram2Feature({
     window.addEventListener("pointerdown", event => {
       if (!menu.hidden && !menu.contains(event.target)) closeMenu();
     }, { signal });
-    window.addEventListener("scroll", closeMenu, { capture: true, passive: true, signal });
+    window.addEventListener("scroll", () => {
+      if (!diagram2IgnoringScrollEvent) closeMenu();
+    }, { capture: true, passive: true, signal });
     window.addEventListener("resize", closeMenu, { signal });
     window.addEventListener("keydown", event => {
       if (menu.hidden) return;
@@ -4187,7 +4238,9 @@ export function createDiagram2Feature({
     const splitter = app.querySelector("[data-diagram2-tree-splitter]");
     const screen = app.querySelector("[data-diagram2-screen]");
     const layout = app.querySelector("[data-diagram2-tree-layout]") || screen;
-    if (!splitter || !screen || !layout || diagram2TreePaneHidden) return;
+    if (!splitter || !screen || !layout || diagram2TreePaneHidden
+      || splitter.dataset.diagram2TreeSplitterBound === "true") return;
+    splitter.dataset.diagram2TreeSplitterBound = "true";
 
     splitter.addEventListener("pointerdown", event => {
       event.preventDefault();
@@ -4206,6 +4259,7 @@ export function createDiagram2Feature({
         writePreference(preferenceKeys.diagramTreePaneWidth, diagram2TreePaneWidth);
         screen.classList.remove("is-resizing-tree");
         abortTreePaneDrag();
+        scheduleDiagram2ViewerLayoutRecenter("Tree navigation resized");
       };
       window.addEventListener("pointermove", move, { signal });
       window.addEventListener("pointerup", finish, { signal, once: true });

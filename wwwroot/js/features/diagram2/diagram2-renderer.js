@@ -658,6 +658,21 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return diagnostics();
   }
 
+  function recenter(options = {}) {
+    if (!canonicalState) return diagnostics();
+    if (zoomMode === "fit") return fit();
+    const bounds = rendererContentBounds(canonicalState) || {
+      x: 0,
+      y: 0,
+      width: positiveNumber(canonicalState.width, defaultDiagram2Width),
+      height: positiveNumber(canonicalState.height, defaultDiagram2Height)
+    };
+    return focusBounds(bounds, {
+      scale: viewportTransform.scale,
+      reason: String(options.reason || "recenter")
+    });
+  }
+
   function focusObjectIds(idsInput = [], options = {}) {
     if (!canonicalState) return diagnostics();
     const ids = new Set((Array.isArray(idsInput) ? idsInput : [idsInput])
@@ -4275,7 +4290,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function rendererContentBounds(state) {
     const visibleObjects = (Array.isArray(state?.objects) ? state.objects : [])
-      .filter(object => diagram2ObjectVisible(object, state));
+      .filter(object => diagram2ObjectVisible(object, state)
+        && (fieldMappingTablesVisible || object.type !== "field-mapping-table"));
     const relationships = diagram2CanonicalRelationships(state);
     const routeOptions = relationshipRouteOptions(relationships, state);
     let bounds = null;
@@ -4469,6 +4485,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     setZoom,
     zoomBy,
     panBy,
+    recenter,
     focusObjectIds,
     beginDiagramUpdate,
     endDiagramUpdate,

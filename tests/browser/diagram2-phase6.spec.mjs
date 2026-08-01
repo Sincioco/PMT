@@ -96,6 +96,42 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await expect(readOnlyPane).toHaveAttribute("data-diagram2-mapping-count", "1");
   await expect(readOnlyUiField).toContainText("TaskId");
   await expect(readOnlyDatabaseCell).toContainText("pmt.Phase6Entity.TaskId");
+  const treeToggle = page.getByRole("button", { name: "Treeview", exact: true });
+  await expect(treeToggle).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Fit Diagram", exact: true }).click();
+  const shownTreeFit = await diagram2VisibleContentCenterEvidence(page);
+  expect(shownTreeFit.mappingPaneWidth).toBeGreaterThanOrEqual(200);
+  expect(shownTreeFit.mappingTableVisible).toBe(false);
+  expect(shownTreeFit.centerDeltaX).toBeLessThanOrEqual(2);
+  expect(shownTreeFit.centerDeltaY).toBeLessThanOrEqual(2);
+
+  await page.evaluate(() => {
+    window.__diagram2TreeToggleStartedAt = performance.now();
+  });
+  await treeToggle.click();
+  await expect(page.locator("[data-diagram2-tree-layout]")).toHaveClass(/is-tree-hidden/);
+  await expect(page.locator("[data-diagram2-tree]")).toBeHidden();
+  await expect(treeToggle).toHaveAttribute("aria-pressed", "false");
+  const hiddenTreeFit = await diagram2VisibleContentCenterEvidence(page);
+  expect(hiddenTreeFit.availableWidth).toBeGreaterThan(shownTreeFit.availableWidth);
+  expect(hiddenTreeFit.centerDeltaX).toBeLessThanOrEqual(2);
+  expect(hiddenTreeFit.centerDeltaY).toBeLessThanOrEqual(2);
+  expect(hiddenTreeFit.fullRenderCount).toBe(shownTreeFit.fullRenderCount);
+  expect(hiddenTreeFit.durationMs).toBeLessThan(500);
+
+  await page.evaluate(() => {
+    window.__diagram2TreeToggleStartedAt = performance.now();
+  });
+  await treeToggle.click();
+  await expect(page.locator("[data-diagram2-tree-layout]")).not.toHaveClass(/is-tree-hidden/);
+  await expect(page.locator("[data-diagram2-tree]")).toBeVisible();
+  await expect(treeToggle).toHaveAttribute("aria-pressed", "true");
+  const restoredTreeFit = await diagram2VisibleContentCenterEvidence(page);
+  expect(restoredTreeFit.availableWidth).toBeCloseTo(shownTreeFit.availableWidth, 0);
+  expect(restoredTreeFit.centerDeltaX).toBeLessThanOrEqual(2);
+  expect(restoredTreeFit.centerDeltaY).toBeLessThanOrEqual(2);
+  expect(restoredTreeFit.fullRenderCount).toBe(shownTreeFit.fullRenderCount);
+  expect(restoredTreeFit.durationMs).toBeLessThan(500);
   const readOnlyMappingSearch = readOnlyPane.locator("[data-diagram2-mapping-search]");
   const readOnlyGroupToggle = readOnlyPane.locator("[data-diagram2-mapping-group-by-table]");
   await readOnlyMappingSearch.fill("PHASE6ENTITY.TAS");
@@ -1921,6 +1957,59 @@ async function diagram2FieldFocusEvidence(page, worldPoint) {
       durationMs: performance.now() - Number(window.__diagram2FieldFocusStartedAt || performance.now())
     };
   }, worldPoint);
+}
+
+async function diagram2VisibleContentCenterEvidence(page) {
+  return page.evaluate(async () => {
+    const waitForLayout = () => new Promise(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await waitForLayout();
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    await waitForLayout();
+
+    const surface = document.querySelector("[data-diagram2-renderer-surface]");
+    const surfaceRect = surface.getBoundingClientRect();
+    const pane = document.querySelector("[data-diagram2-readonly-main].is-left-pane-open [data-diagram2-mapping-pane]");
+    const paneRect = pane?.getBoundingClientRect?.();
+    const paneOverlaps = paneRect
+      && paneRect.right > surfaceRect.left
+      && paneRect.left < surfaceRect.right;
+    const visibleLeft = paneOverlaps ? Math.max(surfaceRect.left, paneRect.right) : surfaceRect.left;
+    const visibleCenter = {
+      x: visibleLeft + ((surfaceRect.right - visibleLeft) / 2),
+      y: surfaceRect.top + (surfaceRect.height / 2)
+    };
+    const objectRects = [...document.querySelectorAll("[data-diagram2-object-id]")]
+      .filter(node => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== "hidden")
+      .map(node => node.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0);
+    const contentBounds = objectRects.reduce((bounds, rect) => ({
+      left: Math.min(bounds.left, rect.left),
+      top: Math.min(bounds.top, rect.top),
+      right: Math.max(bounds.right, rect.right),
+      bottom: Math.max(bounds.bottom, rect.bottom)
+    }), {
+      left: Number.POSITIVE_INFINITY,
+      top: Number.POSITIVE_INFINITY,
+      right: Number.NEGATIVE_INFINITY,
+      bottom: Number.NEGATIVE_INFINITY
+    });
+    const contentCenter = {
+      x: (contentBounds.left + contentBounds.right) / 2,
+      y: (contentBounds.top + contentBounds.bottom) / 2
+    };
+    return {
+      availableWidth: surfaceRect.right - visibleLeft,
+      mappingPaneWidth: paneRect?.width || 0,
+      mappingTableVisible: document.querySelector("[data-diagram2-object-id='table-phase6']")
+        ?.getClientRects?.().length > 0,
+      centerDeltaX: Math.abs(contentCenter.x - visibleCenter.x),
+      centerDeltaY: Math.abs(contentCenter.y - visibleCenter.y),
+      fullRenderCount: Number(renderer.diagnostics().fullRenderCount || 0),
+      durationMs: performance.now() - Number(window.__diagram2TreeToggleStartedAt || performance.now())
+    };
+  });
 }
 
 function boundsCenter(bounds) {
