@@ -1,4 +1,4 @@
-import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260731-rte-checkbox-layout-v2";
+import { runDiagram2CompactEngine } from "./diagram2-compact-engine.js?v=20260801-diagram2-readonly-trace-v2";
 
 let canceled = false;
 

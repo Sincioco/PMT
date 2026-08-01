@@ -77,8 +77,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-0996762d6734";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-diagram2-mapping-view-v3";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-mapping-download-v2";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-color-preview-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-readonly-trace-v2";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   diagram2LinkedViewerViewport,
   disposeDiagram2LinkedViewer,
@@ -88,7 +88,7 @@ import {
   panDiagram2LinkedViewer,
   restoreDiagram2LinkedViewerViewport,
   zoomDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-mapping-download-v2";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260801-diagram2-readonly-trace-v2";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260801-linked-diagram2-controls-v3";
 import {
   createGanttFeature,

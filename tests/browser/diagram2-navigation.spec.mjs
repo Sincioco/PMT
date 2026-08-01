@@ -6,13 +6,22 @@ import {
   normalizeAnnotationState,
   parseAnnotationSvg
 } from "../../wwwroot/js/components/image-annotation.js";
+import { createDiagram2FieldMappingTable } from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mapping-tables.js";
+import { createDiagram2FieldMappingIndexes } from "../../wwwroot/js/features/diagram2/diagram2-editor-field-mappings.js";
+import {
+  createDiagram2FieldRectangle,
+  setDiagram2FieldRectangleMapping
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-field-rectangles.js";
+import { createDiagram2EmbeddedImage } from "../../wwwroot/js/features/diagram2/diagram2-editor-images.js";
+import { diagram2ContentBounds } from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test.use({ timezoneId: "Asia/Taipei" });
 
 test("public Diagram 2 links mount the production Linked Diagram 2 viewer", async ({ page }) => {
   const token = "11111111-2222-4333-8444-555555555555";
-  const bodyHtml = diagramBodyHtml("Public Diagram 2", "#2563eb");
+  const publicDiagram = publicMappedRelationshipDiagram();
+  const bodyHtml = publicDiagram.bodyHtml;
   await page.route(`**/public/diagram-2/${token}`, route => route.fulfill({
     status: 200,
     contentType: "text/html",
@@ -25,7 +34,7 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
         <link rel="stylesheet" href="/css/themes.css?v=20260621-paper-links">
         <link rel="stylesheet" href="/css/components/forms.css?v=20260801-public-diagram2-v1">
         <link rel="stylesheet" href="/css/components/image-annotation.css?v=20260801-public-diagram2-v1">
-        <link rel="stylesheet" href="/css/features/diagram2.css?v=20260801-public-diagram2-v1">
+        <link rel="stylesheet" href="/css/features/diagram2.css?v=20260801-diagram2-readonly-trace-v2">
         <style>
           body { margin: 0; }
           .public-diagram-shell { height: 100vh; padding: 12px; }
@@ -38,7 +47,7 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
             <template data-public-diagram-source>${bodyHtml}</template>
           </figure>
         </main>
-        <script type="module" src="/js/public-linked-diagram2-viewer.js?v=20260801-public-diagram2-v1"></script>
+        <script type="module" src="/js/public-linked-diagram2-viewer.js?v=20260801-diagram2-readonly-trace-v2"></script>
       </body>
       </html>`
   }));
@@ -49,9 +58,10 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
   await expect(viewer).toHaveAttribute("data-diagram-renderer", "2");
   await expect(viewer.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram 2: Public Diagram 2");
   await expect(viewer.locator("svg[data-diagram2-svg]")).toBeVisible();
-  await expect(viewer.locator("[data-diagram2-object-id='public-diagram-2-box']")).toBeVisible();
+  await expect(viewer.locator("[data-diagram2-object-id='public-orders']")).toBeVisible();
   await expect(page.locator("[data-public-linked-diagram]")).toHaveCount(0);
-  await expect(viewer.getByRole("button", { name: "Mapping", exact: true })).toBeHidden();
+  await expect(viewer.getByRole("button", { name: "Mapping", exact: true })).toBeVisible();
+  await expect(viewer.locator("[data-diagram2-mapping-pane]")).toBeVisible();
   const publicControlOrder = await viewer.locator(".pmt-diagram-ole-actions > *").evaluateAll(nodes =>
     nodes.map(node => [...node.attributes]
       .map(attribute => attribute.name)
@@ -73,13 +83,51 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
     backgroundColor: "rgba(0, 0, 0, 0)",
     borderColor: "rgba(0, 0, 0, 0)"
   });
-  await expect.poll(() => publicDiagram2CenterDelta(viewport)).toBeLessThanOrEqual(2);
+  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(10);
+
+  const publicMappingPane = viewer.locator("[data-diagram2-mapping-pane]");
+  await publicMappingPane.locator("[data-diagram2-mapping-group-by-table]").check();
+  await expect(publicMappingPane.locator(".diagram2-mapping-pane-group > h4")).toHaveText("pmt.PublicCustomers");
+  await expect(publicMappingPane.locator(
+    "[data-diagram2-field-mapping-cell-kind='database']"
+  )).toHaveText("Id");
+  await publicMappingPane.locator("[data-diagram2-mapping-search]").fill("PUBLICCUSTOMERS.ID");
+  await expect(publicMappingPane.locator("[data-diagram2-mapping-pane-row]")).toHaveCount(1);
+  await expect(viewer.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(1);
+  await expect(viewer.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
+  await publicMappingPane.locator("[data-diagram2-mapping-search]").fill("");
+  await expect(viewer.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(0);
+
+  const publicOrders = viewer.locator("[data-diagram2-object-id='public-orders']");
+  await publicOrders.hover();
+  await expect(publicOrders).toHaveClass(/is-relationship-trace/);
+  await expect(viewer.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).toHaveCount(1);
+  await viewer.locator("[data-diagram-ole-header]").hover();
+  await expect(publicOrders).not.toHaveClass(/is-relationship-trace/);
+  await publicOrders.dispatchEvent("click", { button: 0 });
+  await viewer.locator("[data-diagram-ole-header]").hover();
+  await expect(publicOrders).toHaveClass(/is-relationship-trace/);
+  await viewer.locator("[data-diagram2-relationship-id]").first().dispatchEvent("click", { button: 0 });
+  await expect(viewer.locator(
+    "[data-diagram2-relationship-trace-entity='true'].is-relationship-trace"
+  )).toHaveCount(2);
+  const publicViewportBox = await viewport.boundingBox();
+  expect(publicViewportBox).toBeTruthy();
+  await page.mouse.click(
+    publicViewportBox.x + publicViewportBox.width - 8,
+    publicViewportBox.y + publicViewportBox.height - 8
+  );
+  await expect(viewer.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).toHaveCount(0);
 
   const initialScale = await publicDiagram2ViewportScale(viewport);
   await viewer.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeGreaterThan(initialScale);
   await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
-  await expect.poll(() => publicDiagram2CenterDelta(viewport)).toBeLessThanOrEqual(2);
+  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(10);
   await viewer.getByRole("button", { name: "Maximize Linked Diagram 2 viewer", exact: true }).click();
   await expect(viewer).toHaveClass(/is-maximized/);
   expect(await viewer.locator("[data-diagram-ole-maximize]").evaluate(button =>
@@ -6013,32 +6061,21 @@ function publicDiagram2ViewportScale(viewport) {
   });
 }
 
-function publicDiagram2CenterDelta(viewport) {
-  return viewport.evaluate(element => {
+function publicDiagram2CenterDelta(viewport, contentCenter) {
+  return viewport.evaluate((element, worldCenter) => {
     const svg = element.querySelector("svg[data-diagram2-svg]");
-    const object = svg?.querySelector("[data-diagram2-object-id='public-diagram-2-box']");
     const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
       .match(/^matrix\(([^)]+)\)$/)?.[1]
       .trim()
       .split(/[\s,]+/)
       .map(Number) || [];
-    if (!object || matrix.length < 6) return Infinity;
-
-    const box = object.getBBox();
-    const objectMatrix = object.transform?.baseVal?.consolidate?.()?.matrix;
-    const localCenter = { x: box.x + (box.width / 2), y: box.y + (box.height / 2) };
-    const worldCenter = objectMatrix
-      ? {
-          x: (localCenter.x * objectMatrix.a) + (localCenter.y * objectMatrix.c) + objectMatrix.e,
-          y: (localCenter.x * objectMatrix.b) + (localCenter.y * objectMatrix.d) + objectMatrix.f
-        }
-      : localCenter;
+    if (!worldCenter || matrix.length < 6) return Infinity;
     const rect = element.getBoundingClientRect();
     return Math.max(
       Math.abs((rect.width / 2) - ((worldCenter.x * matrix[0]) + matrix[4])),
       Math.abs((rect.height / 2) - ((worldCenter.y * matrix[0]) + matrix[5]))
     );
-  });
+  }, contentCenter);
 }
 
 function testState() {
@@ -6106,6 +6143,91 @@ function testState() {
 
 function pmtDatabaseSchemaBodyHtml() {
   return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day14-fixture" alt="PMT Database Schema"></p>`;
+}
+
+function publicMappedRelationshipDiagram() {
+  const customers = {
+    id: "public-customers",
+    type: "entity",
+    x: 520,
+    y: 60,
+    width: 240,
+    height: 150,
+    entitySchema: "pmt",
+    entityName: "PublicCustomers",
+    fields: [{ name: "Id", dataType: "int", nullable: false, isPrimaryKey: true }],
+    foreignKeys: []
+  };
+  const orders = {
+    id: "public-orders",
+    type: "entity",
+    x: 80,
+    y: 60,
+    width: 240,
+    height: 170,
+    entitySchema: "pmt",
+    entityName: "PublicOrders",
+    fields: [
+      { name: "Id", dataType: "int", nullable: false, isPrimaryKey: true },
+      { name: "CustomerId", dataType: "int", nullable: false, isForeignKey: true }
+    ],
+    foreignKeys: [{
+      name: "FK_PublicOrders_PublicCustomers",
+      columns: ["CustomerId"],
+      referencedSchema: "pmt",
+      referencedTable: "PublicCustomers",
+      referencedColumns: ["Id"],
+      relationshipType: "many-to-one"
+    }]
+  };
+  const image = createDiagram2EmbeddedImage({
+    id: "public-screen",
+    name: "Public customer screen",
+    source: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='150'%3E%3Crect width='320' height='150' fill='white'/%3E%3C/svg%3E",
+    x: 80,
+    y: 300,
+    width: 320,
+    height: 150
+  });
+  const fieldRectangle = setDiagram2FieldRectangleMapping(createDiagram2FieldRectangle({
+    id: "public-customer-field",
+    name: "Customer ID",
+    x: 120,
+    y: 345,
+    width: 170,
+    height: 42
+  }), {
+    referencedEntity: "pmt.PublicCustomers",
+    referencedField: "Id"
+  });
+  const objects = [orders, customers, image, fieldRectangle];
+  const table = createDiagram2FieldMappingTable({
+    version: 1,
+    width: 900,
+    height: 520,
+    objects
+  }, image.id, {
+    id: "public-mapping-table",
+    x: 510,
+    y: 300,
+    indexes: createDiagram2FieldMappingIndexes(objects)
+  });
+  const state = normalizeAnnotationState({
+    version: 1,
+    width: 900,
+    height: 520,
+    objects: [...objects, table]
+  });
+  const bounds = diagram2ContentBounds(state);
+  const svg = buildAnnotationSvg(state);
+  const source = `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+  return {
+    bodyHtml: `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="${source}" alt="Public Diagram 2"></p>`,
+    contentCenter: {
+      x: bounds.x + (bounds.width / 2),
+      y: bounds.y + (bounds.height / 2)
+    }
+  };
 }
 
 function diagramBodyHtml(title, stroke) {

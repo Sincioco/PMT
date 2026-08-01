@@ -76,8 +76,8 @@ test("Diagram 2 public links use the production Linked Diagram 2 viewer", async 
   assert.ok(endpointSource.includes('app.MapGet("/public/diagram-2/{token:guid}"'));
   assert.ok(endpointSource.includes("useDiagram2Renderer: true"));
   assert.ok(endpointSource.includes("data-public-linked-diagram2"));
-  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260801-diagram2-mapping-download-v2"));
-  assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-diagram2-mapping-download-v2"));
+  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260801-diagram2-readonly-trace-v2"));
+  assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-diagram2-readonly-trace-v2"));
   assert.match(diagram2Source, /appUrl\(`\/public\/diagram-2\/\$\{token\}`\)/);
   assert.match(publicViewerSource, /hydrateDiagram2LinkedViewer/);
   assert.match(publicViewerSource, /autoFit: true/);
@@ -181,6 +181,29 @@ test("Link Diagram 2 reuses the mapping pane, links public sources, and never ap
   assert.match(appSource, /if \(diagram2\) view = diagram2LinkedViewerViewport\(block\) \|\| view/);
   assert.match(textSource, /removeAttribute\("data-diagram2-linked-shell"\)/);
   assert.match(textSource, /removeAttribute\("data-diagram2-left-pane-resize-bound"\)/);
+});
+
+test("Diagram 2 read-only viewers share hover and pinned entity relationship traces", async () => {
+  const rendererSource = await source("wwwroot/js/features/diagram2/diagram2-renderer.js");
+  const diagram2Source = await source("wwwroot/js/features/diagram2/diagram2.js");
+  const adapterSource = await source("wwwroot/js/features/diagram2/diagram2-rte-linked-viewer.js");
+  const diagram2Css = await source("wwwroot/css/features/diagram2.css");
+
+  assert.match(rendererSource, /setRelationshipTraceHover[\s\S]*relationshipTraceHoverTargetIds/);
+  assert.match(rendererSource, /relationship\.source\?\.id[\s\S]*relationship\.target\?\.id/);
+  assert.match(diagram2Source, /bindDiagram2ReadonlyMappingInteractions[\s\S]*setRelationshipTraceHover/);
+  assert.match(adapterSource, /traceEntitySelector[\s\S]*setRelationshipTraceHover/);
+  assert.match(diagram2Css, /\.diagram2-renderer-object\.is-relationship-trace[\s\S]*data-diagram2-entity-outline/);
+});
+
+test("Diagram 2 Mapping panes abbreviate grouped fields and auto-pin one search result", async () => {
+  const shellSource = await source("wwwroot/js/features/diagram2/diagram2-editor-shell.js");
+  const diagram2Source = await source("wwwroot/js/features/diagram2/diagram2.js");
+  const adapterSource = await source("wwwroot/js/features/diagram2/diagram2-rte-linked-viewer.js");
+
+  assert.match(shellSource, /groupByTable === true[\s\S]*row\.databaseFieldName/);
+  assert.match(diagram2Source, /syncDiagram2SingleMappingSearchResult[\s\S]*pinFieldMapping/);
+  assert.match(adapterSource, /syncDiagram2LinkedSingleMappingSearchResult[\s\S]*pinFieldMapping/);
 });
 
 test("Scrum disposes D2 linked renderers before replacement and restores viewer dimensions", async () => {

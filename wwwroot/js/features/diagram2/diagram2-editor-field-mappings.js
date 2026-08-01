@@ -252,6 +252,7 @@ function diagram2FieldMappingPaneRows(indexes, mappingIdsInput, tableIdByMapping
       tableId: String(tableIdByMappingId?.get?.(mapping.id) || ""),
       uiField: String(mapping.sourceField || mapping.source?.fieldRectangleName || "UI Field").trim() || "UI Field",
       databaseTable: diagram2MappingDatabaseTable(mapping),
+      databaseFieldName: diagram2MappingDatabaseFieldName(mapping),
       databaseField: diagram2MappingDatabaseField(mapping)
     }));
 }
@@ -269,10 +270,16 @@ function diagram2MappingDatabaseTable(mapping) {
 }
 
 function diagram2MappingDatabaseField(mapping) {
-  const sourceMapping = diagram2FieldRectangleMapping(mapping?.source);
   const entity = diagram2MappingDatabaseTable(mapping);
-  const field = formatAnnotationEntityIdentifier(mapping?.targetField || sourceMapping?.referencedField || "Database Field");
+  const field = diagram2MappingDatabaseFieldName(mapping);
   return [entity, field].filter(Boolean).join(".") || "Database Field";
+}
+
+function diagram2MappingDatabaseFieldName(mapping) {
+  const sourceMapping = diagram2FieldRectangleMapping(mapping?.source);
+  return formatAnnotationEntityIdentifier(
+    mapping?.targetField || sourceMapping?.referencedField || "Database Field"
+  ) || "Database Field";
 }
 
 function diagram2TargetFieldIndex(mapping) {

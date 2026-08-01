@@ -421,11 +421,21 @@ body.diagram2-edit-mode-active #app {
 
 .diagram2-renderer-relationship-route-overlay.is-relationship-trace
   [data-diagram2-relationship-selection-path] {
-  stroke: var(--color-info);
-  stroke-width: 3;
-  stroke-dasharray: none;
+  stroke: var(--color-focus-ring);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
   stroke-linecap: round;
-  opacity: 1;
+  opacity: 0.72;
+  vector-effect: non-scaling-stroke;
+}
+
+.diagram2-renderer-object.is-relationship-trace
+  [data-diagram2-entity-outline] {
+  stroke: var(--color-focus-ring);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
+  opacity: 0.72;
   vector-effect: non-scaling-stroke;
 }
 

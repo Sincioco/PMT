@@ -1144,6 +1144,7 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   const postDownloadCenter = await linkedDiagram2FitCenterEvidence(d2Viewport);
   expect(Math.max(postDownloadCenter.deltaX, postDownloadCenter.deltaY)).toBeLessThanOrEqual(2);
   const linkedMappingSearch = linkedMappingPane.locator("[data-diagram2-mapping-search]");
+  const linkedGroupByTableToggle = linkedMappingPane.locator("[data-diagram2-mapping-group-by-table]");
   const linkedAlphabeticalToggle = linkedMappingPane.locator("[data-diagram2-mapping-alphabetical]");
   const linkedSearchStyle = await linkedMappingSearch.evaluate(input => {
     const style = getComputedStyle(input);
@@ -1156,6 +1157,17 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   expect(linkedSearchStyle.borderStyle).toBe("solid");
   expect(linkedSearchStyle.borderWidth).toBe("1px");
   expect(linkedSearchStyle.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  await linkedGroupByTableToggle.check();
+  await expect(linkedMappingPane.locator(".diagram2-mapping-pane-group > h4")).toHaveText("pmt.LinkedEntity0");
+  await expect(linkedMappingPane.locator(
+    "[data-diagram2-field-mapping-cell-kind='database']"
+  )).toHaveText("Id");
+  await linkedMappingSearch.fill("LINKEDENTITY0.ID");
+  await expect(linkedMappingPane.locator("[data-diagram2-mapping-pane-row]")).toHaveCount(1);
+  await expect(d2Block.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(1);
+  await expect(d2Block.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
+  await linkedMappingSearch.fill("");
+  await expect(d2Block.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(0);
   await linkedAlphabeticalToggle.check();
   await expect(linkedAlphabeticalToggle).toBeChecked();
   await linkedAlphabeticalToggle.uncheck();
@@ -1186,8 +1198,28 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await expect(d2Block.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
   const traceFullRenderCount = Number(await d2Block.locator("svg[data-diagram2-svg]")
     .getAttribute("data-diagram2-full-render-count") || 0);
-  await d2Block.locator("[data-diagram2-object-id='linked-entity-0']")
-    .dispatchEvent("click", { button: 0 });
+  const linkedTraceEntity = d2Block.locator("[data-diagram2-object-id='linked-entity-0']");
+  const traceHoverDuration = await linkedTraceEntity.evaluate(entity => {
+    const started = performance.now();
+    entity.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const duration = performance.now() - started;
+    entity.dispatchEvent(new PointerEvent("pointerout", { bubbles: true }));
+    return duration;
+  });
+  expect(traceHoverDuration).toBeLessThanOrEqual(500);
+  await linkedTraceEntity.hover();
+  await expect(linkedTraceEntity).toHaveClass(/is-relationship-trace/);
+  await expect(d2Block.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).not.toHaveCount(0);
+  await d2Block.locator("[data-diagram-ole-header]").hover();
+  await expect(linkedTraceEntity).not.toHaveClass(/is-relationship-trace/);
+  await expect(d2Block.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).toHaveCount(0);
+  await linkedTraceEntity.dispatchEvent("click", { button: 0 });
+  await d2Block.locator("[data-diagram-ole-header]").hover();
+  await expect(linkedTraceEntity).toHaveClass(/is-relationship-trace/);
   await expect(d2Block.locator(
     ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
   )).not.toHaveCount(0);
@@ -1195,17 +1227,34 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
     ".is-relationship-trace [data-diagram2-relationship-selection-path]"
   ).first().evaluate(path => {
     const style = getComputedStyle(path);
-    return { stroke: style.stroke, dasharray: style.strokeDasharray };
+    return { stroke: style.stroke, strokeWidth: style.strokeWidth, dasharray: style.strokeDasharray };
   });
   expect(linkedTraceStyle.stroke).not.toBe("none");
-  expect(linkedTraceStyle.dasharray).toBe("none");
-  await d2Block.locator("[data-diagram2-relationship-id]").first()
-    .dispatchEvent("click", { button: 0 });
+  expect(Number.parseFloat(linkedTraceStyle.strokeWidth)).toBeLessThanOrEqual(1);
+  expect(linkedTraceStyle.dasharray).not.toBe("none");
+  const relationshipTraceDuration = await d2Block.locator("[data-diagram2-relationship-id]").first()
+    .evaluate(relationship => {
+      const started = performance.now();
+      relationship.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      return performance.now() - started;
+    });
+  expect(relationshipTraceDuration).toBeLessThanOrEqual(500);
   await expect(d2Block.locator(
     ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
   )).toHaveCount(1);
+  await expect(d2Block.locator(
+    "[data-diagram2-relationship-trace-entity='true'].is-relationship-trace"
+  )).toHaveCount(2);
+  await d2Viewport.click({ position: { x: 2, y: 2 } });
+  await expect(d2Block.locator(
+    ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
+  )).toHaveCount(0);
+  await expect(d2Block.locator(
+    "[data-diagram2-relationship-trace-entity='true'].is-relationship-trace"
+  )).toHaveCount(0);
   expect(Number(await d2Block.locator("svg[data-diagram2-svg]")
     .getAttribute("data-diagram2-full-render-count") || 0)).toBe(traceFullRenderCount);
+  await linkedTraceEntity.dispatchEvent("click", { button: 0 });
   await d2Block.press("Escape");
   await expect(d2Block.locator(
     ".is-relationship-trace[data-diagram2-relationship-route-overlay-id]"
@@ -1381,6 +1430,8 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
     panP95: panMetrics.p95,
     fitDuration,
     tabSwitchDuration,
+    traceHoverDuration,
+    relationshipTraceDuration,
     fullRenderDelta: interactionMetrics.fullRenderDelta + panMetrics.fullRenderDelta,
     unrelatedReroutes: Math.max(interactionMetrics.reroutesDuringSettle, panMetrics.reroutesDuringSettle)
   }));

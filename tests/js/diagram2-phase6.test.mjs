@@ -621,6 +621,7 @@ test("Diagram 2 Mapping pane groups come from live mappings with or without a ca
   );
   assert.equal(grouped[0].name, "pmt.Tasks");
   assert.equal(grouped[0].rows[0].databaseTable, "pmt.Tasks");
+  assert.equal(grouped[0].rows[0].databaseFieldName, "TaskId");
   assert.equal(diagram2FieldMappingPaneGroups(
     createDiagram2FieldMappingIndexes(state.objects),
     { search: "TASKS.TASK" }

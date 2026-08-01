@@ -104,6 +104,10 @@ Diagram 2
 
 51.) After an image has been captured and placed on the canvas, automatically select the image and switch to crop mode to allow the user to crop it like any other image on the canvas.
 
+52.) In Diagram 2 when in read-only, and edit-mode and in the Link View Diagram 2 (both public and private), if the checkbox "Group by Table" is selected, when you render the Database Field name under its own Table section, you don't need to repeat the table name over and over.  It becomes redundant since the Table section implies that all fields under its section is from the same table.
+
+53.) In Diagram 2 when in read-only, and edit-mode and in the Link View Diagram 2 (both public and private), when searching and there is only one matching result, auto-trigger the blue arrows and UI Field and Database Field highlight as though the user clicked on that row.  Makes it faster visually to see if the only item on the search result is what they are looking for.
+
 
 What's New
 ---------------------------------

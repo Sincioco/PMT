@@ -114,6 +114,19 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   const headerStyleBeforeHover = await mappingHeaderStyle();
   await mappingHeaderCells.first().hover();
   expect(await mappingHeaderStyle()).toEqual(headerStyleBeforeHover);
+  const mappingGroupByTable = readOnlyPane.locator("[data-diagram2-mapping-group-by-table]");
+  const mappingSearch = readOnlyPane.locator("[data-diagram2-mapping-search]");
+  await mappingGroupByTable.check();
+  await expect(readOnlyPane.locator(".diagram2-mapping-pane-group > h4")).toHaveText("pmt.Phase6Entity");
+  await expect(readOnlyDatabaseCell).toHaveText("TaskId");
+  await mappingSearch.fill("PHASE6ENTITY.TASKID");
+  await expect(readOnlyPane.locator("[data-diagram2-mapping-pane-row]")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
+  await mappingSearch.fill("");
+  await expect(page.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(0);
+  await mappingGroupByTable.uncheck();
+  await expect(readOnlyDatabaseCell).toHaveText("pmt.Phase6Entity.TaskId");
 
   const mappingColumnResizer = mappingColumnHeaders.locator("[data-diagram2-mapping-column-resizer]");
   const mappingColumnWidthsBefore = await readOnlyPane.evaluate(pane => ({
@@ -390,20 +403,47 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   await readOnlyMenu.locator("[data-diagram2-toggle-field-mappings]").click();
   await expect(page.locator("[data-diagram2-readonly-shell]")).not.toHaveClass(/is-field-mapping-lines-hidden/);
   const readOnlyTraceBefore = await diagnosticNumber(page, "full-render-count");
-  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']")
-    .dispatchEvent("click", { button: 0 });
+  const readOnlyTraceEntity = page.locator(
+    "[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']"
+  );
+  await readOnlyTraceEntity.hover();
+  await expect(readOnlyTraceEntity).toHaveClass(/is-relationship-trace/);
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(1);
+  const readOnlyCanvasBox = await readOnlyCanvas.boundingBox();
+  expect(readOnlyCanvasBox).toBeTruthy();
+  await page.mouse.move(
+    readOnlyCanvasBox.x + readOnlyCanvasBox.width - 8,
+    readOnlyCanvasBox.y + readOnlyCanvasBox.height - 8
+  );
+  await expect(readOnlyTraceEntity).not.toHaveClass(/is-relationship-trace/);
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(0);
+  await readOnlyTraceEntity.dispatchEvent("click", { button: 0 });
+  await expect(readOnlyTraceEntity).toHaveClass(/is-relationship-trace/);
   await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(1);
   const readOnlyTraceStyle = await page.locator(
     ".is-relationship-trace [data-diagram2-relationship-selection-path]"
   ).evaluate(path => {
     const style = getComputedStyle(path);
-    return { stroke: style.stroke, dasharray: style.strokeDasharray };
+    return { stroke: style.stroke, strokeWidth: style.strokeWidth, dasharray: style.strokeDasharray };
   });
   expect(readOnlyTraceStyle.stroke).not.toBe("none");
-  expect(readOnlyTraceStyle.dasharray).toBe("none");
+  expect(Number.parseFloat(readOnlyTraceStyle.strokeWidth)).toBeLessThanOrEqual(1);
+  expect(readOnlyTraceStyle.dasharray).not.toBe("none");
+  const readOnlyEntityTraceStyle = await readOnlyTraceEntity.locator(
+    "[data-diagram2-entity-outline]"
+  ).evaluate(outline => {
+    const style = getComputedStyle(outline);
+    return { strokeWidth: style.strokeWidth, dasharray: style.strokeDasharray };
+  });
+  expect(Number.parseFloat(readOnlyEntityTraceStyle.strokeWidth)).toBeLessThanOrEqual(1);
+  expect(readOnlyEntityTraceStyle.dasharray).not.toBe("none");
   await page.locator("[data-diagram2-relationship-id]").first()
     .dispatchEvent("click", { button: 0 });
   await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(1);
+  await expect(readOnlyTraceEntity).toHaveClass(/is-relationship-trace/);
+  await readOnlyCanvas.locator("svg[data-diagram2-svg]").dispatchEvent("click", { button: 0 });
+  await expect(page.locator(".is-relationship-trace[data-diagram2-relationship-route-overlay-id]")).toHaveCount(0);
+  await expect(readOnlyTraceEntity).not.toHaveClass(/is-relationship-trace/);
   expect(await diagnosticNumber(page, "full-render-count")).toBe(readOnlyTraceBefore);
 
   await page.evaluate(() => {
@@ -451,6 +491,23 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
     "Mapping",
     "Right Pane"
   ]);
+  if (await editMappingButton.getAttribute("aria-pressed") !== "true") {
+    await editMappingButton.click();
+  }
+  const editGroupedMappingPane = page.locator("[data-diagram2-editor-shell] [data-diagram2-mapping-pane]");
+  await expect(editGroupedMappingPane).toBeVisible();
+  await editGroupedMappingPane.locator("[data-diagram2-mapping-group-by-table]").check();
+  await expect(editGroupedMappingPane.locator(".diagram2-mapping-pane-group > h4")).toHaveText("pmt.Phase6Entity");
+  await expect(editGroupedMappingPane.locator(
+    "[data-diagram2-field-mapping-cell-kind='database']"
+  )).toHaveText("TaskId");
+  await editGroupedMappingPane.locator("[data-diagram2-mapping-search]").fill("PHASE6ENTITY.TASKID");
+  await expect(page.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-field-mapping-attention-arrows]")).toHaveCount(1);
+  await editGroupedMappingPane.locator("[data-diagram2-mapping-search]").fill("");
+  await expect(page.locator("[data-diagram2-field-mapping-highlight]")).toHaveCount(0);
+  await editGroupedMappingPane.locator("[data-diagram2-mapping-group-by-table]").uncheck();
+  await editMappingButton.click();
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']").click();
   await expect(page.locator(
     "[data-diagram2-object-plane] [data-diagram2-object-id='entity-phase6']"

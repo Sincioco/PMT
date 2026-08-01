@@ -1,7 +1,7 @@
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
+} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,

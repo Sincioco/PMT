@@ -20,7 +20,7 @@ import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and
 import {
   diagram2EntityDialogDefaults,
   parseDiagram2EntityDefinition
-} from "./diagram2-editor-entities.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-entities.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   diagram2ImageCropCornerRadii,
   diagram2ImageCropInsets,
@@ -34,8 +34,8 @@ import {
   createDiagram2FieldMappingIndexes,
   diagram2FieldMappingExportRows,
   diagram2FieldMappingPaneGroups
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-download-v2";
-import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
+import { diagram2ObjectTreeNodes } from "./diagram2-editor-structure.js?v=20260801-diagram2-readonly-trace-v2";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
@@ -682,7 +682,7 @@ export function diagram2MappingPaneHtml(stateInput = null, options = {}) {
   const mappingCount = indexes.mappingsById.size;
   const visibleCount = groups.reduce((total, group) => total + group.rows.length, 0);
   const content = groups.length
-    ? groups.map(diagram2MappingPaneGroupHtml).join("")
+    ? groups.map(group => diagram2MappingPaneGroupHtml(group, { groupByTable })).join("")
     : `<p class="diagram2-mapping-pane-empty">${mappingCount ? "No mappings match your search." : "No UI to database field mappings."}</p>`;
   const countText = search.trim()
     ? `${visibleCount} of ${mappingCount}`
@@ -750,26 +750,29 @@ export function downloadDiagram2FieldMappings(indexes, formatInput = "csv", opti
   return true;
 }
 
-function diagram2MappingPaneGroupHtml(group) {
+function diagram2MappingPaneGroupHtml(group, options = {}) {
   return `
     <section class="diagram2-mapping-pane-group" data-diagram2-mapping-pane-group="${escapeAttr(group.id)}" role="listitem">
       ${group.name ? `<h4>${escapeHtml(group.name)}</h4>` : ""}
       <div class="diagram2-mapping-pane-rows">
-        ${group.rows.map(diagram2MappingPaneRowHtml).join("")}
+        ${group.rows.map(row => diagram2MappingPaneRowHtml(row, options)).join("")}
       </div>
     </section>
   `;
 }
 
-function diagram2MappingPaneRowHtml(row) {
+function diagram2MappingPaneRowHtml(row, options = {}) {
   const commonAttributes = `data-diagram2-field-mapping-cell="true" data-diagram2-mapping-pane-field data-diagram2-field-mapping-id="${escapeAttr(row.mappingId)}" data-diagram2-field-mapping-table-id="${escapeAttr(row.tableId)}"`;
+  const databaseFieldText = options.groupByTable === true
+    ? row.databaseFieldName
+    : row.databaseField;
   return `
     <div class="diagram2-mapping-pane-row" data-diagram2-mapping-pane-row data-diagram2-field-mapping-id="${escapeAttr(row.mappingId)}" data-diagram2-field-mapping-table-id="${escapeAttr(row.tableId)}" role="group" aria-label="${escapeAttr(`${row.uiField} maps to ${row.databaseField}`)}">
       <button type="button" class="diagram2-mapping-pane-field" ${commonAttributes} data-diagram2-field-mapping-cell-kind="ui" aria-label="Select UI field ${escapeAttr(row.uiField)}">
         <span class="diagram2-mapping-pane-field-value">${escapeHtml(row.uiField)}</span>
       </button>
       <button type="button" class="diagram2-mapping-pane-field" ${commonAttributes} data-diagram2-field-mapping-cell-kind="database" aria-label="Select database field ${escapeAttr(row.databaseField)}">
-        <span class="diagram2-mapping-pane-field-value">${escapeHtml(row.databaseField)}</span>
+        <span class="diagram2-mapping-pane-field-value">${escapeHtml(databaseFieldText)}</span>
       </button>
     </div>
   `;

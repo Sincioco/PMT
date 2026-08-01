@@ -6,7 +6,7 @@ import {
 import {
   diagram2CanonicalRelationships,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260731-checkbox-d2-view-options-v4";
+} from "./diagram2-renderer.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   createDiagram2RelationshipRouteModel,
   diagram2RelationshipRouteFromModel,
@@ -14,7 +14,7 @@ import {
 } from "./diagram2-routing.js?v=20260731-rte-checkbox-layout-v2";
 import {
   createDiagram2CompactDiagnostics
-} from "./diagram2-route-costing.js?v=20260731-rte-checkbox-layout-v2";
+} from "./diagram2-route-costing.js?v=20260801-diagram2-readonly-trace-v2";
 
 const relationshipObjectType = "entity-relationship";
 const relationshipGroupObjectType = "entity-relationships";

@@ -1,7 +1,7 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260801-diagram2-color-preview-v1";
+} from "./diagram2-editor-controller.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   adjustDiagram2RelationshipRoutePoints,
   diagram2RelationshipPath

@@ -23,10 +23,10 @@ import {
   patchDiagram2FieldMappingIndexes,
   setDiagram2FieldMappingRouteIndex,
   diagram2MappingAttentionTargets
-} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-mapping-view-v3";
+} from "./diagram2-editor-field-mappings.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   diagram2FieldMappingTableRowKey
-} from "./diagram2-editor-field-mapping-tables.js?v=20260801-diagram2-mapping-view-v3";
+} from "./diagram2-editor-field-mapping-tables.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   createDiagram2ImageResourceManager
 } from "./diagram2-image-resources.js?v=20260731-rte-checkbox-layout-v2";
@@ -459,7 +459,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let cropOptionAdjustmentCancelCount = 0;
   let cropOptionImagePatchCount = 0;
   let cropOptionOverlayPatchCount = 0;
+  const relationshipTraceSelectionTargetIds = new Set();
+  const relationshipTraceHoverTargetIds = new Set();
   const relationshipTraceIds = new Set();
+  const relationshipTraceEntityIds = new Set();
   let fullRenderCount = 0;
   let fullRenderReason = "";
   let frameSequence = 0;
@@ -549,6 +552,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     rebuildRelationshipLookupIndexes(relationships);
     const relationshipResult = patchRelationships(relationships);
+    syncRelationshipTraceState();
     syncFieldMappingRouteIndexes();
     const relationshipsRouted = relationshipResult.routed;
     rebuildViewportHaloIndexes(visibleObjects, relationships);
@@ -1014,27 +1018,69 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function setRelationshipTraceSelection(ids = []) {
-    const nextTraceIds = new Set();
-    (Array.isArray(ids) ? ids : [ids])
+    if (!replaceRelationshipTraceTargets(relationshipTraceSelectionTargetIds, ids)) return diagnostics();
+    return syncRelationshipTraceState();
+  }
+
+  function setRelationshipTraceHover(ids = []) {
+    if (!replaceRelationshipTraceTargets(relationshipTraceHoverTargetIds, ids)) return diagnostics();
+    return syncRelationshipTraceState();
+  }
+
+  function replaceRelationshipTraceTargets(targetIds, idsInput) {
+    const nextIds = new Set((Array.isArray(idsInput) ? idsInput : [idsInput])
       .map(id => String(id || "").trim())
-      .filter(Boolean)
-      .forEach(id => {
-        routing.relationshipIdsByEntityId.get(id)?.forEach(relationshipId => {
-          nextTraceIds.add(relationshipId);
-        });
-        if (liveView.relationshipDataById.has(id) || routing.relationshipRoutesById.has(id)) {
-          nextTraceIds.add(id);
-        }
+      .filter(Boolean));
+    if (nextIds.size === targetIds.size && [...nextIds].every(id => targetIds.has(id))) return false;
+    targetIds.clear();
+    nextIds.forEach(id => targetIds.add(id));
+    return true;
+  }
+
+  function syncRelationshipTraceState() {
+    const nextRelationshipIds = new Set();
+    const nextEntityIds = new Set();
+    const targetIds = new Set([
+      ...relationshipTraceSelectionTargetIds,
+      ...relationshipTraceHoverTargetIds
+    ]);
+
+    targetIds.forEach(id => {
+      const relationship = routing.relationshipDataById.get(id) || liveView.relationshipDataById.get(id);
+      if (relationship) {
+        nextRelationshipIds.add(id);
+        if (relationship.source?.id) nextEntityIds.add(relationship.source.id);
+        if (relationship.target?.id) nextEntityIds.add(relationship.target.id);
+        return;
+      }
+
+      const entityIndex = canonicalObjectIndexById.get(id);
+      const entity = Number.isInteger(entityIndex) ? canonicalState?.objects?.[entityIndex] : null;
+      if (entity?.type !== "entity" || diagram2IsFieldRectangle(entity)) return;
+      nextEntityIds.add(id);
+      routing.relationshipIdsByEntityId.get(id)?.forEach(relationshipId => {
+        nextRelationshipIds.add(relationshipId);
       });
+    });
 
-    if (nextTraceIds.size === relationshipTraceIds.size
-      && [...nextTraceIds].every(id => relationshipTraceIds.has(id))) return diagnostics();
+    const relationshipIdsChanged = nextRelationshipIds.size !== relationshipTraceIds.size
+      || [...nextRelationshipIds].some(id => !relationshipTraceIds.has(id));
+    const entityIdsChanged = nextEntityIds.size !== relationshipTraceEntityIds.size
+      || [...nextEntityIds].some(id => !relationshipTraceEntityIds.has(id));
+    if (!relationshipIdsChanged && !entityIdsChanged) return diagnostics();
 
-    const changedIds = new Set([...relationshipTraceIds, ...nextTraceIds]);
+    const changedRelationshipIds = new Set([...relationshipTraceIds, ...nextRelationshipIds]);
+    const changedEntityIds = new Set([...relationshipTraceEntityIds, ...nextEntityIds]);
     relationshipTraceIds.clear();
-    nextTraceIds.forEach(id => relationshipTraceIds.add(id));
-    changedIds.forEach(id => {
-      const relationship = liveView.relationshipDataById.get(id);
+    nextRelationshipIds.forEach(id => relationshipTraceIds.add(id));
+    relationshipTraceEntityIds.clear();
+    nextEntityIds.forEach(id => relationshipTraceEntityIds.add(id));
+
+    changedEntityIds.forEach(id => {
+      liveView.objectNodesById.get(id)?.classList.toggle("is-relationship-trace", relationshipTraceEntityIds.has(id));
+    });
+    changedRelationshipIds.forEach(id => {
+      const relationship = routing.relationshipDataById.get(id) || liveView.relationshipDataById.get(id);
       const route = routing.relationshipRoutesById.get(id);
       if (relationship && route) {
         patchSelectedRelationshipOverlay(relationship, route, {
@@ -1994,7 +2040,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       mountedObjectIds: [...liveView.mountedObjectIds],
       mountedRelationshipIds: [...liveView.mountedRelationshipIds],
       selectedIds: [...liveView.selectedIds],
+      relationshipTraceSelectionTargetIds: [...relationshipTraceSelectionTargetIds],
+      relationshipTraceHoverTargetIds: [...relationshipTraceHoverTargetIds],
       relationshipTraceIds: [...relationshipTraceIds],
+      relationshipTraceEntityIds: [...relationshipTraceEntityIds],
       objectVersionCount: liveView.objectVersionsById.size,
       relationshipVersionCount: liveView.relationshipVersionsById.size,
       objectDataCount: liveView.objectDataById.size,
@@ -2315,7 +2364,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     cropPreviewState = null;
     cropOptionAdjustmentImageId = "";
     selectionChromeSuppressedIds.clear();
+    relationshipTraceSelectionTargetIds.clear();
+    relationshipTraceHoverTargetIds.clear();
     relationshipTraceIds.clear();
+    relationshipTraceEntityIds.clear();
     lastDiagnostics = emptyDiagnostics();
     lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
     lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
@@ -2627,6 +2679,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const flags = diagram2ObjectPatchFlags(previousObject, object);
     if (!flags.changed && !detailChanged && liveView.objectVersionsById.has(object.id)) {
       patchObjectSelection(node, object.id, liveView.selectedIds.has(object.id));
+      node.classList.toggle("is-relationship-trace", relationshipTraceEntityIds.has(object.id));
       return 0;
     }
 
@@ -2637,6 +2690,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       viewportScale: committedViewportTransform.scale,
       rebuild: flags.rebuild || detailChanged,
       selected: liveView.selectedIds.has(object.id),
+      traced: relationshipTraceEntityIds.has(object.id),
       imageResourceStatus: object.type === "embedded-image"
         ? imageResources.statusForObject(object.id)
         : null
@@ -3076,8 +3130,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function rebuildRelationshipLookupIndexes(relationships) {
     routing.relationshipIdsByEntityId.clear();
     routing.relationshipIdsByFieldAnchor.clear();
+    routing.relationshipDataById.clear();
     const desiredIds = new Set(relationships.map(relationship => relationship.id));
     relationships.forEach(relationship => {
+      routing.relationshipDataById.set(relationship.id, relationship);
       addToSetMap(routing.relationshipIdsByEntityId, relationship.source?.id, relationship.id);
       addToSetMap(routing.relationshipIdsByEntityId, relationship.target?.id, relationship.id);
       addToSetMap(routing.relationshipIdsByFieldAnchor, relationshipFieldAnchorKey(relationship.source, relationship.sourceField), relationship.id);
@@ -4567,6 +4623,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     relationshipRoutePoints,
     setSelectedIds,
     setRelationshipTraceSelection,
+    setRelationshipTraceHover,
     setCanvasOptions,
     setViewportInset,
     objectIdsInBounds,
@@ -4620,6 +4677,7 @@ function clearDiagram2LiveView(liveView) {
 function clearDiagram2RoutingState(routing) {
   routing.relationshipIdsByEntityId.clear();
   routing.relationshipIdsByFieldAnchor.clear();
+  routing.relationshipDataById.clear();
   routing.relationshipBoundsById.clear();
   routing.relationshipRouteSignaturesById.clear();
   routing.relationshipStyleSignaturesById.clear();
@@ -4648,15 +4706,19 @@ function clearDiagram2ViewportHaloState(viewportHalo) {
 }
 
 function patchObjectNode(node, previousObject, object, flags = {}, state) {
+  const traced = flags.traced == null
+    ? node.classList.contains("is-relationship-trace")
+    : flags.traced === true;
   setSvgAttributes(node, {
     "data-diagram2-object-id": object.id,
     "data-diagram2-object-type": object.type,
     "data-diagram2-object-detail-level": flags.detailLevel || diagram2DetailLevelDetailed,
     "data-diagram2-object-visible": object.visible !== false ? "true" : "false",
     "data-diagram2-object-locked": object.locked === true ? "true" : "false",
+    "data-diagram2-relationship-trace-entity": object.type === "entity" && !diagram2IsFieldRectangle(object) ? "true" : null,
     "data-diagram2-object-transform-x": objectTranslation(object).x,
     "data-diagram2-object-transform-y": objectTranslation(object).y,
-    class: `diagram2-renderer-object is-${cssClassName(object.type)}${flags.selected ? " is-selected" : ""}${object.locked === true ? " is-locked" : ""}`,
+    class: `diagram2-renderer-object is-${cssClassName(object.type)}${flags.selected ? " is-selected" : ""}${traced ? " is-relationship-trace" : ""}${object.locked === true ? " is-locked" : ""}`,
     transform: objectTransformText(object),
     opacity: safeOpacity(object.opacity)
   });
@@ -6625,6 +6687,7 @@ function createDiagram2SelectiveRoutingState() {
   return {
     relationshipIdsByEntityId: new Map(),
     relationshipIdsByFieldAnchor: new Map(),
+    relationshipDataById: new Map(),
     relationshipBoundsById: new Map(),
     relationshipRouteSignaturesById: new Map(),
     relationshipStyleSignaturesById: new Map(),
