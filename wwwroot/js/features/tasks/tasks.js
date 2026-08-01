@@ -27,7 +27,7 @@ import {
   value
 } from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,

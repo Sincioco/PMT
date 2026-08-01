@@ -1163,7 +1163,7 @@ test("Diagram 2 Capture inserts through the live image command without a full re
     videoSourceCleared: 1,
     imageType: "embedded-image",
     selectedIds: [inserted.imageId],
-    activeTool: "crop",
+    activeTool: "select",
     historyCount: initial.historyCount + 1,
     dirty: true,
     fullRenderCount: initial.fullRenderCount,
@@ -1181,6 +1181,7 @@ test("Diagram 2 Capture inserts through the live image command without a full re
   expect(inserted.decodeCount).toBe(initial.decodeCount + 1);
   expect(uploadedImageCount).toBe(1);
   await expect(captureButton).toBeEnabled();
+  await expect(page.locator("[data-diagram2-crop-handle]")).toHaveCount(0);
 
   await page.evaluate(async () => {
     await window.__pmtDiagram2EditorCore.undo();

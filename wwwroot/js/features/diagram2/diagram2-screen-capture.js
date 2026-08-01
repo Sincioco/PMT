@@ -16,6 +16,12 @@ export function createDiagram2ScreenCaptureService(options = {}) {
     || (() => environment.document?.createElement?.("video"));
   const createCanvasElement = options.createCanvasElement
     || (() => environment.document?.createElement?.("canvas"));
+  const createCaptureController = options.createCaptureController
+    || (typeof environment.CaptureController === "function"
+      ? () => new environment.CaptureController()
+      : null);
+  const focusCapturingApplication = options.focusCapturingApplication
+    || (() => environment.focus?.());
   const hasFileFactory = typeof options.createFile === "function" || typeof environment.File === "function";
   const createFile = options.createFile
     || ((blob, name, fileOptions) => new environment.File([blob], name, fileOptions));
@@ -46,16 +52,21 @@ export function createDiagram2ScreenCaptureService(options = {}) {
     const session = createCaptureSession();
     activeSession = session;
     try {
-      session.stream = await getDisplayMedia({
+      const displayOptions = {
         video: {
           resizeMode: "none"
         },
         audio: false
-      });
+      };
+      session.focusController = safeCaptureController(createCaptureController);
+      if (session.focusController) displayOptions.controller = session.focusController;
+      session.stream = await getDisplayMedia(displayOptions);
       if (session.canceled) throw session.cancelError;
 
       session.track = session.stream?.getVideoTracks?.()[0] || null;
       if (!session.track) throw captureError("NotFoundError", "The selected source did not provide a video track.");
+      const initialSettings = safeTrackValues(session.track, "getSettings");
+      retainCapturingApplicationFocus(session.focusController, initialSettings.displaySurface);
       session.trackEndedHandler = () => {
         if (!session.frameCopied) cancelSession(
           session,
@@ -65,7 +76,6 @@ export function createDiagram2ScreenCaptureService(options = {}) {
       session.track.addEventListener?.("ended", session.trackEndedHandler);
 
       const capabilities = safeTrackValues(session.track, "getCapabilities");
-      const initialSettings = safeTrackValues(session.track, "getSettings");
       const constraints = fullDetailConstraints(capabilities);
       let constraintError = null;
       if (Object.keys(constraints).length && typeof session.track.applyConstraints === "function") {
@@ -114,6 +124,7 @@ export function createDiagram2ScreenCaptureService(options = {}) {
 
       // Stop sharing before PNG encoding or PMT upload work begins.
       stopSessionTracks(session);
+      safelyFocusCapturingApplication(focusCapturingApplication);
 
       const blob = await canvasPngBlob(session.canvas);
       if (!blob) throw captureError("CaptureEncodingError", "The browser could not encode the screen capture as PNG.");
@@ -203,6 +214,7 @@ function createCaptureSession() {
     track: null,
     video: null,
     canvas: null,
+    focusController: null,
     trackEndedHandler: null,
     frameCallbackId: null,
     animationFrameIds: new Set(),
@@ -265,6 +277,7 @@ function cleanupCaptureSession(session, options = {}) {
   session.track = null;
   session.video = null;
   session.canvas = null;
+  session.focusController = null;
 }
 
 async function waitForCaptureFrame(session, options = {}) {
@@ -443,6 +456,38 @@ function safeTrackValues(track, methodName) {
     return values && typeof values === "object" ? values : {};
   } catch {
     return {};
+  }
+}
+
+function safeCaptureController(createCaptureController) {
+  if (typeof createCaptureController !== "function") return null;
+  try {
+    const controller = createCaptureController();
+    return typeof controller?.setFocusBehavior === "function" ? controller : null;
+  } catch {
+    return null;
+  }
+}
+
+function retainCapturingApplicationFocus(controller, displaySurfaceInput) {
+  const displaySurface = String(displaySurfaceInput || "").toLowerCase();
+  if (!controller || (displaySurface !== "browser" && displaySurface !== "window")) return;
+  try {
+    controller.setFocusBehavior("focus-capturing-application");
+  } catch {
+    try {
+      controller.setFocusBehavior("no-focus-change");
+    } catch {
+      // Conditional Focus is optional; the post-frame focus request remains available.
+    }
+  }
+}
+
+function safelyFocusCapturingApplication(focusCapturingApplication) {
+  try {
+    focusCapturingApplication?.();
+  } catch {
+    // Browsers and operating systems may reject programmatic foreground changes.
   }
 }
 

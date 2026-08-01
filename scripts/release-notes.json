@@ -1614,7 +1614,7 @@
   },
   {
     "day": 41,
-    "title": "Diagram 2 for Enterprise ERDs and System Documentation",
+    "title": "Diagram 2 for Enterprise ERDs, System Documentation, and Screen Capture",
     "sections": [
       {
         "title": "Diagram 2",
@@ -1627,6 +1627,12 @@
         "items": [
           "Create UI Field to Database Field mappings in Diagram 2 for system documentation, ongoing maintenance, and onboarding new team members.",
           "Download UI Field to Database Field mappings as CSV or Excel files."
+        ]
+      },
+      {
+        "title": "Window and Screen Capture",
+        "items": [
+          "Capture a window or an entire screen directly in Diagram 2 without using the Windows Snipping Tool."
         ]
       }
     ]

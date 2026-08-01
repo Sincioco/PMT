@@ -51,6 +51,61 @@ test("Diagram 2 captures one full-detail frame as PNG and immediately releases e
   assert.equal(result.diagnostics.screenPixelRatio, 1.5);
 });
 
+test("Diagram 2 keeps PMT focused for window capture and requests focus again after copying the frame", async () => {
+  const focusBehaviors = [];
+  let focusRequests = 0;
+  const focusController = {
+    setFocusBehavior(value) {
+      focusBehaviors.push(value);
+    }
+  };
+  let harness;
+  harness = captureHarness({
+    settings: {
+      width: 1920,
+      height: 1080,
+      resizeMode: "none",
+      displaySurface: "window",
+      screenPixelRatio: 1
+    },
+    createCaptureController: () => focusController,
+    focusCapturingApplication: () => {
+      focusRequests += 1;
+      assert.equal(harness.calls.drawImage, 1);
+      assert.equal(harness.tracks.every(track => track.stopCount === 1), true);
+    }
+  });
+
+  await harness.service.capture();
+
+  assert.equal(harness.calls.displayOptions.controller, focusController);
+  assert.deepEqual(focusBehaviors, ["focus-capturing-application"]);
+  assert.equal(focusRequests, 1);
+});
+
+test("Diagram 2 falls back to the legacy no-focus-change capture preference", async () => {
+  const focusBehaviors = [];
+  const harness = captureHarness({
+    settings: {
+      width: 1920,
+      height: 1080,
+      resizeMode: "none",
+      displaySurface: "browser",
+      screenPixelRatio: 1
+    },
+    createCaptureController: () => ({
+      setFocusBehavior(value) {
+        focusBehaviors.push(value);
+        if (value === "focus-capturing-application") throw new TypeError("Unsupported focus value");
+      }
+    })
+  });
+
+  await harness.service.capture();
+
+  assert.deepEqual(focusBehaviors, ["focus-capturing-application", "no-focus-change"]);
+});
+
 test("Diagram 2 continues when optional full-detail constraints are rejected", async () => {
   const error = Object.assign(new Error("Unsupported constraint"), { name: "OverconstrainedError" });
   const harness = captureHarness({ constraintError: error });
@@ -143,7 +198,7 @@ test("Diagram 2 reports unsupported and canceled capture states without browser 
   );
 });
 
-test("Diagram 2 Capture reuses Add Image, selects the image, and enters Crop with one history entry", async () => {
+test("Diagram 2 Capture reuses Add Image, selects the image, and returns to Select with one history entry", async () => {
   const renderer = captureRenderer();
   const controller = captureController(renderer);
   const root = captureRoot();
@@ -188,6 +243,7 @@ test("Diagram 2 Capture reuses Add Image, selects the image, and enters Crop wit
   });
   const abortController = new AbortController();
   host.bind(abortController.signal);
+  controller.setActiveTool("rectangle");
 
   const pending = host.handleAction("capture-diagram2-screen");
   await Promise.resolve();
@@ -209,9 +265,10 @@ test("Diagram 2 Capture reuses Add Image, selects the image, and enters Crop wit
   assert.equal(image.source, "/uploads/capture.png");
   assert.equal(image.width / image.height, 800 / 450);
   assert.deepEqual(controller.selectedObjectIds(), [image.id]);
-  assert.equal(controller.activeTool(), "crop");
-  assert.equal(renderer.cropTargetId, image.id);
-  assert.deepEqual(renderer.selectionChrome, { id: image.id, suppressed: true });
+  assert.equal(controller.activeTool(), "select");
+  assert.equal(renderer.cropTargetId, undefined);
+  assert.equal(renderer.selectionChrome, undefined);
+  assert.equal(root.workspace.focusCount, 1);
   assert.equal(controller.historyStatus().entryCount, 1);
   assert.equal(controller.statusSnapshot().dirty, true);
   assert.equal(renderer.fullRenderCount, 0);
@@ -457,6 +514,8 @@ function captureHarness(options = {}) {
     },
     createVideoElement: () => video,
     createCanvasElement: () => canvas,
+    createCaptureController: options.createCaptureController,
+    focusCapturingApplication: options.focusCapturingApplication,
     createFile: (blob, name, fileOptions) => ({
       blob,
       name,
@@ -583,10 +642,14 @@ function captureRoot() {
     }
   };
   const workspace = {
-    focus() {}
+    focusCount: 0,
+    focus() {
+      this.focusCount += 1;
+    }
   };
   return {
     captureButton,
+    workspace,
     querySelector(selector) {
       if (selector === "[data-diagram2-screen-capture]") return captureButton;
       if (selector === "[data-diagram2-workspace]") return workspace;

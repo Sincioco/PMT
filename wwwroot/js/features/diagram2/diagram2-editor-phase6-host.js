@@ -19,7 +19,7 @@ import {
   diagram2ScreenCaptureErrorMessage,
   diagram2ScreenCaptureReducedResolutionMessage,
   diagram2ScreenCaptureUnsupportedMessage
-} from "./diagram2-screen-capture.js?v=20260801-diagram2-screen-capture-v1";
+} from "./diagram2-screen-capture.js?v=20260801-diagram2-screen-capture-v2";
 import {
   isDiagram2FieldRectangle
 } from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
@@ -28,7 +28,7 @@ import {
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor,
   setDiagram2InspectorActiveTab
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;
@@ -180,14 +180,13 @@ export function createDiagram2Phase6Host(options = {}) {
       lastScreenCaptureDiagnostics = result?.diagnostics || screenCaptureService.diagnostics?.() || null;
       if (destroyed || !canMutate()) return false;
       const inserted = await addImageFiles([result.file], null, {
-        activateCrop: true,
         label: "Capture screen",
         reason: "capture screen",
-        silentCropMessage: true,
         suppressSuccessMessage: true,
         uploadMessage: "Adding screen capture..."
       });
       if (!inserted || destroyed) return false;
+      focusWorkspace();
       notify(result.reducedResolution
         ? `Screen capture inserted. ${diagram2ScreenCaptureReducedResolutionMessage}`
         : "Screen capture inserted.");

@@ -13,7 +13,7 @@ import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
 } from "./diagram2-editor-controller.js?v=20260801-diagram2-readonly-trace-v2";
-import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260801-diagram2-screen-capture-v1";
+import { createDiagram2Phase6Host } from "./diagram2-editor-phase6-host.js?v=20260801-diagram2-screen-capture-v2";
 import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260801-diagram2-readonly-trace-v2";
 import {
   bindDiagram2EditorColorPickers,
@@ -36,7 +36,7 @@ import {
   updateDiagram2ObjectTreeSelection,
   updateDiagram2RouteCommitShellStatus,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,

@@ -53,9 +53,11 @@ After source selection it reads track capabilities/settings and progressively ap
 
 Unsupported post-selection constraints are non-fatal. The selected stream still proceeds with the browser-provided dimensions.
 
+When the browser exposes `CaptureController.setFocusBehavior()`, PMT passes a controller to `getDisplayMedia()` and immediately requests `focus-capturing-application` for captured windows and browser tabs. Browsers with the older enum receive the compatible `no-focus-change` preference. This uses Chromium's [Conditional Focus API](https://developer.chrome.com/docs/web-platform/conditional-focus) instead of trying to manipulate the captured application.
+
 The service waits for metadata and non-zero video dimensions, then prefers `requestVideoFrameCallback()`. Its fallback uses two animation frames. Metadata, video-frame, and animation-frame waits are bounded and react to track end or editor destruction.
 
-It draws exactly one delivered frame to a canvas whose backing width and height equal `video.videoWidth` and `video.videoHeight`. It then stops every stream track before PNG encoding or PMT upload work. The canvas is encoded once with [`canvas.toBlob(..., "image/png")`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob), and the Blob becomes a timestamped PNG `File`.
+It draws exactly one delivered frame to a canvas whose backing width and height equal `video.videoWidth` and `video.videoHeight`. It then stops every stream track and makes a best-effort focus request for the PMT window before PNG encoding or PMT upload work. Deferring the fallback until after `drawImage()` prevents PMT from changing the contents of an entire-monitor capture. The canvas is encoded once with [`canvas.toBlob(..., "image/png")`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob), and the Blob becomes a timestamped PNG `File`.
 
 No `MediaRecorder`, video codec, video file, `RTCPeerConnection`, network stream, or Blob URL is used. This follows the browser [Screen Capture API](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Capture_API) and [W3C Screen Capture specification](https://www.w3.org/TR/screen-capture/).
 
@@ -88,7 +90,7 @@ No special capture object exists. The saved result is the normal `embedded-image
 
 The canonical object is created only after upload/source creation and image decoding succeed. Before that point, selection, dirty state, and history are unchanged. Upload failure leaves no canonical object or history entry.
 
-After insertion, the command-selected image remains selected and the shared host activates the existing Crop tool. Crop target rendering, hidden selection chrome, Crop tab selection, crop resizing, and later image behavior are unchanged.
+After insertion, the command-selected image remains selected and the shared host returns to the normal Select tool. It does not create a crop target, suppress the selection border, or open the Crop tab. The user can choose Crop later through the existing tool when needed.
 
 ## History, Persistence, And Compatibility
 
@@ -135,13 +137,14 @@ Only the new image resource is decoded. No unrelated relationship route or keyed
 Final results:
 
 - `npm.cmd run check:js`: PASS, 195 JavaScript modules syntax-checked.
-- `node --test tests/js/diagram2-screen-capture.test.mjs`: PASS, 16 tests, 0 failures.
-- `npm.cmd run test:js`: PASS, 476 tests, 0 failures.
+- `node --test tests/js/diagram2-screen-capture.test.mjs`: PASS, 18 tests, 0 failures.
+- `npm.cmd run test:js`: PASS, 478 tests, 0 failures.
 - `node --test tests/js/diagram2-compact-parity.test.mjs`: PASS, 29 tests, 0 failures.
 - Focused Playwright D2, injected capture, and RTE host run: PASS, 5 passed, 1 intentionally skipped duplicate viewport capture-pipeline case, 0 failures.
 - D2 toolbar/layout: PASS at `1366x768` and `1920x1080`.
 - RTE Annotate 2.0 toolbar/layout: PASS at `1366x768` and `1920x1080`.
 - Injected live capture pipeline: PASS at `1366x768`.
+- Follow-up #54 live capture pipeline: PASS at `1366x768`, with Select active and no Crop handles.
 - `dotnet build --no-restore -p:OutputPath=<TEMP>`: could not run initially because the cleaned repository had no `obj/project.assets.json` (`NETSDK1004`).
 - Restore-backed `dotnet build -p:OutputPath=<TEMP>`: PASS, 0 errors and 2 existing .NET 6 end-of-support warnings.
 - `git diff --check`: PASS.
@@ -157,7 +160,7 @@ Use Ctrl+F5 first, then test in the supported Chrome or Edge build.
 1. Open an editable Diagram 2 and note zoom/pan.
 2. Click Capture and choose an entire monitor.
 3. Confirm that sharing stops immediately after one frame.
-4. Confirm one selected Image appears and Crop is active.
+4. Confirm one selected Image appears and Select is active.
 5. Move, resize, crop, Undo, Redo, Save, reload, and reopen.
 6. Confirm the image remains and insertion did not reset zoom/pan.
 
@@ -176,12 +179,13 @@ Use Ctrl+F5 first, then test in the supported Chrome or Edge build.
 
 1. Click Capture and choose a visible application window.
 2. Confirm only that window appears in the selected image.
-3. Confirm Crop is active, then Save and reopen.
+3. Confirm PMT returns to the foreground without requiring Alt+Tab.
+4. Confirm Select is active, then Save and reopen.
 
 ### C. Browser tab
 
 1. Click Capture and choose a browser tab.
-2. Confirm the tab becomes a selected Image and Crop is active.
+2. Confirm the tab becomes a selected Image and Select is active.
 3. Save and reopen.
 
 ### D. Cancel
@@ -210,6 +214,7 @@ No .NET source, CSS, image asset, or database change is included. Import query v
 Known platform limitations:
 
 - The browser always controls source selection and requests permission for each new capture.
+- PMT requests that supported browsers retain or restore focus, but the browser and operating system have final authority over native foreground changes.
 - Actual delivered resolution is browser and source dependent.
 - A large lossless PNG can exceed PMT's existing image upload limit; failure remains atomic.
 - Native Windows chooser, real monitor/window/tab dimensions, high-DPI quality, and ten-cycle sharing-indicator cleanup require the manual steps above.

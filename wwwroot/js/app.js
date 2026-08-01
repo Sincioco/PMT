@@ -12,7 +12,7 @@ import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
 } from "./components/diagram-field-mapping-interactions.js?v=20260731-rte-checkbox-layout-v2";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -75,10 +75,10 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260801-diagram2-mapping-view-v3";
 import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram2-mapping-view-v3";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260801-diagram2-mapping-view-v3";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-screen-capture-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-screen-capture-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260801-diagram2-screen-capture-v2";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260801-diagram2-screen-capture-v2";
 import {
   diagram2LinkedViewerViewport,
   disposeDiagram2LinkedViewer,
@@ -94,11 +94,11 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+} from "./features/gantt/gantt.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260801-diagram2-mapping-view-v3";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260801-diagram2-mapping-view-v3";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-08-01-day-41-0996762d6734";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260801-diagram2-mapping-view-v3";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260801-diagram2-mapping-view-v3";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260801-diagram2-mapping-view-v3";

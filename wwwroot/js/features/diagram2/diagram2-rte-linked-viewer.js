@@ -11,7 +11,7 @@ import {
   setDiagram2MappingPaneOpen,
   syncDiagram2MappingPaneColumnWidth,
   syncDiagram2RendererViewportInset
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v1";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v2";
 
 const linkedDiagram2Records = new WeakMap();
 const linkedDiagram2LiveRecords = new Set();

@@ -3668,6 +3668,23 @@ async function assertDiagram2ResizablePanes(page) {
   await expect.poll(() => page.locator("[data-diagram2-tools-pane] .diagram2-editor-left-pane-scroll").evaluate(element =>
     getComputedStyle(element).overflowX
   )).toBe("hidden");
+  const workspaceMetrics = await page.evaluate(() => {
+    const editor = document.querySelector("[data-diagram2-editor-shell]");
+    const workspace = editor?.querySelector("[data-diagram2-workspace]");
+    const surface = editor?.querySelector("[data-diagram2-renderer-surface]");
+    const workspaceBounds = workspace?.getBoundingClientRect();
+    const surfaceBounds = surface?.getBoundingClientRect();
+    return {
+      scrollbarGutter: workspace ? getComputedStyle(workspace).scrollbarGutter : "",
+      workspaceWidth: Math.round(workspaceBounds?.width || 0),
+      workspaceClientWidth: workspace?.clientWidth || 0,
+      surfaceWidth: Math.round(surfaceBounds?.width || 0),
+      rightGap: Math.round((workspaceBounds?.right || 0) - (surfaceBounds?.right || 0))
+    };
+  });
+  console.info("DIAGRAM2_EDITOR_GUTTER", JSON.stringify(workspaceMetrics));
+  expect(workspaceMetrics.scrollbarGutter).toBe("auto");
+  expect(Math.abs(workspaceMetrics.rightGap)).toBeLessThanOrEqual(1);
   const beforeLeft = await diagram2TopBandMetrics(page);
   const leftPaneWidthBefore = await page.locator("[data-diagram2-tools-pane]").evaluate(element =>
     Math.round(element.getBoundingClientRect().width));

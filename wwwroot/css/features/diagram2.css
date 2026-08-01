@@ -848,6 +848,7 @@ body.diagram2-edit-mode-active #app {
   padding: 0;
   background: #eef2f7;
   overflow: hidden;
+  scrollbar-gutter: auto;
 }
 
 .diagram2-editor-canvas-stage {

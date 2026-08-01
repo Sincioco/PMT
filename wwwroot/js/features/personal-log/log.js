@@ -13,7 +13,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {

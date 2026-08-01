@@ -108,14 +108,20 @@ Diagram 2
 
 53.) In Diagram 2 when in read-only, and edit-mode and in the Link View Diagram 2 (both public and private), when searching and there is only one matching result, auto-trigger the blue arrows and UI Field and Database Field highlight as though the user clicked on that row.  Makes it faster visually to see if the only item on the search result is what they are looking for.
 
+54.) Follow up #50, don't put the newly captured image on the canvas and be on Crop mode.  Be on the normal Select mode.
+55.) Also, after the screen capture, it brings the window it captured into the foreground and PMT goes behind that window.  Is this normal behavior?  Can PMT come up to the front after the capture?  Otherwise, the user has to Alt + Tab to get back to PMT.
 
-What's New
----------------------------------
-For the What's New, I want you to highlight that Diagram 2 is now live and is much faster than Diagram 1 perfect for creating large ERD diagrams for Enterprise use.  You can also now create UI Field to Database Field mapping in Diagram 2, perfect for System Documentation, maintenance or help onboard new members of the team.  The UI Field to Database Field mapping can be download either as a CSV or Excel file.  Mention that in Diagram 2 they now also do screen capture.  Bypassing the Windows Snipping Tool.
+56.) When using the new Capture tool and selecting a Window, say the Codex window, I noticed that it capture extra pixels at the top, but fewer pixels at the bottom, causing the bottom part to be trimmed slightly losing the Codex window's bottom border.  Can this be fixed or adjusted?
+
+57.) In D2 when in edit mode, there is this vertical gutter.  Do we need that?  If not can we remove it?  Keep the vertical resizing so the Right pane can be resized.
 
 Database Migration Script Testing
 ---------------------------------
 If needed, update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+What's New
+---------------------------------
+For the What's New, I want you to highlight that Diagram 2 is now live and is much faster than Diagram 1 perfect for creating large ERD diagrams for Enterprise use.  You can also now create UI Field to Database Field mapping in Diagram 2, perfect for System Documentation, maintenance or help onboard new members of the team.  The UI Field to Database Field mapping can be download either as a CSV or Excel file.  Mention that in Diagram 2 can now perform Window or Screen capture.  There's no need to use the Windows Snipping Tool anymore!
 
 Commit and Push
 ---------------

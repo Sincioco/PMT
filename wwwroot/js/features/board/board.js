@@ -2,7 +2,7 @@ import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260801-diagram2-mapping-view-v3";
 import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-0996762d6734";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import {
   createWorkItemTableMode,
   taskButtonsHtml,
