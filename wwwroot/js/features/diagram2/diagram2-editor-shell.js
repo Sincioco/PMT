@@ -830,6 +830,12 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   root.querySelectorAll("[data-diagram2-requires-update]").forEach(control => {
     control.disabled = canEdit === false || status.busy === true;
   });
+  root.querySelectorAll("[data-diagram2-screen-capture]").forEach(control => {
+    control.disabled = canEdit === false
+      || status.busy === true
+      || control.dataset.diagram2ScreenCaptureSupported !== "true"
+      || control.dataset.diagram2ScreenCaptureBusy === "true";
+  });
   root.querySelectorAll("[data-diagram2-requires-dirty]").forEach(control => {
     control.disabled = !status.dirty || status.busy === true || status.canSave === false || canEdit === false;
   });
@@ -1646,6 +1652,7 @@ function diagram2ToolsPaneHtml({ canUse }) {
           ${diagram2ToolPaneButton("select", "Select", "Select (V)", true, disabled)}
           ${diagram2ToolPaneButton("pan", "Pan", "Pan (H)", false, disabled)}
           ${diagram2ToolPaneButton("format-painter", "Format Painter", "Format Painter", false, `${disabled} data-diagram2-requires-selection data-diagram2-requires-update`)}
+          ${diagram2ToolPaneActionButton("capture", "Capture", "capture-diagram2-screen", `disabled data-diagram2-screen-capture data-diagram2-screen-capture-supported="false" data-diagram2-screen-capture-busy="false" data-diagram2-requires-update`, "Capture screen, window, or tab", "Capture screen, window, or tab")}
           ${diagram2ToolPaneButton("crop", "Crop", "Crop (C)", false, `${disabled} data-diagram2-requires-image data-diagram2-requires-update`)}
           <div class="diagram2-tools-divider" role="separator" aria-hidden="true"></div>
           ${diagram2ToolPaneActionButton("image", "Add Image", "add-diagram2-image", `${disabled} data-diagram2-requires-update`)}
@@ -2063,8 +2070,8 @@ function diagram2ToolPaneButton(tool, text, label, pressed = false, attributes =
   return `<button type="button" class="diagram2-tool-pane-button ${pressed ? "is-active" : ""}" data-action="set-diagram2-tool" data-diagram2-tool="${escapeAttr(tool)}" data-tool="${escapeAttr(tool)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" aria-pressed="${pressed}" ${attributes}><span class="button-icon" aria-hidden="true">${diagram2ToolIconSvg(tool)}</span><span class="diagram2-tool-pane-label">${escapeHtml(text)}</span></button>`;
 }
 
-function diagram2ToolPaneActionButton(iconType, label, action, attributes = "", title = label) {
-  return `<button type="button" class="diagram2-tool-pane-button" data-action="${escapeAttr(action)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(label)}" ${attributes}><span class="button-icon" aria-hidden="true">${diagram2ToolIconSvg(iconType)}</span><span class="diagram2-tool-pane-label">${escapeHtml(label)}</span></button>`;
+function diagram2ToolPaneActionButton(iconType, label, action, attributes = "", title = label, accessibleLabel = label) {
+  return `<button type="button" class="diagram2-tool-pane-button" data-action="${escapeAttr(action)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(accessibleLabel)}" ${attributes}><span class="button-icon" aria-hidden="true">${diagram2ToolIconSvg(iconType)}</span><span class="diagram2-tool-pane-label">${escapeHtml(label)}</span></button>`;
 }
 
 function diagram2IconButton(label, action, iconType, attributes = "") {
@@ -2893,6 +2900,7 @@ function diagram2ToolIconSvg(tool) {
     select: `<path d="M5 3l13 8-6 2-3 6z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"></path>`,
     pan: `<path d="M8 12V7.5a1.5 1.5 0 0 1 3 0V12M11 11V6.5a1.5 1.5 0 0 1 3 0V12M14 11V8a1.5 1.5 0 0 1 3 0v5M17 12.5V10a1.5 1.5 0 0 1 3 0v3.5c0 4-2.5 6.5-6.5 6.5H11a5 5 0 0 1-4.1-2.2L4 13.5a1.7 1.7 0 0 1 2.8-1.9L8 13"></path>`,
     "format-painter": `<path d="M4 20c2.9 0 5-1.3 5-4.1 0-1.1-.8-1.9-1.9-1.9C4.6 14 4 16.4 4 20z" fill="currentColor" stroke="currentColor"></path><path d="M8.3 14.7 18.4 4.6a2.1 2.1 0 0 1 3 3L11.3 17.7"></path><path d="M15.6 7.4l3 3"></path>`,
+    capture: `<path d="M9 5l1.5-2h3L15 5h3a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"></path><circle cx="12" cy="13" r="4"></circle>`,
     crop: `<path d="M6 3v13a2 2 0 0 0 2 2h13M3 6h13a2 2 0 0 1 2 2v13"></path>`,
     image: `<rect x="3" y="4" width="18" height="16" rx="1"></rect><circle cx="8" cy="9" r="1.5"></circle><path d="m5 17 4-4 3 3 2-2 5 5"></path>`,
     rectangle: `<rect x="4" y="5" width="16" height="14"></rect>`,

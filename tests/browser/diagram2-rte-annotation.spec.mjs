@@ -88,6 +88,11 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   });
 
   await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+  await ensureDiagram2RteToolsPaneOpen(page.locator("[data-diagram2-rte-host]"));
+  const captureButton = page.locator("[data-diagram2-rte-host]")
+    .getByRole("button", { name: "Capture screen, window, or tab", exact: true });
+  await expect(captureButton).toBeVisible();
+  await expect(captureButton).toHaveAttribute("title", "Capture screen, window, or tab");
   await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
     await controller.addObject(controller.createDefaultObject("rectangle", { x: 90, y: 70 }, { id: "rte-rect" }));

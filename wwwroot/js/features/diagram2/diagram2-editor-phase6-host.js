@@ -15,6 +15,12 @@ import {
   loadDiagram2ImageDimensions
 } from "./diagram2-editor-images.js?v=20260731-rte-checkbox-layout-v2";
 import {
+  createDiagram2ScreenCaptureService,
+  diagram2ScreenCaptureErrorMessage,
+  diagram2ScreenCaptureReducedResolutionMessage,
+  diagram2ScreenCaptureUnsupportedMessage
+} from "./diagram2-screen-capture.js?v=20260801-diagram2-screen-capture-v1";
+import {
   isDiagram2FieldRectangle
 } from "./diagram2-editor-field-rectangles.js?v=20260731-rte-checkbox-layout-v2";
 import {
@@ -22,7 +28,7 @@ import {
   openDiagram2FieldMappingImageChooser,
   openDiagram2FieldRectangleMappingEditor,
   setDiagram2InspectorActiveTab
-} from "./diagram2-editor-shell.js?v=20260801-diagram2-readonly-trace-v2";
+} from "./diagram2-editor-shell.js?v=20260801-diagram2-screen-capture-v1";
 
 export function createDiagram2Phase6Host(options = {}) {
   const root = options.root;
@@ -31,6 +37,16 @@ export function createDiagram2Phase6Host(options = {}) {
   let cropModeImageId = "";
   let observedSelectionKey = selectionKey();
   let observedTool = controller?.activeTool?.() || "select";
+  let captureBusy = false;
+  let destroyed = false;
+  let lastScreenCaptureDiagnostics = null;
+  const screenCaptureService = options.screenCaptureService || createDiagram2ScreenCaptureService({
+    ...(options.screenCaptureDependencies || {}),
+    onDiagnostics: diagnostics => {
+      lastScreenCaptureDiagnostics = diagnostics;
+      options.onScreenCaptureDiagnostics?.(diagnostics);
+    }
+  });
   const cropNumericScheduler = createDiagram2CropNumericAdjustmentScheduler({
     timers: options.timers,
     begin: adjustment => {
@@ -83,8 +99,16 @@ export function createDiagram2Phase6Host(options = {}) {
     root?.addEventListener?.("keydown", handleCropNumericKeydown, listenerOptions);
 
     const stopControllerObservation = controller?.onChange?.(handleControllerChange) || (() => {});
+    syncScreenCaptureButton();
+    let cleaned = false;
     const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      destroyed = true;
       stopControllerObservation();
+      screenCaptureService.destroy?.();
+      captureBusy = false;
+      syncScreenCaptureButton();
       cropNumericScheduler.destroy();
       if (cropModeImageId) renderer.setSelectionChromeSuppressed?.(cropModeImageId, false);
       cropModeImageId = "";
@@ -95,6 +119,10 @@ export function createDiagram2Phase6Host(options = {}) {
   }
 
   async function handleAction(action) {
+    if (action === "capture-diagram2-screen") {
+      await captureScreen();
+      return true;
+    }
     if (action === "add-diagram2-image") {
       root?.querySelector?.("[data-diagram2-image-input]")?.click();
       return true;
@@ -131,7 +159,49 @@ export function createDiagram2Phase6Host(options = {}) {
     return false;
   }
 
-  async function addImageFiles(filesInput, dropEvent = null) {
+  async function captureScreen() {
+    if (!canMutate()) {
+      notify("Screen capture is available only on an editable Diagram 2 canvas.");
+      syncScreenCaptureButton();
+      return false;
+    }
+    if (screenCaptureService.supported?.() !== true) {
+      notify(diagram2ScreenCaptureUnsupportedMessage);
+      syncScreenCaptureButton();
+      return false;
+    }
+    if (captureBusy || screenCaptureService.busy?.() === true) return false;
+
+    captureBusy = true;
+    syncScreenCaptureButton();
+    notify("Choose a screen, window, or tab to capture.");
+    try {
+      const result = await screenCaptureService.capture();
+      lastScreenCaptureDiagnostics = result?.diagnostics || screenCaptureService.diagnostics?.() || null;
+      if (destroyed || !canMutate()) return false;
+      const inserted = await addImageFiles([result.file], null, {
+        activateCrop: true,
+        label: "Capture screen",
+        reason: "capture screen",
+        silentCropMessage: true,
+        suppressSuccessMessage: true,
+        uploadMessage: "Adding screen capture..."
+      });
+      if (!inserted || destroyed) return false;
+      notify(result.reducedResolution
+        ? `Screen capture inserted. ${diagram2ScreenCaptureReducedResolutionMessage}`
+        : "Screen capture inserted.");
+      return true;
+    } catch (error) {
+      if (!destroyed) notify(diagram2ScreenCaptureErrorMessage(error));
+      return false;
+    } finally {
+      captureBusy = false;
+      syncScreenCaptureButton();
+    }
+  }
+
+  async function addImageFiles(filesInput, dropEvent = null, addOptions = {}) {
     if (!canMutate()) return false;
     if (typeof options.uploadEmbeddedImage !== "function") {
       notify("Image uploads are not available in Diagram 2.");
@@ -141,13 +211,14 @@ export function createDiagram2Phase6Host(options = {}) {
     if (!files.length) return false;
     let addedCount = 0;
     const start = insertionPoint(dropEvent);
+    const loadDimensions = options.loadImageDimensions || loadDiagram2ImageDimensions;
     for (const [index, file] of files.entries()) {
       try {
-        notify(`Uploading ${file.name || "image"}...`);
+        notify(addOptions.uploadMessage || `Uploading ${file.name || "image"}...`);
         const stored = await options.uploadEmbeddedImage(file);
         const source = String(stored?.url || stored || "").trim();
         if (!source) throw new Error("The uploaded image URL is invalid.");
-        const dimensions = await loadDiagram2ImageDimensions(source);
+        const dimensions = await loadDimensions(source);
         const center = {
           x: start.x + (index * 24),
           y: start.y + (index * 24)
@@ -161,8 +232,8 @@ export function createDiagram2Phase6Host(options = {}) {
           height: dimensions.height,
           isOriginalImage: false
         }, {
-          label: files.length > 1 ? "Add images" : "Add image",
-          reason: dropEvent ? "drop image" : "upload image"
+          label: addOptions.label || (files.length > 1 ? "Add images" : "Add image"),
+          reason: addOptions.reason || (dropEvent ? "drop image" : "upload image")
         });
         if (added) addedCount += 1;
       } catch (error) {
@@ -172,7 +243,12 @@ export function createDiagram2Phase6Host(options = {}) {
     if (!addedCount) return false;
     controller.setActiveTool("select");
     await afterMutation();
-    notify(`${addedCount} image${addedCount === 1 ? "" : "s"} added to the canvas.`);
+    if (addOptions.activateCrop === true) {
+      await activateCropTool({ silent: addOptions.silentCropMessage === true });
+    }
+    if (addOptions.suppressSuccessMessage !== true) {
+      notify(`${addedCount} image${addedCount === 1 ? "" : "s"} added to the canvas.`);
+    }
     return true;
   }
 
@@ -211,13 +287,13 @@ export function createDiagram2Phase6Host(options = {}) {
     return true;
   }
 
-  async function activateCropTool() {
+  async function activateCropTool(toolOptions = {}) {
     if (!canMutate()) return false;
     if (controller.activeTool() === "crop") {
       await finishCropAdjustment("Crop mode closed");
       closeCropMode();
       controller.setActiveTool("select");
-      notify("Crop mode closed.");
+      if (toolOptions.silent !== true) notify("Crop mode closed.");
       focusWorkspace();
       return true;
     }
@@ -225,12 +301,12 @@ export function createDiagram2Phase6Host(options = {}) {
     const image = selectedImage();
     if (!image) {
       controller.setActiveTool("select");
-      notify("Select one image before cropping it.");
+      if (toolOptions.silent !== true) notify("Select one image before cropping it.");
       return false;
     }
     if (image.locked === true) {
       controller.setActiveTool("select");
-      notify("Unlock the image before cropping it.");
+      if (toolOptions.silent !== true) notify("Unlock the image before cropping it.");
       return false;
     }
 
@@ -240,9 +316,11 @@ export function createDiagram2Phase6Host(options = {}) {
     renderer.setCropTarget?.(image.id);
     renderer.setSelectionChromeSuppressed?.(image.id, true);
     setDiagram2InspectorActiveTab(root, "crop");
-    notify(continuingCrop
-      ? "Adjust the existing crop handles to reveal or hide more of the original image."
-      : "Drag the image crop handles inward. The crop cannot extend outside the image.");
+    if (toolOptions.silent !== true) {
+      notify(continuingCrop
+        ? "Adjust the existing crop handles to reveal or hide more of the original image."
+        : "Drag the image crop handles inward. The crop cannot extend outside the image.");
+    }
     focusWorkspace();
     return true;
   }
@@ -483,6 +561,18 @@ export function createDiagram2Phase6Host(options = {}) {
       if (schedulerImageId) void finishCropAdjustment("tool changed");
       closeCropMode();
     }
+    syncScreenCaptureButton();
+  }
+
+  function syncScreenCaptureButton() {
+    const button = root?.querySelector?.("[data-diagram2-screen-capture]");
+    if (!button) return;
+    const supported = screenCaptureService.supported?.() === true;
+    const busy = captureBusy || screenCaptureService.busy?.() === true;
+    button.dataset.diagram2ScreenCaptureSupported = String(supported);
+    button.dataset.diagram2ScreenCaptureBusy = String(busy);
+    button.disabled = destroyed || !supported || busy || !canMutate();
+    button.setAttribute?.("aria-busy", String(busy));
   }
 
   function cropNumericControl(target) {
@@ -534,6 +624,7 @@ export function createDiagram2Phase6Host(options = {}) {
   return {
     bind,
     handleAction,
+    captureScreen,
     addImageFiles,
     pasteImageEvent,
     activateCropTool,
@@ -542,6 +633,7 @@ export function createDiagram2Phase6Host(options = {}) {
     finishCropAdjustment,
     cancelCropAdjustment,
     cropAdjustmentDiagnostics: () => cropNumericScheduler.diagnostics(),
+    screenCaptureDiagnostics: () => lastScreenCaptureDiagnostics || screenCaptureService.diagnostics?.() || null,
     setCropVisibility,
     resetCrop,
     resetCropRadius,

@@ -85,6 +85,7 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
 
   await loginAndOpenDiagram2(page, 601);
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-screen-capture]")).toHaveCount(0);
   const readOnlyPane = page.locator("[data-diagram2-readonly-shell] [data-diagram2-mapping-pane]");
   const readOnlyUiField = readOnlyPane.locator(
     "[data-diagram2-mapping-pane-field][data-diagram2-field-mapping-cell-kind='ui']"
@@ -619,6 +620,30 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   )).not.toBe("none");
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await expect(page.locator("[data-diagram2-tools-pane]")).toBeVisible();
+  const captureButton = page.getByRole("button", { name: "Capture screen, window, or tab", exact: true });
+  await expect(captureButton).toBeVisible();
+  await expect(captureButton).toHaveAttribute("title", "Capture screen, window, or tab");
+  const screenCaptureSupported = await page.evaluate(() =>
+    globalThis.isSecureContext !== false
+      && typeof navigator.mediaDevices?.getDisplayMedia === "function"
+  );
+  if (screenCaptureSupported) await expect(captureButton).toBeEnabled();
+  else await expect(captureButton).toBeDisabled();
+  expect(await page.locator("[data-diagram2-tools-pane] .diagram2-tool-pane-button").evaluateAll(buttons => {
+    const actions = buttons.map(button => button.dataset.action === "capture-diagram2-screen"
+      ? "capture"
+      : (button.dataset.diagram2Tool || button.dataset.action || ""));
+    return actions.indexOf("crop") - actions.indexOf("capture");
+  })).toBe(1);
+  expect(await captureButton.evaluate(button => {
+    const pane = button.closest("[data-diagram2-tools-pane]");
+    const buttonBounds = button.getBoundingClientRect();
+    const paneBounds = pane?.getBoundingClientRect();
+    return Boolean(paneBounds)
+      && buttonBounds.left >= paneBounds.left
+      && buttonBounds.right <= paneBounds.right
+      && button.scrollWidth <= button.clientWidth + 1;
+  })).toBe(true);
 
   const droppedImage = await assertDiagram2ImageDrop(page, pngBase64);
   expect(uploadedImageCount).toBe(1);
@@ -888,6 +913,312 @@ test("Diagram 2 Phase 6 top navigation supports images, crop, annotations, mappi
   });
   await page.locator("[data-action='cancel-diagram2-editor']").click();
   expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 Capture inserts through the live image command without a full render", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-1366", "One viewport covers the injected capture pipeline.");
+  const pngBytes = await readFile(new URL("../../wwwroot/assets/pmt-logo-full.png", import.meta.url));
+  const state = normalizeAnnotationState({
+    version: 1,
+    width: 1200,
+    height: 800,
+    objects: [{
+      id: "capture-unrelated",
+      type: "rectangle",
+      name: "Unrelated rectangle",
+      x: 80,
+      y: 80,
+      width: 180,
+      height: 100,
+      fill: "#ffffff",
+      stroke: "#334155",
+      strokeWidth: 2
+    }]
+  });
+  const apiState = appState(613, "Diagram 2 Screen Capture", state);
+  let uploadedImageCount = 0;
+
+  await initializeBrowserState(page);
+  await routeApplicationApis(page, () => apiState);
+  await page.route("**/api/image-annotation/**", route =>
+    route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadedImageCount += 1;
+    return route.fulfill(jsonResponse({ url: "/uploads/diagram2-screen-capture.png" }));
+  });
+  await page.route("**/uploads/diagram2-screen-capture.png", route => route.fulfill({
+    status: 200,
+    contentType: "image/png",
+    body: pngBytes
+  }));
+
+  await loginAndOpenDiagram2(page, 613);
+  await page.evaluate(() => {
+    const listeners = new Map();
+    const track = {
+      stopCount: 0,
+      getCapabilitiesCount: 0,
+      getSettingsCount: 0,
+      constraints: null,
+      getCapabilities() {
+        this.getCapabilitiesCount += 1;
+        return {
+          width: { max: 640 },
+          height: { max: 360 },
+          resizeMode: ["none", "crop-and-scale"]
+        };
+      },
+      getSettings() {
+        this.getSettingsCount += 1;
+        return {
+          width: 640,
+          height: 360,
+          resizeMode: "none",
+          displaySurface: "browser",
+          screenPixelRatio: 1
+        };
+      },
+      async applyConstraints(constraints) {
+        this.constraints = constraints;
+      },
+      addEventListener(name, listener) {
+        listeners.set(name, listener);
+      },
+      removeEventListener(name, listener) {
+        if (listeners.get(name) === listener) listeners.delete(name);
+      },
+      stop() {
+        this.stopCount += 1;
+      }
+    };
+    const stream = {
+      getVideoTracks: () => [track],
+      getTracks: () => [track]
+    };
+    const capture = {
+      mode: "deferred",
+      calls: 0,
+      options: null,
+      resolve: null,
+      track,
+      stream,
+      drawCount: 0,
+      drawArguments: null,
+      blobType: "",
+      videoPauseCount: 0,
+      videoSourceCleared: 0,
+      originalCreateElement: document.createElement.bind(document)
+    };
+    Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
+      configurable: true,
+      value: async options => {
+        capture.calls += 1;
+        capture.options = options;
+        if (capture.mode === "cancel") {
+          throw new DOMException("Canceled", "NotAllowedError");
+        }
+        if (capture.mode === "deferred") {
+          return new Promise(resolve => {
+            capture.resolve = () => resolve(stream);
+          });
+        }
+        return stream;
+      }
+    });
+    window.__diagram2CaptureTest = capture;
+  });
+
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  if (!await page.locator("[data-diagram2-tools-pane]").isVisible()) {
+    await page.getByRole("button", { name: "Tools", exact: true }).click();
+  }
+  const captureButton = page.getByRole("button", { name: "Capture screen, window, or tab", exact: true });
+  await expect(captureButton).toBeEnabled();
+  const initial = await page.evaluate(() => {
+    const renderer = window.__pmtDiagram2Renderer;
+    const controller = window.__pmtDiagram2EditorCore;
+    window.__diagram2CaptureTest.unrelatedNode = document.querySelector(
+      "svg[data-diagram2-svg] [data-diagram2-object-id='capture-unrelated']"
+    );
+    return {
+      objectCount: controller.currentState().objects.length,
+      historyCount: controller.historyStatus().entryCount,
+      fullRenderCount: renderer.diagnostics().fullRenderCount,
+      decodeCount: renderer.diagnostics().decodeCount,
+      viewport: renderer.viewportMatrix()
+    };
+  });
+  await page.evaluate(() => {
+    const capture = window.__diagram2CaptureTest;
+    document.createElement = function createCaptureElement(tagName, ...args) {
+      const name = String(tagName || "").toLowerCase();
+      if (name === "video") {
+        let source = null;
+        return {
+          muted: false,
+          playsInline: false,
+          videoWidth: 640,
+          videoHeight: 360,
+          get srcObject() {
+            return source;
+          },
+          set srcObject(value) {
+            source = value;
+            if (value == null) capture.videoSourceCleared += 1;
+          },
+          async play() {},
+          pause() {
+            capture.videoPauseCount += 1;
+          },
+          addEventListener() {},
+          removeEventListener() {},
+          requestVideoFrameCallback(callback) {
+            queueMicrotask(() => callback(0, {}));
+            return 1;
+          },
+          cancelVideoFrameCallback() {},
+          remove() {}
+        };
+      }
+      if (name === "canvas") {
+        document.createElement = capture.originalCreateElement;
+        return {
+          width: 0,
+          height: 0,
+          getContext: () => ({
+            drawImage(...drawArguments) {
+              capture.drawCount += 1;
+              capture.drawArguments = drawArguments.slice(1);
+            }
+          }),
+          toBlob(callback, type) {
+            capture.blobType = type;
+            callback(new Blob(["screen capture"], { type: "image/png" }));
+          }
+        };
+      }
+      return capture.originalCreateElement(tagName, ...args);
+    };
+  });
+
+  await captureButton.click();
+  await expect(captureButton).toBeDisabled();
+  await page.evaluate(() => window.__diagram2CaptureTest.resolve());
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length
+  )).toBe(initial.objectCount + 1);
+  await page.evaluate(() => window.__pmtDiagram2Renderer.whenIdle());
+
+  const inserted = await page.evaluate(() => {
+    const capture = window.__diagram2CaptureTest;
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const diagnostics = renderer.diagnostics();
+    const image = controller.currentState().objects.find(object =>
+      object.type === "embedded-image" && object.source === "/uploads/diagram2-screen-capture.png"
+    );
+    return {
+      captureCalls: capture.calls,
+      displayOptions: capture.options,
+      capabilitiesRead: capture.track.getCapabilitiesCount,
+      settingsRead: capture.track.getSettingsCount,
+      constraints: capture.track.constraints,
+      trackStops: capture.track.stopCount,
+      drawCount: capture.drawCount,
+      drawArguments: capture.drawArguments,
+      blobType: capture.blobType,
+      videoPauseCount: capture.videoPauseCount,
+      videoSourceCleared: capture.videoSourceCleared,
+      imageId: image?.id || "",
+      imageType: image?.type || "",
+      selectedIds: controller.selectedObjectIds(),
+      activeTool: controller.activeTool(),
+      historyCount: controller.historyStatus().entryCount,
+      dirty: controller.statusSnapshot().dirty,
+      fullRenderCount: diagnostics.fullRenderCount,
+      decodeCount: diagnostics.decodeCount,
+      relationshipsRoutedInLastFlush: diagnostics.relationshipsRoutedInLastFlush,
+      unrelatedNodeRetained: capture.unrelatedNode === document.querySelector(
+        "svg[data-diagram2-svg] [data-diagram2-object-id='capture-unrelated']"
+      ),
+      viewport: renderer.viewportMatrix(),
+      captureDiagnostics: window.__pmtDiagram2Phase6Host.screenCaptureDiagnostics()
+    };
+  });
+  expect(inserted).toMatchObject({
+    captureCalls: 1,
+    displayOptions: { video: { resizeMode: "none" }, audio: false },
+    capabilitiesRead: 1,
+    constraints: {
+      resizeMode: { exact: "none" },
+      width: { ideal: 640 },
+      height: { ideal: 360 }
+    },
+    trackStops: 1,
+    drawCount: 1,
+    drawArguments: [0, 0, 640, 360],
+    blobType: "image/png",
+    videoPauseCount: 1,
+    videoSourceCleared: 1,
+    imageType: "embedded-image",
+    selectedIds: [inserted.imageId],
+    activeTool: "crop",
+    historyCount: initial.historyCount + 1,
+    dirty: true,
+    fullRenderCount: initial.fullRenderCount,
+    relationshipsRoutedInLastFlush: 0,
+    unrelatedNodeRetained: true,
+    viewport: initial.viewport,
+    captureDiagnostics: {
+      width: 640,
+      height: 360,
+      resizeMode: "none",
+      reducedResolution: false
+    }
+  });
+  expect(inserted.settingsRead).toBeGreaterThanOrEqual(2);
+  expect(inserted.decodeCount).toBe(initial.decodeCount + 1);
+  expect(uploadedImageCount).toBe(1);
+  await expect(captureButton).toBeEnabled();
+
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.undo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id), inserted.imageId
+  )).toBeNull();
+  await page.evaluate(async () => {
+    await window.__pmtDiagram2EditorCore.redo();
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+  expect(await page.evaluate(id => ({
+    source: window.__pmtDiagram2EditorCore.getObjectById(id)?.source,
+    captureCalls: window.__diagram2CaptureTest.calls
+  }), inserted.imageId)).toEqual({
+    source: "/uploads/diagram2-screen-capture.png",
+    captureCalls: 1
+  });
+
+  const beforeCancel = await page.evaluate(() => ({
+    objectCount: window.__pmtDiagram2EditorCore.currentState().objects.length,
+    historyCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount
+  }));
+  await page.evaluate(() => {
+    window.__diagram2CaptureTest.mode = "cancel";
+  });
+  await captureButton.click();
+  await expect.poll(() => page.evaluate(() => window.__diagram2CaptureTest.calls)).toBe(2);
+  await expect(captureButton).toBeEnabled();
+  expect(await page.evaluate(() => ({
+    objectCount: window.__pmtDiagram2EditorCore.currentState().objects.length,
+    historyCount: window.__pmtDiagram2EditorCore.historyStatus().entryCount
+  }))).toEqual(beforeCancel);
+
+  await page.evaluate(() => {
+    document.createElement = window.__diagram2CaptureTest.originalCreateElement;
+  });
 });
 
 test("Diagram 2 shows Mapping only when a mapped Field Mapping Rectangle exists", async ({ page }, testInfo) => {
