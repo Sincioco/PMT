@@ -2,7 +2,7 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState
-} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./diagram2-renderer.js?v=20260802-diagram2-linked-zoom-fit-v1";
 import { createDiagram2FieldMappingIndexes } from "./diagram2-editor-field-mappings.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   bindDiagram2EditorLeftPaneResize,
@@ -15,6 +15,9 @@ import {
 
 const linkedDiagram2Records = new WeakMap();
 const linkedDiagram2LiveRecords = new Set();
+const linkedDiagram2MinimumZoom = 0.1;
+const linkedDiagram2MaximumZoom = 3;
+const linkedDiagram2ZoomStep = 0.05;
 const linkedDiagram2DiagnosticsState = {
   linkedDiagram2RendererCreateCount: 0,
   linkedDiagram2RendererDestroyCount: 0,
@@ -99,6 +102,7 @@ export async function hydrateDiagram2LinkedViewer(options = {}) {
     const diagnostics = renderer.render(record.state, {
       reason: "linked Diagram 2 initial"
     });
+    syncDiagram2LinkedViewerZoomControl(block, renderer.viewportMatrix());
     linkedDiagram2DiagnosticsState.linkedDiagram2FullRenderCount += Number(diagnostics?.fullRenderCount || 0);
     configureDiagram2LinkedMapping(record);
     bindDiagram2LinkedFieldMapping(record);
@@ -123,11 +127,22 @@ export function diagram2LinkedViewerViewport(block) {
   return renderer ? diagram2OleView(renderer.viewportMatrix()) : null;
 }
 
+export function diagram2LinkedViewerZoomOptionsHtml(selectedZoom = 1) {
+  const selectedValue = diagram2LinkedViewerZoomOptionValue(selectedZoom);
+  return Array.from({ length: 59 }, (_, index) => 10 + (index * 5))
+    .map(percent => {
+      const value = diagram2LinkedViewerZoomOptionValue(percent / 100);
+      return `<option value="${value}" ${value === selectedValue ? "selected" : ""}>${percent}%</option>`;
+    })
+    .join("");
+}
+
 export function restoreDiagram2LinkedViewerViewport(block, viewInput, options = {}) {
   const renderer = linkedDiagram2Renderer(block);
   const view = normalizeDiagram2OleView(viewInput);
   if (!renderer || !view) return null;
 
+  renderer.syncViewportMetrics?.();
   renderer.setZoom(view.zoom);
   const zoomed = renderer.viewportMatrix();
   renderer.panBy(view.x - zoomed.translateX, view.y - zoomed.translateY);
@@ -135,7 +150,7 @@ export function restoreDiagram2LinkedViewerViewport(block, viewInput, options = 
     linkedDiagram2DiagnosticsState.linkedDiagram2ViewportRestoreCount += 1;
     publishLinkedDiagram2Diagnostics();
   }
-  return diagram2OleView(renderer.viewportMatrix());
+  return syncDiagram2LinkedViewerZoomControl(block, renderer.viewportMatrix());
 }
 
 export function zoomDiagram2LinkedViewer(block, factor, point = {}) {
@@ -144,7 +159,7 @@ export function zoomDiagram2LinkedViewer(block, factor, point = {}) {
   renderer.zoomBy(factor, point);
   linkedDiagram2DiagnosticsState.linkedDiagram2ZoomFrameCount += 1;
   publishLinkedDiagram2Diagnostics();
-  return diagram2OleView(renderer.viewportMatrix());
+  return syncDiagram2LinkedViewerZoomControl(block, renderer.viewportMatrix());
 }
 
 export function panDiagram2LinkedViewer(block, deltaX, deltaY) {
@@ -159,9 +174,10 @@ export function panDiagram2LinkedViewer(block, deltaX, deltaY) {
 export function fitDiagram2LinkedViewer(block) {
   const renderer = linkedDiagram2Renderer(block);
   if (!renderer) return null;
+  renderer.syncViewportMetrics?.();
   syncDiagram2RendererViewportInset(block, renderer, { refit: false });
   renderer.fit();
-  return diagram2OleView(renderer.viewportMatrix());
+  return syncDiagram2LinkedViewerZoomControl(block, renderer.viewportMatrix());
 }
 
 export async function fitDiagram2LinkedViewerAfterLayout(block) {
@@ -485,8 +501,23 @@ function syncDiagram2LinkedMappingPresentation(record, open, options = {}) {
   syncDiagram2RendererViewportInset(record.block, record.renderer, {
     refit: false
   });
-  if (options.refit !== false) record.renderer?.fit?.();
+  if (options.refit !== false) fitDiagram2LinkedViewer(record.block);
   return nextOpen;
+}
+
+function syncDiagram2LinkedViewerZoomControl(block, matrix = {}) {
+  const view = diagram2OleView(matrix);
+  const control = block?.querySelector?.("[data-diagram-ole-zoom]");
+  if (control) control.value = diagram2LinkedViewerZoomOptionValue(view.zoom);
+  return view;
+}
+
+function diagram2LinkedViewerZoomOptionValue(value) {
+  const rounded = Math.round((Number(value) || 1) / linkedDiagram2ZoomStep) * linkedDiagram2ZoomStep;
+  return String(Number(Math.min(
+    linkedDiagram2MaximumZoom,
+    Math.max(linkedDiagram2MinimumZoom, rounded)
+  ).toFixed(2)));
 }
 
 function diagram2LinkedMappingPaneAttentionStartPoints(record, cell) {

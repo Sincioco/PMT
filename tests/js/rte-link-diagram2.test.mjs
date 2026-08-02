@@ -58,6 +58,7 @@ test("Link Diagram 2 mounts only the production D2 read-only renderer and patche
   assert.match(adapterSource, /renderer\.zoomBy\(factor, point\)/);
   assert.match(adapterSource, /renderer\.panBy\(deltaX, deltaY\)/);
   assert.match(adapterSource, /renderer\.fit\(\)/);
+  assert.match(adapterSource, /function fitDiagram2LinkedViewer[\s\S]*renderer\.syncViewportMetrics\?\.\(\)[\s\S]*syncDiagram2RendererViewportInset[\s\S]*renderer\.fit\(\)/);
   assert.match(adapterSource, /renderer\.destroy\(\)/);
   assert.doesNotMatch(adapterSource, /buildInteractiveDiagramViewerSvg|buildAnnotationSvg/);
   assert.doesNotMatch(adapterSource, /\.render\([^\n]+reason:\s*"pan|\.render\([^\n]+reason:\s*"zoom/);
@@ -76,7 +77,7 @@ test("Diagram 2 public links use the production Linked Diagram 2 viewer", async 
   assert.ok(endpointSource.includes('app.MapGet("/public/diagram-2/{token:guid}"'));
   assert.ok(endpointSource.includes("useDiagram2Renderer: true"));
   assert.ok(endpointSource.includes("data-public-linked-diagram2"));
-  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1"));
+  assert.ok(endpointSource.includes("public-linked-diagram2-viewer.js?v=20260802-diagram2-linked-zoom-fit-v1"));
   assert.ok(endpointSource.includes("/css/features/diagram2.css?v=20260801-diagram2-readonly-trace-v2"));
   assert.match(diagram2Source, /appUrl\(`\/public\/diagram-2\/\$\{token\}`\)/);
   assert.match(publicViewerSource, /hydrateDiagram2LinkedViewer/);
@@ -87,19 +88,26 @@ test("Diagram 2 public links use the production Linked Diagram 2 viewer", async 
   assert.doesNotMatch(publicViewerSource, /buildInteractiveDiagramViewerSvg|buildAnnotationSvg/);
 });
 
-test("Link Diagram 2 controls use the D2 Fit icon and dialog maximize treatment", async () => {
+test("Link Diagram 2 controls use the D2 zoom dropdown, Fit icon, and dialog maximize treatment", async () => {
+  const appSource = await source("wwwroot/js/app.js");
   const publicViewerSource = await source("wwwroot/js/public-linked-diagram2-viewer.js");
   const formsCss = await source("wwwroot/css/components/forms.css");
   const mapping = publicViewerSource.indexOf("data-diagram2-linked-mapping-toggle");
   const zoomOut = publicViewerSource.indexOf("data-diagram-ole-zoom-out", mapping);
-  const reset = publicViewerSource.indexOf("data-diagram-ole-reset", zoomOut);
-  const zoomIn = publicViewerSource.indexOf("data-diagram-ole-zoom-in", reset);
+  const zoom = publicViewerSource.indexOf("data-diagram-ole-zoom aria-label", zoomOut);
+  const zoomIn = publicViewerSource.indexOf("data-diagram-ole-zoom-in", zoom);
   const fit = publicViewerSource.indexOf("data-diagram-ole-fit", zoomIn);
   const maximize = publicViewerSource.indexOf("data-diagram-ole-maximize", fit);
 
-  assert.ok(mapping >= 0 && zoomOut > mapping && reset > zoomOut && zoomIn > reset && fit > zoomIn && maximize > fit);
+  assert.ok(mapping >= 0 && zoomOut > mapping && zoom > zoomOut && zoomIn > zoom && fit > zoomIn && maximize > fit);
+  assert.doesNotMatch(publicViewerSource, /data-diagram-ole-reset/);
+  assert.match(publicViewerSource, /data-diagram-ole-zoom aria-label="Zoom level" title="Zoom level"/);
+  assert.match(appSource, /diagram2[\s\S]*data-diagram-ole-zoom[\s\S]*data-diagram-ole-reset/);
+  assert.match(publicViewerSource, /stepZoom\(event\.deltaY < 0 \? 1 : -1/);
+  assert.match(await source("wwwroot/js/features/diagram2/diagram2-rte-linked-viewer.js"), /Array\.from\(\{ length: 59 \}/);
   assert.match(publicViewerSource, /data-diagram-ole-fit[^>]*>&#9633;<\/button>/);
   assert.match(publicViewerSource, /class="dialog-maximize-button" data-diagram-ole-maximize/);
+  assert.match(formsCss, /\.pmt-diagram-ole-actions select \{[\s\S]*width:\s*76px;[\s\S]*background-image:\s*var\(--select-arrow-image\)/);
   assert.match(formsCss, /\.pmt-diagram-ole-actions button\.dialog-maximize-button::before/);
   assert.match(formsCss, /button\.dialog-maximize-button \{[\s\S]*border-color:\s*transparent;[\s\S]*background:\s*transparent;/);
   assert.match(formsCss, /\.pmt-diagram-ole\.is-maximized \.pmt-diagram-ole-actions button\.dialog-maximize-button::after/);

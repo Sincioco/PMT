@@ -1,7 +1,8 @@
 import {
+  diagram2LinkedViewerZoomOptionsHtml,
   disposeDiagram2LinkedViewer,
   hydrateDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260802-diagram2-linked-zoom-fit-v1";
 
 document.querySelectorAll("[data-public-linked-diagram2]").forEach(block => {
   void hydratePublicLinkedDiagram2(block);
@@ -20,7 +21,7 @@ async function hydratePublicLinkedDiagram2(block) {
       <span class="pmt-diagram-ole-actions">
         <button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
-        <button type="button" data-diagram-ole-reset title="Reset to fit" aria-label="Reset to fit">Reset</button>
+        <select data-diagram-ole-zoom aria-label="Zoom level" title="Zoom level">${diagram2LinkedViewerZoomOptionsHtml()}</select>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
         <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">&#9633;</button>
         <button type="button" class="dialog-maximize-button" data-diagram-ole-maximize title="Maximize Linked Diagram 2 viewer" aria-label="Maximize Linked Diagram 2 viewer">Maximize</button>
@@ -47,9 +48,21 @@ async function hydratePublicLinkedDiagram2(block) {
 }
 
 function bindPublicLinkedDiagram2Controls(block, viewport, api) {
-  block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => api.zoomBy(0.85));
-  block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => api.zoomBy(1.15));
-  block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", api.fit);
+  const zoomControl = block.querySelector("[data-diagram-ole-zoom]");
+  const setZoom = (value, point = {}) => {
+    const current = api.viewport();
+    const target = Math.min(3, Math.max(0.1, Number(value) || 1));
+    if (!current?.zoom) return null;
+    return api.zoomBy(target / current.zoom, point);
+  };
+  const stepZoom = (direction, point = {}) => {
+    const selected = Number(zoomControl?.value || api.viewport()?.zoom || 1);
+    return setZoom(selected + (direction > 0 ? 0.05 : -0.05), point);
+  };
+
+  block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => stepZoom(-1));
+  block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => stepZoom(1));
+  zoomControl?.addEventListener("change", () => setZoom(zoomControl.value));
   block.querySelector("[data-diagram-ole-fit]")?.addEventListener("click", api.fit);
   block.querySelector("[data-diagram-ole-maximize]")?.addEventListener("click", async event => {
     event.preventDefault();
@@ -61,7 +74,7 @@ function bindPublicLinkedDiagram2Controls(block, viewport, api) {
     event.preventDefault();
     if (!event.deltaY) return;
     const rect = viewport.getBoundingClientRect();
-    api.zoomBy(event.deltaY < 0 ? 1.08 : 0.92, {
+    stepZoom(event.deltaY < 0 ? 1 : -1, {
       x: event.clientX - rect.left,
       y: event.clientY - rect.top
     });

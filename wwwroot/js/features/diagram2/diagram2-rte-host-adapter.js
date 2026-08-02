@@ -8,7 +8,7 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./diagram2-renderer.js?v=20260802-diagram2-rte-initial-fit-v2";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
@@ -227,7 +227,7 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
 
     dialog.showModal();
     requestAnimationFrame(() => {
-      renderer.fit();
+      fitDiagram2RteViewport(dialog, renderer);
       dialog.querySelector("[data-diagram2-workspace]")?.focus({ preventScroll: true });
     });
 
@@ -395,8 +395,7 @@ function bindDiagram2RteHostEvents(options = {}) {
   bindDiagram2EditorInspectorResize(dialog, {
     onResize: () => {
       if (String(dialog.querySelector("[data-filter='diagram2-zoom']")?.value || "fit") === "fit") {
-        syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
-        renderer.fit();
+        fitDiagram2RteViewport(dialog, renderer);
       }
     }
   });
@@ -594,16 +593,17 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "fit-diagram2-viewer") {
-      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
-      renderer.fit();
+      fitDiagram2RteViewport(dialog, renderer);
       return;
     }
     if (action === "zoom-diagram2-in") {
       renderer.zoomBy(1.1);
+      syncDiagram2RteZoomControl(dialog, renderer);
       return;
     }
     if (action === "zoom-diagram2-out") {
       renderer.zoomBy(1 / 1.1);
+      syncDiagram2RteZoomControl(dialog, renderer);
       return;
     }
     if (action === "toggle-diagram2-inspector") {
@@ -703,8 +703,7 @@ function bindDiagram2RteHostEvents(options = {}) {
     if (filter !== "diagram2-zoom") return;
     const value = String(event.target.value || "fit");
     if (value === "fit") {
-      syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
-      renderer.fit();
+      fitDiagram2RteViewport(dialog, renderer);
     }
     else renderer.setZoom(value);
   }, { signal });
@@ -808,6 +807,7 @@ function bindDiagram2RteHostEvents(options = {}) {
     isActive: () => dialog.open && image.isConnected && editor.isConnected,
     canMutate: () => controller.statusSnapshot().canEdit === true,
     onStateChange: () => updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller)),
+    onDiagnostics: () => syncDiagram2RteZoomControl(dialog, renderer),
     onSetTool: (tool, toolOptions) => phase6Host.setTool(tool, toolOptions),
     onSave: () => phase6Host.finishCropAdjustment("save")
       .then(() => options.save())
@@ -845,6 +845,23 @@ function setDiagram2RteCancelDisabled(dialog, disabled) {
 
 function syncDiagram2RteVisibleViewportInset(dialog, renderer, options = {}) {
   return syncDiagram2RendererViewportInset(dialog, renderer, options);
+}
+
+function fitDiagram2RteViewport(dialog, renderer) {
+  renderer?.syncViewportMetrics?.();
+  syncDiagram2RteVisibleViewportInset(dialog, renderer, { refit: false });
+  renderer?.fit?.();
+  syncDiagram2RteZoomControl(dialog, renderer);
+}
+
+function syncDiagram2RteZoomControl(dialog, renderer) {
+  const control = dialog?.querySelector?.("[data-filter='diagram2-zoom']");
+  const scale = Number(renderer?.viewportMatrix?.().scale || 0);
+  if (!control || !Number.isFinite(scale) || scale <= 0) return false;
+  const rounded = Math.round(scale * 20) / 20;
+  const value = String(Number(Math.min(3, Math.max(0.1, rounded)).toFixed(2)));
+  if (control.value !== value) control.value = value;
+  return true;
 }
 
 function syncDiagram2RteInspectorToggleState(dialog) {

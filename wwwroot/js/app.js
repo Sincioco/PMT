@@ -78,9 +78,10 @@ import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-m
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260802-diagram2-phase7-roundtrip-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260802-diagram2-phase7-roundtrip-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260802-diagram2-rte-initial-fit-v2";
 import {
   diagram2LinkedViewerViewport,
+  diagram2LinkedViewerZoomOptionsHtml,
   disposeDiagram2LinkedViewer,
   disposeDiagram2LinkedViewers,
   fitDiagram2LinkedViewerAfterLayout,
@@ -88,7 +89,7 @@ import {
   panDiagram2LinkedViewer,
   restoreDiagram2LinkedViewerViewport,
   zoomDiagram2LinkedViewer
-} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./features/diagram2/diagram2-rte-linked-viewer.js?v=20260802-diagram2-linked-zoom-fit-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
   createGanttFeature,
@@ -6181,7 +6182,9 @@ function hydrateRichDiagramOleBlock(block) {
       <span class="pmt-diagram-ole-actions">
         ${diagram2 ? `<button type="button" data-diagram2-linked-mapping-toggle data-diagram2-left-pane-toggle="mapping" aria-expanded="false" aria-pressed="false" title="Mapping" aria-label="Mapping" hidden>Mapping</button>` : ""}
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
-        <button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>
+        ${diagram2
+          ? `<select data-diagram-ole-zoom aria-label="Zoom level" title="Zoom level">${diagram2LinkedViewerZoomOptionsHtml()}</select>`
+          : `<button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>`}
         ${diagram2 ? `<button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>` : ""}
         <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">${diagram2 ? "&#9633;" : "Fit"}</button>
         ${diagram2 ? "" : `<button type="button" data-diagram-ole-maximize title="Maximize ${escapeAttr(featureName)} viewer" aria-label="Maximize ${escapeAttr(featureName)} viewer">Max</button>`}
@@ -6325,6 +6328,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   const hasStoredView = diagram ? hasRichDiagramOleViewport(block, diagram, activeTab) : false;
   let view = diagram ? readRichDiagramOleViewport(block, diagram, activeTab) : { x: 0, y: 0, zoom: 1 };
   const clampZoom = value => Math.min(RICH_DIAGRAM_OLE_MAX_ZOOM, Math.max(RICH_DIAGRAM_OLE_MIN_ZOOM, Number(value || 1)));
+  const linkedZoomControl = block.querySelector("[data-diagram-ole-zoom]");
   const render = (options = {}) => {
     if (!surface || !diagram) return;
     view.zoom = clampZoom(view.zoom);
@@ -6346,15 +6350,19 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
       rememberRichDiagramOleViewport(block, diagram, activeTab, view, { notify: options.notify === true });
     }
   };
+  const setDiagram2Zoom = (value, anchor = null) => {
+    const currentView = diagram2LinkedViewerViewport(block) || view;
+    const nextZoom = Math.min(3, Math.max(0.1, Number(value) || 1));
+    const nextView = zoomDiagram2LinkedViewer(block, nextZoom / currentView.zoom, anchor || {});
+    if (!nextView) return;
+    view = nextView;
+    render({ remember: true, notify: true });
+  };
   const zoomBy = (factor, anchor = null) => {
     if (!diagram) return;
     if (diagram2) {
-      const currentView = diagram2LinkedViewerViewport(block) || view;
-      const nextZoom = clampZoom(currentView.zoom * factor);
-      const nextView = zoomDiagram2LinkedViewer(block, nextZoom / currentView.zoom, anchor || {});
-      if (!nextView) return;
-      view = nextView;
-      render({ remember: true, notify: true });
+      const selectedZoom = Number(linkedZoomControl?.value || diagram2LinkedViewerViewport(block)?.zoom || 1);
+      setDiagram2Zoom(selectedZoom + (factor > 1 ? 0.05 : -0.05), anchor);
       return;
     }
     const previousZoom = clampZoom(view.zoom);
@@ -6434,6 +6442,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   });
   block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => zoomBy(0.85));
   block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => zoomBy(1.15));
+  linkedZoomControl?.addEventListener("change", () => setDiagram2Zoom(linkedZoomControl.value));
   block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", resetView);
   block.querySelector("[data-diagram-ole-fit]")?.addEventListener("click", () => fitView({ remember: true, notify: true }));
   block.querySelector("[data-diagram-ole-maximize]")?.addEventListener("click", event => {

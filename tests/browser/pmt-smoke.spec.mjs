@@ -1109,11 +1109,18 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   expect(linkedControlOrder.slice(0, 5)).toEqual([
     "data-diagram2-linked-mapping-toggle",
     "data-diagram-ole-zoom-out",
-    "data-diagram-ole-reset",
+    "data-diagram-ole-zoom",
     "data-diagram-ole-zoom-in",
     "data-diagram-ole-fit"
   ]);
   expect(linkedControlOrder.at(-1)).toBe("data-diagram-ole-maximize");
+  await expect(d2Block.getByRole("button", { name: /Reset/i })).toHaveCount(0);
+  const linkedZoomControl = d2Block.getByRole("combobox", { name: "Zoom level", exact: true });
+  await expect(linkedZoomControl).toBeVisible();
+  await expect(linkedZoomControl.locator("option")).toHaveCount(59);
+  expect(await linkedZoomControl.locator("option").allTextContents()).toEqual(
+    Array.from({ length: 59 }, (_, index) => `${10 + (index * 5)}%`)
+  );
   await expect(d2Block.locator("[data-diagram-ole-fit]")).toHaveText("□");
   expect(await d2Block.locator("[data-diagram-ole-maximize]").evaluate(button => ({
     backgroundColor: getComputedStyle(button).backgroundColor,
@@ -1124,8 +1131,22 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   });
   await expect.poll(async () => {
     const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
-    return Math.max(evidence.deltaX, evidence.deltaY);
+    return Math.max(evidence.deltaX, evidence.deltaY, evidence.viewportMetricDelta);
   }).toBeLessThanOrEqual(2);
+  await linkedZoomControl.selectOption("0.5");
+  await expect.poll(() => linkedDiagram2ViewportScale(d2Viewport)).toBeCloseTo(0.5, 4);
+  await d2Block.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(linkedZoomControl).toHaveValue("0.55");
+  await expect.poll(() => linkedDiagram2ViewportScale(d2Viewport)).toBeCloseTo(0.55, 4);
+  await d2Block.getByRole("button", { name: "Zoom out", exact: true }).click();
+  await expect(linkedZoomControl).toHaveValue("0.5");
+  await expect.poll(() => linkedDiagram2ViewportScale(d2Viewport)).toBeCloseTo(0.5, 4);
+  await d2Block.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
+  await expect.poll(async () => {
+    const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
+    return Math.max(evidence.deltaX, evidence.deltaY, evidence.viewportMetricDelta);
+  }).toBeLessThanOrEqual(2);
+  await expect(linkedZoomControl).toHaveValue(await linkedDiagram2RoundedZoom(d2Viewport));
   const linkedCsvButton = linkedMappingPane.getByRole("button", { name: "Download as CSV", exact: true });
   const linkedExcelButton = linkedMappingPane.getByRole("button", { name: "Download as Excel", exact: true });
   await expect(linkedCsvButton).toBeVisible();
@@ -1142,7 +1163,11 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   expect((await readFile(linkedCsvPath, "utf8")).replace(/^\uFEFF/, ""))
     .toBe("UI Field,Database Field\r\nLinked record ID,pmt.LinkedEntity0.Id");
   const postDownloadCenter = await linkedDiagram2FitCenterEvidence(d2Viewport);
-  expect(Math.max(postDownloadCenter.deltaX, postDownloadCenter.deltaY)).toBeLessThanOrEqual(2);
+  expect(Math.max(
+    postDownloadCenter.deltaX,
+    postDownloadCenter.deltaY,
+    postDownloadCenter.viewportMetricDelta
+  )).toBeLessThanOrEqual(2);
   const linkedMappingSearch = linkedMappingPane.locator("[data-diagram2-mapping-search]");
   const linkedGroupByTableToggle = linkedMappingPane.locator("[data-diagram2-mapping-group-by-table]");
   const linkedAlphabeticalToggle = linkedMappingPane.locator("[data-diagram2-mapping-alphabetical]");
@@ -1277,7 +1302,7 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   await d2Block.locator("[data-diagram-ole-fit]").click();
   await expect.poll(async () => {
     const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
-    return Math.max(evidence.deltaX, evidence.deltaY);
+    return Math.max(evidence.deltaX, evidence.deltaY, evidence.viewportMetricDelta);
   }).toBeLessThanOrEqual(2);
   const firstFrameDuration = await d2Block.locator("svg[data-diagram2-svg]").evaluate(svg =>
     Number(svg.dataset.diagram2LastFrameDuration || 0)
@@ -1395,7 +1420,10 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
     return performance.now() - started;
   });
   expect(fitDuration).toBeLessThanOrEqual(100);
-  await d2Block.locator("[data-diagram-ole-reset]").click();
+  await expect.poll(async () => {
+    const evidence = await linkedDiagram2FitCenterEvidence(d2Viewport);
+    return Math.max(evidence.deltaX, evidence.deltaY, evidence.viewportMetricDelta);
+  }).toBeLessThanOrEqual(2);
 
   await d2Block.locator("[data-diagram-ole-add-tab]").click();
   picker = page.locator(".pmt-diagram-ole-picker-dialog");
@@ -1465,7 +1493,16 @@ test("RTE Link Diagram 2 mirrors Link Diagram with the D2 renderer", async ({ pa
   else await page.locator(`.documentation-tree-document[data-id='${savedBlog.id}']`).click();
   const readOnly = page.locator(".documentation-tree-preview-body");
   await expect(readOnly).toBeVisible();
-  await expect(readOnly.locator("[data-pmt-ole='diagram2'] svg[data-diagram2-svg]")).toBeVisible();
+  const readOnlyDiagram2 = readOnly.locator("[data-pmt-ole='diagram2']");
+  const readOnlyDiagram2Viewport = readOnlyDiagram2.locator("[data-diagram-ole-viewport]");
+  await expect(readOnlyDiagram2.locator("svg[data-diagram2-svg]")).toBeVisible();
+  await expect(readOnlyDiagram2.getByRole("button", { name: /Reset/i })).toHaveCount(0);
+  await expect(readOnlyDiagram2.getByRole("combobox", { name: "Zoom level", exact: true })).toBeVisible();
+  await readOnlyDiagram2.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
+  await expect.poll(async () => {
+    const evidence = await linkedDiagram2FitCenterEvidence(readOnlyDiagram2Viewport);
+    return Math.max(evidence.deltaX, evidence.deltaY, evidence.viewportMetricDelta);
+  }).toBeLessThanOrEqual(2);
   await expect(readOnly.locator("[data-pmt-ole='diagram'] svg[data-diagram-ole-media]")).toBeVisible();
 
   const diagnostics = await page.evaluate(() => ({ ...window.__pmtLinkedDiagram2Diagnostics }));
@@ -8764,55 +8801,48 @@ async function centerLinkedDiagram2WorldPoint(page, block, point) {
 
 async function linkedDiagram2FitCenterEvidence(viewport) {
   return viewport.evaluate(element => {
-    const rect = element.getBoundingClientRect();
     const svg = element.querySelector("svg[data-diagram2-svg]");
-    const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
-      .match(/^matrix\(([^)]+)\)$/)?.[1]
-      .trim()
-      .split(/[\s,]+/)
-      .map(Number) || [];
-    let contentBounds = null;
-    const includePoint = point => {
-      if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-      contentBounds = contentBounds
-        ? {
-            left: Math.min(contentBounds.left, point.x),
-            top: Math.min(contentBounds.top, point.y),
-            right: Math.max(contentBounds.right, point.x),
-            bottom: Math.max(contentBounds.bottom, point.y)
-          }
-        : { left: point.x, top: point.y, right: point.x, bottom: point.y };
-    };
-    [...element.querySelectorAll("svg[data-diagram2-svg] [data-diagram2-object-id]")].filter(node => {
-      const plane = node.closest("[data-diagram2-mapping-table-plane]");
-      return !plane || getComputedStyle(plane).display !== "none";
-    }).forEach(node => {
-      const localBox = node.getBBox();
-      const objectMatrix = node.transform?.baseVal?.consolidate?.()?.matrix;
-      [
-        [localBox.x, localBox.y],
-        [localBox.x + localBox.width, localBox.y],
-        [localBox.x + localBox.width, localBox.y + localBox.height],
-        [localBox.x, localBox.y + localBox.height]
-      ].forEach(([x, y]) => includePoint(objectMatrix
-        ? { x: (x * objectMatrix.a) + (y * objectMatrix.c) + objectMatrix.e, y: (x * objectMatrix.b) + (y * objectMatrix.d) + objectMatrix.f }
-        : { x, y }));
+    const viewportRect = element.getBoundingClientRect();
+    const visibleRects = [...(svg?.querySelectorAll(
+      "[data-diagram2-object-id], [data-diagram2-relationship-id]"
+    ) || [])]
+      .filter(node => node.getClientRects().length > 0)
+      .map(node => node.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0);
+    if (!svg || !visibleRects.length) {
+      return { deltaX: Infinity, deltaY: Infinity, viewportMetricDelta: Infinity };
+    }
+
+    const bounds = visibleRects.reduce((result, rect) => ({
+      left: Math.min(result.left, rect.left),
+      top: Math.min(result.top, rect.top),
+      right: Math.max(result.right, rect.right),
+      bottom: Math.max(result.bottom, rect.bottom)
+    }), {
+      left: Infinity,
+      top: Infinity,
+      right: -Infinity,
+      bottom: -Infinity
     });
-    element.querySelectorAll("svg[data-diagram2-svg] [data-diagram2-relationship-route-points]").forEach(node => {
-      try {
-        JSON.parse(node.dataset.diagram2RelationshipRoutePoints || "[]").forEach(includePoint);
-      } catch {
-        // Ignore incomplete diagnostic metadata while a route frame is committing.
-      }
-    });
-    if (!contentBounds) return { deltaX: Infinity, deltaY: Infinity };
-    const worldCenterX = (contentBounds.left + contentBounds.right) / 2;
-    const worldCenterY = (contentBounds.top + contentBounds.bottom) / 2;
+    const viewBox = svg.viewBox.baseVal;
     return {
-      deltaX: Math.abs((rect.width / 2) - ((worldCenterX * matrix[0]) + matrix[4])),
-      deltaY: Math.abs((rect.height / 2) - ((worldCenterY * matrix[0]) + matrix[5]))
+      deltaX: Math.abs(((bounds.left + bounds.right) / 2) - (viewportRect.left + (viewportRect.width / 2))),
+      deltaY: Math.abs(((bounds.top + bounds.bottom) / 2) - (viewportRect.top + (viewportRect.height / 2))),
+      viewportMetricDelta: Math.max(
+        Math.abs(viewBox.width - Math.round(viewportRect.width)),
+        Math.abs(viewBox.height - Math.round(viewportRect.height))
+      )
     };
   });
+}
+
+async function linkedDiagram2ViewportScale(viewport) {
+  return Number(await viewport.locator("svg[data-diagram2-svg]").getAttribute("data-diagram2-viewport-scale") || 0);
+}
+
+async function linkedDiagram2RoundedZoom(viewport) {
+  const scale = await linkedDiagram2ViewportScale(viewport);
+  return String(Number(Math.min(3, Math.max(0.1, Math.round(scale / 0.05) * 0.05)).toFixed(2)));
 }
 
 function createTestState() {

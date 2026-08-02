@@ -70,11 +70,18 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
   expect(publicControlOrder).toEqual([
     "data-diagram2-linked-mapping-toggle",
     "data-diagram-ole-zoom-out",
-    "data-diagram-ole-reset",
+    "data-diagram-ole-zoom",
     "data-diagram-ole-zoom-in",
     "data-diagram-ole-fit",
     "data-diagram-ole-maximize"
   ]);
+  await expect(viewer.getByRole("button", { name: /Reset/i })).toHaveCount(0);
+  const zoomControl = viewer.getByRole("combobox", { name: "Zoom level", exact: true });
+  await expect(zoomControl).toBeVisible();
+  await expect(zoomControl.locator("option")).toHaveCount(59);
+  expect(await zoomControl.locator("option").allTextContents()).toEqual(
+    Array.from({ length: 59 }, (_, index) => `${10 + (index * 5)}%`)
+  );
   await expect(viewer.locator("[data-diagram-ole-fit]")).toHaveText("□");
   expect(await viewer.locator("[data-diagram-ole-maximize]").evaluate(button => ({
     backgroundColor: getComputedStyle(button).backgroundColor,
@@ -83,9 +90,28 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
     backgroundColor: "rgba(0, 0, 0, 0)",
     borderColor: "rgba(0, 0, 0, 0)"
   });
-  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(12);
+  await expect.poll(() => publicDiagram2PhysicalFitDelta(viewport)).toBeLessThanOrEqual(2);
 
   const publicMappingPane = viewer.locator("[data-diagram2-mapping-pane]");
+  await zoomControl.selectOption("0.5");
+  await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeCloseTo(0.5, 4);
+  await viewer.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(zoomControl).toHaveValue("0.55");
+  await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeCloseTo(0.55, 4);
+  await viewer.getByRole("button", { name: "Zoom out", exact: true }).click();
+  await expect(zoomControl).toHaveValue("0.5");
+  await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeCloseTo(0.5, 4);
+
+  await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
+  await expect.poll(() => publicDiagram2PhysicalFitDelta(viewport)).toBeLessThanOrEqual(2);
+  await expect(zoomControl).toHaveValue(await publicDiagram2RoundedZoom(viewport));
+  await viewer.getByRole("button", { name: "Mapping", exact: true }).click();
+  await expect(publicMappingPane).toBeHidden();
+  await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
+  await expect.poll(() => publicDiagram2PhysicalFitDelta(viewport)).toBeLessThanOrEqual(2);
+  await viewer.getByRole("button", { name: "Mapping", exact: true }).click();
+  await expect(publicMappingPane).toBeVisible();
+
   await publicMappingPane.locator("[data-diagram2-mapping-group-by-table]").check();
   await expect(publicMappingPane.locator(".diagram2-mapping-pane-group > h4")).toHaveText("pmt.PublicCustomers");
   await expect(publicMappingPane.locator(
@@ -127,14 +153,17 @@ test("public Diagram 2 links mount the production Linked Diagram 2 viewer", asyn
   await viewer.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect.poll(() => publicDiagram2ViewportScale(viewport)).toBeGreaterThan(initialScale);
   await viewer.getByRole("button", { name: "Fit Diagram to viewer", exact: true }).click();
-  await expect.poll(() => publicDiagram2CenterDelta(viewport, publicDiagram.contentCenter)).toBeLessThanOrEqual(12);
+  await expect.poll(() => publicDiagram2PhysicalFitDelta(viewport)).toBeLessThanOrEqual(2);
+  await expect(zoomControl).toHaveValue(await publicDiagram2RoundedZoom(viewport));
   await viewer.getByRole("button", { name: "Maximize Linked Diagram 2 viewer", exact: true }).click();
   await expect(viewer).toHaveClass(/is-maximized/);
+  await expect.poll(() => publicDiagram2PhysicalFitDelta(viewport)).toBeLessThanOrEqual(2);
   expect(await viewer.locator("[data-diagram-ole-maximize]").evaluate(button =>
     getComputedStyle(button, "::after").display
   )).toBe("block");
   await viewer.getByRole("button", { name: "Restore Linked Diagram 2 viewer", exact: true }).click();
   await expect(viewer).not.toHaveClass(/is-maximized/);
+  await expect.poll(() => publicDiagram2PhysicalFitDelta(viewport)).toBeLessThanOrEqual(2);
 });
 
 test("Diagram PNG rasterizer copies rich text without tainting the canvas", async ({ page }) => {
@@ -6103,21 +6132,42 @@ function publicDiagram2ViewportScale(viewport) {
   });
 }
 
-function publicDiagram2CenterDelta(viewport, contentCenter) {
-  return viewport.evaluate((element, worldCenter) => {
+function publicDiagram2PhysicalFitDelta(viewport) {
+  return viewport.evaluate(element => {
     const svg = element.querySelector("svg[data-diagram2-svg]");
-    const matrix = String(svg?.dataset.diagram2ViewportMatrix || "")
-      .match(/^matrix\(([^)]+)\)$/)?.[1]
-      .trim()
-      .split(/[\s,]+/)
-      .map(Number) || [];
-    if (!worldCenter || matrix.length < 6) return Infinity;
-    const rect = element.getBoundingClientRect();
+    const viewportRect = element.getBoundingClientRect();
+    const visibleRects = [...(svg?.querySelectorAll(
+      "[data-diagram2-object-id], [data-diagram2-relationship-id]"
+    ) || [])]
+      .filter(node => node.getClientRects().length > 0)
+      .map(node => node.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0);
+    if (!svg || !visibleRects.length) return Infinity;
+
+    const bounds = visibleRects.reduce((result, rect) => ({
+      left: Math.min(result.left, rect.left),
+      top: Math.min(result.top, rect.top),
+      right: Math.max(result.right, rect.right),
+      bottom: Math.max(result.bottom, rect.bottom)
+    }), {
+      left: Infinity,
+      top: Infinity,
+      right: -Infinity,
+      bottom: -Infinity
+    });
+    const viewBox = svg.viewBox.baseVal;
     return Math.max(
-      Math.abs((rect.width / 2) - ((worldCenter.x * matrix[0]) + matrix[4])),
-      Math.abs((rect.height / 2) - ((worldCenter.y * matrix[0]) + matrix[5]))
+      Math.abs(((bounds.left + bounds.right) / 2) - (viewportRect.left + (viewportRect.width / 2))),
+      Math.abs(((bounds.top + bounds.bottom) / 2) - (viewportRect.top + (viewportRect.height / 2))),
+      Math.abs(viewBox.width - Math.round(viewportRect.width)),
+      Math.abs(viewBox.height - Math.round(viewportRect.height))
     );
-  }, contentCenter);
+  });
+}
+
+async function publicDiagram2RoundedZoom(viewport) {
+  const scale = await publicDiagram2ViewportScale(viewport);
+  return String(Number(Math.min(3, Math.max(0.1, Math.round(scale / 0.05) * 0.05)).toFixed(2)));
 }
 
 function testState() {

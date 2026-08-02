@@ -2460,6 +2460,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2ViewportHeight = String(viewport.height);
   }
 
+  function syncViewportMetrics() {
+    if (!canonicalState) return diagnostics();
+    ensureSvg();
+    applySvgMetrics(canonicalState);
+    return diagnostics();
+  }
+
   function patchBackgroundPlane(state) {
     let definitions = planes.background.querySelector(":scope > defs[data-diagram2-background-definitions]");
     if (!definitions) {
@@ -4639,6 +4646,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     setRelationshipTraceSelection,
     setRelationshipTraceHover,
     setCanvasOptions,
+    syncViewportMetrics,
     setViewportInset,
     objectIdsInBounds,
     previewMarquee,

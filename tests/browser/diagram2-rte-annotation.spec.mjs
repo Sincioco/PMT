@@ -32,6 +32,112 @@ const diagram2RtePerformanceState = JSON.parse(await readFile(
 ));
 const diagram2RtePerformanceSvg = buildAnnotationSvg(diagram2RtePerformanceState);
 
+test("Annotation 2.0 opens fitted and centered beside the Tools pane", async ({ page }) => {
+  await page.route("**/uploads/rte-initial-fit.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><rect width="1600" height="900" fill="#ffffff"/></svg>`
+  }));
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/rte-initial-fit.svg" alt="Initial fit"></p>
+    </div>
+  `);
+  await loadDiagram2RteStyles(page);
+
+  await page.evaluate(async () => {
+    const { openDiagram2RteAnnotationHost } = await import(
+      "/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260802-diagram2-rte-initial-fit-v2"
+    );
+    const image = document.querySelector("#targetImage");
+    window.__diagram2RteInitialFitPromise = openDiagram2RteAnnotationHost({
+      image,
+      editor: image.closest(".rich-editor"),
+      source: "/uploads/rte-initial-fit.svg",
+      originalReference: "/uploads/rte-initial-fit.svg",
+      originalUrl: "/uploads/rte-initial-fit.svg",
+      originalFileName: "rte-initial-fit.svg",
+      canEdit: true,
+      loadTemplateLibrary: async () => ({ version: 1, templates: [], defaults: {} }),
+      loadDefaultTemplateLibrary: async () => ({ version: 1, templates: [], defaults: {} }),
+      saveTemplateLibrary: async library => library,
+      apply: async () => {}
+    });
+  });
+
+  const dialog = page.locator("[data-diagram2-rte-host]");
+  await expect(dialog).toBeVisible();
+  await page.evaluate(async () => {
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await window.__pmtDiagram2Renderer.whenIdle();
+  });
+
+  const geometry = await page.evaluate(() => {
+    const renderer = window.__pmtDiagram2Renderer;
+    const state = window.__pmtDiagram2EditorCore.currentState();
+    const imageObject = state.objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
+    const surface = document.querySelector("[data-diagram2-rte-host] [data-diagram2-renderer-surface]");
+    const pane = document.querySelector("[data-diagram2-rte-host] [data-diagram2-tools-pane]");
+    const imageNode = document.querySelector("[data-diagram2-rte-host] g[data-diagram2-object-type='embedded-image']");
+    const svg = document.querySelector("[data-diagram2-rte-host] [data-diagram2-svg]");
+    const surfaceRect = surface.getBoundingClientRect();
+    const paneRect = pane.getBoundingClientRect();
+    const imageRect = imageNode.getBoundingClientRect();
+    const paneInset = Math.max(0, Math.round(paneRect.right - surfaceRect.left));
+    const viewportWidth = Math.round(surfaceRect.width);
+    const viewportHeight = Math.round(surfaceRect.height);
+    const visibleLeft = Math.max(surfaceRect.left, paneRect.right);
+    const visibleCenterX = visibleLeft + ((surfaceRect.right - visibleLeft) / 2);
+    const visibleCenterY = surfaceRect.top + (surfaceRect.height / 2);
+    const expectedScale = Math.max(0.05, Math.min(2,
+      (viewportWidth - paneInset - 32) / imageObject.width,
+      (viewportHeight - 32) / imageObject.height
+    ));
+    const actualScale = renderer.viewportMatrix().scale;
+    const roundedZoom = Math.round(actualScale * 20) / 20;
+    return {
+      paneWidth: paneRect.width,
+      centerDeltaX: Math.abs((imageRect.left + (imageRect.width / 2)) - visibleCenterX),
+      centerDeltaY: Math.abs((imageRect.top + (imageRect.height / 2)) - visibleCenterY),
+      visibleLeft,
+      surfaceRight: surfaceRect.right,
+      imageLeft: imageRect.left,
+      imageRight: imageRect.right,
+      expectedScale,
+      actualScale,
+      viewBox: svg.getAttribute("viewBox"),
+      expectedViewBox: `0 0 ${viewportWidth} ${viewportHeight}`,
+      expectedZoomValue: String(Number(Math.min(3, Math.max(0.1, roundedZoom)).toFixed(2))),
+      zoomControlValue: document.querySelector("[data-diagram2-rte-host] [data-filter='diagram2-zoom']")?.value || ""
+    };
+  });
+
+  expect(geometry.paneWidth).toBeGreaterThanOrEqual(300);
+  expect(geometry.centerDeltaX).toBeLessThanOrEqual(2);
+  expect(geometry.centerDeltaY).toBeLessThanOrEqual(2);
+  expect(geometry.imageLeft).toBeGreaterThanOrEqual(geometry.visibleLeft - 1);
+  expect(geometry.imageRight).toBeLessThanOrEqual(geometry.surfaceRight + 1);
+  expect(geometry.actualScale).toBeCloseTo(geometry.expectedScale, 5);
+  expect(geometry.viewBox).toBe(geometry.expectedViewBox);
+  expect(geometry.zoomControlValue).toBe(geometry.expectedZoomValue);
+
+  for (const name of ["Zoom In", "Zoom Out", "Fit Diagram"]) {
+    await dialog.getByRole("button", { name, exact: true }).click();
+    await page.evaluate(() => window.__pmtDiagram2Renderer.whenIdle());
+    await expect.poll(() => page.evaluate(() => {
+      const scale = window.__pmtDiagram2Renderer.viewportMatrix().scale;
+      const rounded = Math.round(scale * 20) / 20;
+      const expected = String(Number(Math.min(3, Math.max(0.1, rounded)).toFixed(2)));
+      const actual = document.querySelector("[data-diagram2-rte-host] [data-filter='diagram2-zoom']")?.value || "";
+      return actual === expected;
+    })).toBe(true);
+  }
+
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2RteInitialFitPromise);
+});
+
 test("Annotate 2.0 saves through the RTE upload URL and remains editable", async ({ page }, testInfo) => {
   let uploadedSvg = "";
   let applyCount = 0;
