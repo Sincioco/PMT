@@ -233,7 +233,7 @@ body.diagram2-edit-mode-active #app {
   position: relative;
   display: block;
   min-height: 420px;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 16px;
   border: var(--border-width) solid var(--color-border);

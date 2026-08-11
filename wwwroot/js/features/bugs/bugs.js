@@ -66,7 +66,7 @@ import {
   formatDate,
   formatDateTime,
   toDateInput
-} from "../../shared/dates.js?v=20260620-null-end-date";
+} from "../../shared/dates.js?v=20260811-date-input-local-v1";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {

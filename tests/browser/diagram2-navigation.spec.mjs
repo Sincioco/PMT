@@ -573,6 +573,18 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
     role: "Admin"
   })));
   await page.route("**/api/state", route => route.fulfill(jsonResponse(testState())));
+  let releaseTemplateRequests = null;
+  const templateRequestGate = new Promise(resolve => {
+    releaseTemplateRequests = resolve;
+  });
+  await page.route("**/api/image-annotation/template-library", async route => {
+    await templateRequestGate;
+    await route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} }));
+  });
+  await page.route("**/api/image-annotation/default-template-library", async route => {
+    await templateRequestGate;
+    await route.fulfill(jsonResponse({ version: 1, templates: [], defaults: {} }));
+  });
   await page.route("**/api/audit-trail", route => route.fulfill(jsonResponse([])));
   await page.route("**/api/maintenance/recycle-bin", route => route.fulfill(jsonResponse([])));
   await page.route("**/api/maintenance/orphan-files", route => route.fulfill(jsonResponse({
@@ -675,6 +687,29 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-filter='diagram2-snap']")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  const readonlyCanvas = page.locator(".diagram2-readonly-canvas[data-diagram2-viewer-canvas]");
+  const readonlyCanvasBox = await readonlyCanvas.boundingBox();
+  expect(readonlyCanvasBox).toBeTruthy();
+  await page.mouse.move(
+    readonlyCanvasBox.x + readonlyCanvasBox.width / 2,
+    readonlyCanvasBox.y + readonlyCanvasBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    readonlyCanvasBox.x + readonlyCanvasBox.width / 2 + 100,
+    readonlyCanvasBox.y + readonlyCanvasBox.height / 2,
+    { steps: 4 }
+  );
+  await page.mouse.up();
+  const readonlyScrollMetrics = await readonlyCanvas.evaluate(canvas => ({
+    overflowX: getComputedStyle(canvas).overflowX,
+    scrollWidth: canvas.scrollWidth,
+    clientWidth: canvas.clientWidth
+  }));
+  expect(readonlyScrollMetrics.overflowX).toBe("auto");
+  expect(readonlyScrollMetrics.scrollWidth).toBeGreaterThan(readonlyScrollMetrics.clientWidth);
+  await page.locator("[data-action='fit-diagram2-viewer']").click();
+  await waitForViewportReason(page, "fit");
   await assertDiagram2CanvasCopyMenu(page, {
     copyToClipboard: true,
     viewerOptions: true
@@ -726,12 +761,14 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   });
   await page.getByRole("button", { name: "Edit Diagram" }).click();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-svg]")).toBeVisible({ timeout: 500 });
   const editModeInteractionMs = await page.evaluate(async () => {
     await window.__pmtDiagram2Renderer?.whenInteractive?.();
     return performance.now() - window.__diagram2EditModeStartedAt;
   });
   console.info("DIAGRAM2_EDIT_MODE_INTERACTION", JSON.stringify({ editModeInteractionMs }));
   expect(editModeInteractionMs).toBeLessThan(500);
+  releaseTemplateRequests();
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-page-document-head]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-tree]")).toHaveCount(0);

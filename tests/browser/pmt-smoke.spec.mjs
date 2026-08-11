@@ -7699,10 +7699,10 @@ test.describe("local timestamp display", () => {
 
   test("UTC timestamps display in browser local time", async ({ page }) => {
     const appState = createTestState();
-    const apiCalls = { securityReset: 0 };
+    const apiCalls = { securityReset: 0, taskSaves: [], returnTaskDatesAsSqlMidnight: true };
     const task = appState.tasks.find(item => item.id === 1);
-    task.startDate = "2026-07-14";
-    task.endDate = "2026-07-15";
+    task.startDate = "2026-07-14T00:00:00";
+    task.endDate = "2026-07-15T00:00:00";
     task.createdAt = "2026-07-14T06:53:00Z";
     task.updatedAt = "2026-07-14T06:53:00Z";
 
@@ -7718,8 +7718,79 @@ test.describe("local timestamp display", () => {
     const taskDetails = page.locator("dialog.detail-dialog");
     await expect(taskDetails.locator(".work-item-dialog-meta")).toContainText("7/14/2026, 2:53:00 PM");
     await taskDetails.getByRole("button", { name: "Edit" }).click();
+    const repeatedDates = [
+      ["2026-07-16", "2026-07-18"],
+      ["2026-07-17", "2026-07-19"],
+      ["2026-07-18", "2026-07-20"]
+    ];
     await expect(page.locator("#editorDialog [name='startDate']")).toHaveValue("2026-07-14");
+    await expect(page.locator("#editorDialog [name='endDate']")).toHaveValue("2026-07-15");
+
+    for (const [startDate, endDate] of repeatedDates) {
+      await page.locator("#editorDialog [name='startDate']").fill(startDate);
+      await page.locator("#editorDialog [name='endDate']").fill(endDate);
+      await page.locator("#editorForm button[type='submit']").click();
+      await expect(page.locator("#editorDialog")).not.toBeVisible();
+      const reopenedDetails = page.locator("dialog.detail-dialog");
+      await expect(reopenedDetails).toBeVisible();
+      await reopenedDetails.getByRole("button", { name: "Edit" }).click();
+      await expect(page.locator("#editorDialog [name='startDate']")).toHaveValue(startDate);
+      await expect(page.locator("#editorDialog [name='endDate']")).toHaveValue(endDate);
+    }
+
+    expect(apiCalls.taskSaves.map(saved => [saved.startDate, saved.endDate])).toEqual(repeatedDates);
+    await page.locator("#cancelDialog").click();
   });
+});
+
+test("Dev Task and Bug changes notify, refresh safely, and cue an inactive tab", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+
+  appState.tasks.find(item => item.id === 1).title = "Changed on another screen";
+  appState.tasks = appState.tasks.filter(item => item.id !== 4);
+  appState.tasks.push(task(
+    88,
+    10,
+    101,
+    "Bug",
+    "PMT-BUG-088",
+    "New remote bug",
+    "Todo",
+    0,
+    [2],
+    [3],
+    88,
+    "2026-08-11",
+    "2026-08-12"
+  ));
+  hydrateTaskPeople(appState, appState.tasks.at(-1));
+
+  const result = await page.evaluate(() => window.__pmtWorkItemChangeMonitor.checkNow());
+  expect(result.changed).toBe(true);
+  const notification = page.locator(".work-item-change-notification");
+  await expect(notification).toBeVisible();
+  await expect(notification).toContainText("Dev Tasks: 1 updated; Bugs: 1 new, 1 deleted.");
+  await expect(notification).toContainText("updated automatically");
+  await expect(page.locator("tr[data-task-id='1']")).toContainText("Changed on another screen");
+  expect(await page.evaluate(() => window.__pmtWorkItemChangeMonitor.intervalMs)).toBe(30_000);
+
+  await page.evaluate(() => {
+    document.hasFocus = () => false;
+    window.dispatchEvent(new Event("blur"));
+  });
+  await expect.poll(() => page.title()).toContain("New PMT changes");
+
+  await notification.getByRole("button", { name: "Refresh Screen" }).click();
+  await expect(notification).toHaveCount(0);
+  await expect.poll(() => page.title()).toBe("PMT");
 });
 
 function testPmtDatabaseSchema() {
@@ -8207,6 +8278,10 @@ async function installApiMocks(page, appState, apiCalls) {
 
     if (Array.isArray(apiCalls.taskSaves)) apiCalls.taskSaves.push(input);
     Object.assign(task, input);
+    if (apiCalls.returnTaskDatesAsSqlMidnight) {
+      task.startDate = input.startDate ? `${input.startDate}T00:00:00` : null;
+      task.endDate = input.endDate ? `${input.endDate}T00:00:00` : null;
+    }
     hydrateTaskPeople(appState, task);
     await route.fulfill(jsonResponse({ id: task.id }));
   });

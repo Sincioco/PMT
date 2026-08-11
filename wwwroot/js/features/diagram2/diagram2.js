@@ -18,7 +18,7 @@ import {
   annotationClipboardHasImage,
   annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "../../components/image-annotation.js?v=20260811-rte-tight-bounds-v1";
 import { buildPmtDatabaseSchemaDiagram } from "../diagram/pmt-database-schema.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260731-diagram1-overflow-v1";
@@ -105,7 +105,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./diagram2-editor-templates.js?v=20260811-diagram2-fixes-v1";
 import {
   createDiagram2Renderer,
   diagram2ReadonlyRendererState,
@@ -289,6 +289,11 @@ export function createDiagram2Feature({
       resetDiagram2ViewerToFit();
     }
     const isEditMode = diagram2DocumentIsEditMode(selectedDocument);
+    const reusableRendererState = selectedDocument
+      && diagram2RendererDocumentId === selectedDocument.id
+      && diagram2RendererState
+      ? diagram2RendererState
+      : null;
     const hydrationToken = ++viewerHydrationToken;
     resetDiagram2Renderer();
     globalThis.__pmtDiagram2Compatibility = diagram2Compatibility;
@@ -317,7 +322,7 @@ export function createDiagram2Feature({
       });
       diagram2TreeRevealSelection = false;
     }
-    hydrateDiagram2Viewer(hydrationToken, selectedDocument);
+    hydrateDiagram2Viewer(hydrationToken, selectedDocument, reusableRendererState);
     if (diagram2Search) scheduleDiagram2SearchSourceLoad();
   }
 
@@ -1512,16 +1517,23 @@ export function createDiagram2Feature({
     </div>`;
   }
 
-  async function hydrateDiagram2Viewer(token, document) {
+  async function hydrateDiagram2Viewer(token, document, reusableState = null) {
     if (!document) return;
     const source = diagramDocumentImage(document)?.source || blankDiagramSource;
     const viewer = app.querySelector(`[data-diagram2-live-viewer][data-id="${document.id}"]`);
     const surface = viewer?.querySelector("[data-diagram2-renderer-surface]");
     if (!viewer || !surface) return;
 
-    const result = diagramSourceIsSvg(source)
-      ? await loadDiagramCanonicalState(source)
-      : { state: null, stateLoaded: false };
+    const security = diagram2SecurityContext(document);
+    const isEditMode = diagram2DocumentMode === "edit" && security.canUpdate === true;
+    const templateStatePromise = isEditMode
+      ? createDiagram2TemplateState({ loadTemplateLibrary, loadDefaultTemplateLibrary })
+      : null;
+    const result = reusableState
+      ? { state: reusableState, stateLoaded: true }
+      : diagramSourceIsSvg(source)
+        ? await loadDiagramCanonicalState(source)
+        : { state: null, stateLoaded: false };
     if (!active || token !== viewerHydrationToken || selectedDiagramDocumentId !== document.id) return;
 
     if (!result.state) {
@@ -1533,8 +1545,6 @@ export function createDiagram2Feature({
       return;
     }
 
-    const security = diagram2SecurityContext(document);
-    const isEditMode = diagram2DocumentMode === "edit" && security.canUpdate === true;
     diagram2Renderer = createDiagram2Renderer({
       host: surface,
       onDiagnostics: updateDiagram2Diagnostics,
@@ -1553,11 +1563,26 @@ export function createDiagram2Feature({
       diagram2ReadonlyFieldMappingLinesVisible = false;
     }
     diagram2SelectedObjectIds = [];
+    const rendererState = isEditMode
+      ? diagram2RendererState
+      : diagram2ReadonlyRendererState(diagram2RendererState);
+    let diagnostics = diagram2Renderer.render(rendererState, {
+      reason: "initial"
+    });
+    applyDiagram2ViewOptions(viewer);
+    syncDiagram2MappingTablePresentation(viewer);
+    syncDiagram2VisibleViewportInset({ refit: false });
+    diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
+    syncDiagram2ReadonlyScrollbars({ reset: true });
+    scheduleDiagram2ReadonlyScrollSync({ reset: true });
+    scheduleDiagram2ZoomControlSync();
+    viewer.querySelector("[data-diagram2-viewer-loader], .diagram2-viewer-loader")?.remove();
+    viewer.classList.remove("is-loading");
+    viewer.removeAttribute("aria-busy");
+    updateDiagram2Diagnostics(diagnostics);
+
     if (isEditMode) {
-      diagram2TemplateState = await createDiagram2TemplateState({
-        loadTemplateLibrary,
-        loadDefaultTemplateLibrary
-      });
+      diagram2TemplateState = await templateStatePromise;
       if (!active || token !== viewerHydrationToken || selectedDiagramDocumentId !== document.id) return;
       diagram2HostAdapter = createDiagram2DocumentHostAdapter({
         document,
@@ -1614,24 +1639,7 @@ export function createDiagram2Feature({
       globalThis.__pmtDiagram2EditorCore = null;
       refreshDiagram2MappingPane(viewer);
     }
-    const rendererState = isEditMode
-      ? diagram2RendererState
-      : diagram2ReadonlyRendererState(diagram2RendererState);
-    let diagnostics = diagram2Renderer.render(rendererState, {
-      reason: "initial"
-    });
-    applyDiagram2ViewOptions(viewer);
-    syncDiagram2MappingTablePresentation(viewer);
-    syncDiagram2VisibleViewportInset({ refit: false });
-    diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
-    syncDiagram2ReadonlyScrollbars({ reset: true });
-    scheduleDiagram2ReadonlyScrollSync({ reset: true });
-    scheduleDiagram2ZoomControlSync();
-    viewer.querySelector("[data-diagram2-viewer-loader], .diagram2-viewer-loader")?.remove();
-    viewer.classList.remove("is-loading");
-    viewer.removeAttribute("aria-busy");
     bindDiagram2ViewportControls(viewer, { editMode: isEditMode });
-    updateDiagram2Diagnostics(diagnostics);
     updateDiagram2EditorControls();
   }
 
@@ -2663,6 +2671,7 @@ export function createDiagram2Feature({
       if (event.button === 0 && event.target.closest?.("[data-diagram2-field-mapping-cell]")) return;
       event.preventDefault();
 
+      ensureDiagram2ReadonlyPanScrollRange(canvas);
       abortDiagram2Pan();
       viewportPanAbortController = new AbortController();
       const panSignal = viewportPanAbortController.signal;
@@ -3088,6 +3097,26 @@ export function createDiagram2Feature({
     queueMicrotask(() => {
       diagram2IgnoringScrollEvent = false;
     });
+  }
+
+  function ensureDiagram2ReadonlyPanScrollRange(canvas) {
+    if (!canvas?.matches?.(".diagram2-readonly-canvas")) return;
+    const currentWidth = canvas.scrollWidth;
+    const currentHeight = canvas.scrollHeight;
+    const nextWidth = Math.max(currentWidth, canvas.clientWidth * 3);
+    const nextHeight = Math.max(currentHeight, canvas.clientHeight * 3);
+    if (nextWidth === currentWidth && nextHeight === currentHeight) return;
+
+    canvas.style.setProperty("--diagram2-scroll-width", `${nextWidth}px`);
+    canvas.style.setProperty("--diagram2-scroll-height", `${nextHeight}px`);
+    suppressDiagram2ReadonlyScrollEvents();
+    canvas.scrollLeft += Math.round((nextWidth - currentWidth) / 2);
+    canvas.scrollTop += Math.round((nextHeight - currentHeight) / 2);
+    positionDiagram2ReadonlySurface(canvas);
+    diagram2ReadonlyScrollPosition = {
+      left: canvas.scrollLeft,
+      top: canvas.scrollTop
+    };
   }
 
   function abortDiagram2ViewportControls() {
@@ -4983,12 +5012,7 @@ export function createDiagram2Feature({
 
   async function deleteDiagram2Document(document) {
     if (!diagram2CanDelete(document)) return;
-    if (selectedDiagramDocumentId === document.id) {
-      selectedDiagramDocumentId = 0;
-      writePreference(preferenceKeys.diagramSelectedDocument, "");
-    }
-    await deleteItem?.(`/api/blogs/${document.id}`, "Delete this Diagram?");
-    if (active) render();
+    return deleteItem?.(`/api/blogs/${document.id}`, "Delete this Diagram?");
   }
 
   function abortTreePaneDrag() {

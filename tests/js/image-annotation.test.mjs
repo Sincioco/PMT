@@ -22,6 +22,7 @@ import {
   annotationImageHasReversibleCrop,
   annotationObjectsIntersectingRect,
   annotationOutputBounds,
+  annotationPersistedOutputBounds,
   annotationObjectTreeHtml,
   annotationSelectionIdsForObject,
   annotationSelectionBounds,
@@ -5364,6 +5365,57 @@ test("export can persist expanded output bounds in editable metadata", () => {
   assert.deepEqual(restoredImage.imageClip, { x: 0, y: 0, width: 100, height: 50 });
   assert.equal(restoredArrow.x1, -40);
   assert.equal(restoredArrow.x2, 120);
+});
+
+test("persisted RTE output bounds tighten again after an outside annotation is deleted", () => {
+  const expandedSvg = buildAnnotationSvg({
+    width: 100,
+    height: 50,
+    objects: [
+      {
+        id: "source-image",
+        type: "embedded-image",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50,
+        source: sampleImageDataUrl,
+        imageClip: { x: 0, y: 0, width: 100, height: 50 },
+        isOriginalImage: true
+      },
+      {
+        id: "outside-arrow",
+        type: "arrow",
+        x1: 80,
+        y1: 25,
+        x2: 180,
+        y2: 25,
+        stroke: "#ff0000",
+        strokeWidth: 4,
+        arrowSize: 18
+      }
+    ]
+  }, { persistOutputBoundsInMetadata: true });
+  const expandedState = parseAnnotationSvg(expandedSvg);
+  assert.ok(expandedState.canvasBounds.width > 100);
+
+  expandedState.objects = expandedState.objects.filter(object => object.id !== "outside-arrow");
+  assert.deepEqual(annotationPersistedOutputBounds(expandedState), {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50
+  });
+
+  const tightenedSvg = buildAnnotationSvg(expandedState, { persistOutputBoundsInMetadata: true });
+  const tightenedState = parseAnnotationSvg(tightenedSvg);
+  assert.deepEqual(tightenedState.canvasBounds, {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50
+  });
+  assert.match(tightenedSvg, /viewBox="0 0 100 50"/);
 });
 
 test("marquee intersection includes edge touches, grouped members, locked objects, arrows, and the image", () => {

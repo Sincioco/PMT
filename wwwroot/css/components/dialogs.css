@@ -345,6 +345,31 @@ html[data-theme] button.export-format-button .button-icon {
   z-index: 2147483647;
 }
 
+.work-item-change-notification {
+  position: fixed;
+  top: calc(var(--topbar-height, 64px) + var(--space-4));
+  right: var(--space-6);
+  z-index: var(--z-toast);
+  display: grid;
+  gap: var(--space-4);
+  width: min(420px, calc(100vw - (2 * var(--space-6))));
+  border: var(--border-width) solid color-mix(in srgb, var(--color-primary), var(--color-border) 45%);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-elevated);
+}
+
+.work-item-change-notification p {
+  margin: 0;
+}
+
+.work-item-change-notification-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 900px) {
   .detail-grid {
     grid-template-columns: 1fr;

@@ -1,8 +1,10 @@
 import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-invite-email-body";
 import {
+  annotationPersistedOutputBounds,
+  annotationStateWithCanvasBounds,
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "../../components/image-annotation.js?v=20260811-rte-tight-bounds-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260802-diagram2-phase7-roundtrip-v1";
 import {
@@ -46,7 +48,7 @@ import {
   parseDiagram2TemplateUpload,
   persistDiagram2TemplateLibrary,
   restoreDiagram2DefaultTemplates
-} from "./diagram2-editor-templates.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./diagram2-editor-templates.js?v=20260811-diagram2-fixes-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -195,11 +197,15 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
       try {
         await renderer.whenIdle();
         const currentState = controller.state();
-        const stateForSave = normalizeDiagram2RteSaveState(currentState, {
+        const normalizedState = normalizeDiagram2RteSaveState(currentState, {
           width: currentState.width,
           height: currentState.height,
           originalReference
         });
+        const stateForSave = annotationStateWithCanvasBounds(
+          normalizedState,
+          annotationPersistedOutputBounds(normalizedState)
+        );
         const payload = {
           state: stateForSave,
           svg: await buildPortableAnnotationSvg(stateForSave, {

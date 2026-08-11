@@ -7,7 +7,7 @@ import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260802-diagram2-phase7-roundtrip-v1";
+} from "./components/image-annotation.js?v=20260811-rte-tight-bounds-v1";
 import {
   bindDiagramFieldMappingInteractions,
   buildInteractiveDiagramViewerSvg
@@ -77,8 +77,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260801-diagram
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260801-diagram2-mapping-view-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-08-01-day-41-95a9b16750df";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260802-diagram2-phase7-roundtrip-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260802-diagram2-phase7-roundtrip-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260802-diagram2-rte-initial-fit-v2";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260811-diagram2-fixes-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260811-rte-tight-bounds-v1";
 import {
   diagram2LinkedViewerViewport,
   diagram2LinkedViewerZoomOptionsHtml,
@@ -118,8 +118,14 @@ import {
   prepareRichSourceHighlight,
   RICH_SOURCE_TEXT_TYPES
 } from "./shared/source-highlighting.js?v=20260719-rte-source-v17";
-import { formatDate, toDateInput } from "./shared/dates.js";
+import { formatDate, toDateInput } from "./shared/dates.js?v=20260811-date-input-local-v1";
 import { externalizeImportedHtmlImages } from "./shared/imported-html-images.js?v=20260719-rte-upload-v17";
+import {
+  detectWorkItemChanges,
+  WORK_ITEM_CHANGE_POLL_INTERVAL_MS,
+  workItemChangeMessage,
+  workItemSnapshotSignature
+} from "./shared/work-item-changes.js?v=20260811-work-item-change-monitor-v1";
 import { canEditTask } from "./shared/permissions.js?v=20260715-admin-impersonation";
 import { applyActionPermissions, canAccessResource, canReadView, firstReadableView } from "./shared/security.js?v=20260725-diagram2-day1-v1";
 import {
@@ -290,8 +296,153 @@ function clearAuthFlyby() {
   document.body.classList.remove("auth-flyby-rendering", "login-flyby-active", "invite-flyby-active");
 }
 
+let workItemChangeMonitorStarted = false;
+let workItemChangePollTimer = 0;
+let workItemChangePollPending = false;
+let workItemChangeNotification = null;
+let workItemTitleTimer = 0;
+let workItemTitleFrame = false;
+const normalDocumentTitle = document.title;
+
+async function handleAfterLogin() {
+  startWorkItemChangeMonitor();
+  await whatsNew?.showAfterLogin();
+}
+
+function startWorkItemChangeMonitor() {
+  if (workItemChangeMonitorStarted) return;
+  workItemChangeMonitorStarted = true;
+  document.addEventListener("visibilitychange", syncWorkItemTitleCue);
+  window.addEventListener("focus", syncWorkItemTitleCue);
+  window.addEventListener("blur", syncWorkItemTitleCue);
+  document.getElementById("logout")?.addEventListener("click", clearWorkItemChangeNotification);
+  scheduleWorkItemChangePoll();
+  globalThis.__pmtWorkItemChangeMonitor = Object.freeze({
+    checkNow: checkForWorkItemChanges,
+    intervalMs: WORK_ITEM_CHANGE_POLL_INTERVAL_MS
+  });
+}
+
+function scheduleWorkItemChangePoll() {
+  window.clearTimeout(workItemChangePollTimer);
+  workItemChangePollTimer = window.setTimeout(async () => {
+    await checkForWorkItemChanges();
+    scheduleWorkItemChangePoll();
+  }, WORK_ITEM_CHANGE_POLL_INTERVAL_MS);
+}
+
+async function checkForWorkItemChanges() {
+  if (workItemChangePollPending || document.body.classList.contains("logged-out") || !state.users.length) return null;
+  workItemChangePollPending = true;
+  const requestStartSignature = workItemSnapshotSignature(state.tasks);
+  try {
+    const freshState = await api("/api/state", { cache: "no-store" });
+    if (requestStartSignature !== workItemSnapshotSignature(state.tasks)) return null;
+    const changes = detectWorkItemChanges(state.tasks, freshState?.tasks);
+    if (!changes.changed) return changes;
+
+    const visibleWorkItemScreen = currentView === "Tasks" || currentView === "Bugs";
+    const canRefreshVisibleScreen = visibleWorkItemScreen && workItemScreenCanRefresh();
+    if (!visibleWorkItemScreen || canRefreshVisibleScreen) {
+      state.tasks = Array.isArray(freshState?.tasks) ? freshState.tasks : [];
+    }
+    if (canRefreshVisibleScreen) refreshVisibleWorkItemScreen();
+    showWorkItemChangeNotification(changes, { autoRefreshed: canRefreshVisibleScreen });
+    return changes;
+  } catch {
+    return null;
+  } finally {
+    workItemChangePollPending = false;
+  }
+}
+
+function workItemScreenCanRefresh() {
+  if (document.querySelector("dialog[open], .page-actions-menu[open]")) return false;
+  if (app.querySelector(".work-item-table.is-edit-mode, .dragging, .is-column-dragging")) return false;
+  const focused = document.activeElement;
+  return !focused?.closest?.("#app input, #app select, #app textarea, #app [contenteditable='true']");
+}
+
+function refreshVisibleWorkItemScreen() {
+  const panel = app.querySelector(".work-item-table-panel");
+  const scroll = {
+    windowX: window.scrollX,
+    windowY: window.scrollY,
+    panelLeft: panel?.scrollLeft || 0,
+    panelTop: panel?.scrollTop || 0
+  };
+  renderCurrentScreen();
+  requestAnimationFrame(() => {
+    window.scrollTo(scroll.windowX, scroll.windowY);
+    const nextPanel = app.querySelector(".work-item-table-panel");
+    if (nextPanel) {
+      nextPanel.scrollLeft = scroll.panelLeft;
+      nextPanel.scrollTop = scroll.panelTop;
+    }
+  });
+}
+
+function showWorkItemChangeNotification(changes, options = {}) {
+  workItemChangeNotification?.remove();
+  const notification = document.createElement("aside");
+  notification.className = "work-item-change-notification";
+  notification.setAttribute("role", "status");
+  notification.setAttribute("aria-live", "polite");
+  notification.innerHTML = `
+    <p><strong>Dev Tasks or Bugs changed</strong></p>
+    <p>${escapeHtml(workItemChangeMessage(changes))}${options.autoRefreshed ? " The visible list was updated automatically." : ""}</p>
+    <div class="work-item-change-notification-actions">
+      <button type="button" class="primary text-icon-button" data-refresh-work-items>Refresh Screen</button>
+    </div>
+  `;
+  document.body.appendChild(notification);
+  workItemChangeNotification = notification;
+  notification.querySelector("[data-refresh-work-items]")?.addEventListener("click", refreshAfterWorkItemChange);
+  syncWorkItemTitleCue();
+}
+
+async function refreshAfterWorkItemChange(event) {
+  const button = event?.currentTarget;
+  if (button) button.disabled = true;
+  const reloaded = await reloadStatePreservingView();
+  if (!reloaded) {
+    if (button) button.disabled = false;
+    return;
+  }
+  render();
+  clearWorkItemChangeNotification();
+}
+
+function clearWorkItemChangeNotification() {
+  workItemChangeNotification?.remove();
+  workItemChangeNotification = null;
+  window.clearInterval(workItemTitleTimer);
+  workItemTitleTimer = 0;
+  workItemTitleFrame = false;
+  document.title = normalDocumentTitle;
+}
+
+function syncWorkItemTitleCue() {
+  if (!workItemChangeNotification || (!document.hidden && document.hasFocus())) {
+    window.clearInterval(workItemTitleTimer);
+    workItemTitleTimer = 0;
+    workItemTitleFrame = false;
+    document.title = normalDocumentTitle;
+    return;
+  }
+  if (workItemTitleTimer) return;
+  workItemTitleFrame = true;
+  document.title = `● New PMT changes — ${normalDocumentTitle}`;
+  workItemTitleTimer = window.setInterval(() => {
+    workItemTitleFrame = !workItemTitleFrame;
+    document.title = workItemTitleFrame
+      ? `● New PMT changes — ${normalDocumentTitle}`
+      : normalDocumentTitle;
+  }, 800);
+}
+
 const shell = createApplicationShell({
-  afterLogin: () => whatsNew?.showAfterLogin(),
+  afterLogin: handleAfterLogin,
   bindScreenEvents,
   editPassword,
   hasPendingInvitation: () => invitationsFeature?.hasPendingInvitation(),
@@ -7580,14 +7731,16 @@ async function deleteAttachment(path, fileName) {
 }
 
 async function deleteItem(path, message) {
-  if (!await askYesNo(message, "Delete")) return;
+  if (!await askYesNo(message, "Delete")) return false;
   try {
     await api(path, { method: "DELETE" });
     await loadState();
     render();
     showToast("Deleted.");
+    return true;
   } catch (error) {
     showToast(error.message);
+    return false;
   }
 }
 

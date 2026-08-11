@@ -1704,6 +1704,58 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   expect(result.notifications).toContain("You do not have permission to edit this content.");
 });
 
+test("Annotate 2.0 removes expanded white space after the outside arrow is deleted", async ({ page }) => {
+  await openDiagram2RteFixture(page);
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" alt="Tight bounds" style="width: 200px;"></p>
+    </div>
+  `);
+  await loadDiagram2RteStyles(page);
+  const sourceImage = "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='50'%3E%3Crect width='100' height='50' fill='white'/%3E%3C/svg%3E";
+  const expandedSvg = buildAnnotationSvg({
+    width: 100,
+    height: 50,
+    objects: [
+      createDiagram2EmbeddedImage({
+        id: "tight-source-image",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50,
+        source: sourceImage,
+        isOriginalImage: true
+      }),
+      {
+        id: "outside-arrow",
+        type: "arrow",
+        x1: 80,
+        y1: 25,
+        x2: 180,
+        y2: 25,
+        stroke: "#ff0000",
+        strokeWidth: 4,
+        arrowSize: 18
+      }
+    ]
+  }, { persistOutputBoundsInMetadata: true });
+  expect(parseAnnotationSvg(expandedSvg).canvasBounds.width).toBeGreaterThan(100);
+
+  await openD2RoundtripHost(page, expandedSvg, "tightBounds", { annotated: true });
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    controller.setSelection(["outside-arrow"]);
+    await controller.deleteSelectedObjects();
+    window.__pmtDiagram2Renderer.render(controller.currentState(), { reason: "delete outside arrow regression" });
+  });
+  await applyD2RoundtripHost(page, "tightBounds");
+  const savedSvg = await roundtripSavedSvg(page, "tightBounds");
+  const savedState = parseAnnotationSvg(savedSvg);
+  expect(savedState.objects.some(object => object.id === "outside-arrow")).toBe(false);
+  expect(savedState.canvasBounds).toEqual({ x: 0, y: 0, width: 100, height: 50 });
+  expect(savedSvg).toContain('viewBox="0 0 100 50"');
+});
+
 test("D1 and D2 physically round-trip Phase 6 RTE metadata in both directions", async ({ page }) => {
   test.setTimeout(90_000);
   await page.route("**/uploads/phase6-roundtrip-original.svg", route => route.fulfill({

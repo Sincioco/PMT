@@ -257,7 +257,9 @@ export function buildAnnotationSvg(inputState, options = {}) {
         manualRoutes: state.manualEntityRelationshipRoutes,
         compactRouting: state.compactEntityRelationshipRouting
       });
-  const outputBounds = annotationOutputBounds(state, { relationshipRenderModel });
+  const outputBounds = options?.persistOutputBoundsInMetadata === true
+    ? annotationPersistedOutputBounds(state, { relationshipRenderModel })
+    : annotationOutputBounds(state, { relationshipRenderModel });
   const metadataState = options?.metadataState
     ? normalizeAnnotationState(options.metadataState)
     : state;
@@ -3147,6 +3149,11 @@ export function annotationOutputBounds(inputState, options = {}) {
   return unionAnnotationBounds(bounds) || state.canvasBounds;
 }
 
+export function annotationPersistedOutputBounds(inputState, options = {}) {
+  const state = normalizeAnnotationState(inputState);
+  return annotationContentBounds(state, options) || state.canvasBounds;
+}
+
 export function annotationContentBounds(inputState, options = {}) {
   const state = normalizeAnnotationState(inputState);
   syncAnnotationEntityAnnotationArrows(state);
@@ -3172,7 +3179,7 @@ function annotationCropImage(state, imageOrId = null) {
     || null;
 }
 
-function annotationStateWithCanvasBounds(inputState, bounds) {
+export function annotationStateWithCanvasBounds(inputState, bounds) {
   const state = normalizeAnnotationState(inputState);
   const canvasBounds = {
     x: finiteNumber(bounds?.x, state.canvasBounds.x),
@@ -8968,7 +8975,7 @@ function createAnnotationDialog(context) {
           ? await buildPortableAnnotationSvg(finalState, svgOptions)
           : buildAnnotationSvg(finalState, svgOptions);
         const resultState = context.persistOutputBoundsInMetadata === true
-          ? annotationStateWithCanvasBounds(finalState, annotationOutputBounds(finalState))
+          ? annotationStateWithCanvasBounds(finalState, annotationPersistedOutputBounds(finalState))
           : finalState;
         const result = {
           state: resultState,

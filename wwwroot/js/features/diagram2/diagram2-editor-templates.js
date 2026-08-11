@@ -27,21 +27,26 @@ export async function createDiagram2TemplateState(options = {}) {
     message: ""
   };
 
-  try {
-    state.library = await loadDiagram2TemplateLibrary(options.loadTemplateLibrary);
-    state.loaded = true;
-  } catch (error) {
-    state.error = error?.message || "Diagram 2 templates could not be loaded.";
-  }
+  const libraryPromise = loadDiagram2TemplateLibrary(options.loadTemplateLibrary)
+    .then(library => {
+      state.library = library;
+      state.loaded = true;
+    })
+    .catch(error => {
+      state.error = error?.message || "Diagram 2 templates could not be loaded.";
+    });
+  const defaultLibraryPromise = typeof options.loadDefaultTemplateLibrary === "function"
+    ? loadDiagram2DefaultTemplateLibrary(options.loadDefaultTemplateLibrary)
+      .then(library => {
+        state.defaultLibrary = library;
+        state.defaultLoaded = true;
+      })
+      .catch(() => {
+        state.defaultLoaded = false;
+      })
+    : Promise.resolve();
 
-  if (typeof options.loadDefaultTemplateLibrary === "function") {
-    try {
-      state.defaultLibrary = await loadDiagram2DefaultTemplateLibrary(options.loadDefaultTemplateLibrary);
-      state.defaultLoaded = true;
-    } catch {
-      state.defaultLoaded = false;
-    }
-  }
+  await Promise.all([libraryPromise, defaultLibraryPromise]);
 
   return state;
 }
