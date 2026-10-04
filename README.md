@@ -6,18 +6,15 @@ PMT brings project planning, software delivery, QA, team documentation, diagrams
 
 ## Feature Tour
 
-These screenshots show the running local demo on **October 4, 2026**. Expand the groups below to explore the eleven featured screens. Available actions depend on the signed-in user's permissions.
+These screenshots show the running local demo on **October 4, 2026**. Explore the thirteen featured screens below. Available actions depend on the signed-in user's permissions.
 
 | Area | Screens |
 | --- | --- |
-| [Planning and delivery](#planning-and-delivery) | Projects, Sprints, Kanban Board, Dev Tasks, Bug Tracking, Backlog |
+| [Planning and delivery](#planning-and-delivery) | Projects, Sprints, Kanban Board, Dev Tasks, Bug Tracking, Backlog, Gantt Chart (Beta), Road Map (Beta) |
 | [Team coordination](#team-coordination) | Scrum, Personal Logs, WFH Schedule |
 | [Documentation and diagrams](#documentation-and-diagrams) | Documentation, Diagram 2 |
 
 ### Planning and Delivery
-
-<details>
-<summary>Projects, Sprints, Kanban Board, Dev Tasks, Bug Tracking, and Backlog</summary>
 
 **Projects** — Organize work by project with members, dates, progress, and summary charts.
 
@@ -41,12 +38,15 @@ These screenshots show the running local demo on **October 4, 2026**. Expand the
 
 ![PMT Backlog](docs/screenshots/readme/backlog.jpg)
 
-</details>
+**Gantt Chart (Beta)** — Inspect scheduled Dev Tasks and Bugs, dependencies, and Sprint dates. Adjust calendar visibility and navigate the chart manually or with its fly-by controls.
+
+![PMT Gantt Chart Beta](docs/screenshots/readme/gantt.jpg)
+
+**Road Map (Beta)** — Compare Project and Sprint dates and progress on a timeline, with expandable Sprint detail and sorting controls.
+
+![PMT Road Map Beta](docs/screenshots/readme/roadmap.jpg)
 
 ### Team Coordination
-
-<details>
-<summary>Scrum, Personal Logs, and WFH Schedule</summary>
 
 **Scrum** — Share daily updates, filter by person and date, and check in with an attendance status. The calendar brings together attendance, holidays, and planned vacations; optional automatic refresh keeps the open view current.
 
@@ -60,12 +60,7 @@ These screenshots show the running local demo on **October 4, 2026**. Expand the
 
 ![PMT WFH Schedule](docs/screenshots/readme/wfh-schedule.jpg)
 
-</details>
-
 ### Documentation and Diagrams
-
-<details>
-<summary>Documentation and Diagram 2</summary>
 
 **Documentation** — Browse documents as Cards or a hierarchical Treeview, with Project, Sprint, and search filters. Rich text supports tables, images, attachments, mentions, Live Cards, and linked diagrams. Documents can be private or public; newly created documents are private by default.
 
@@ -74,8 +69,6 @@ These screenshots show the running local demo on **October 4, 2026**. Expand the
 **Diagram 2** — Create and inspect diagrams with shapes, text, images, entities, and field-to-field relationships. Import SQL table definitions, arrange ERDs, reuse templates, and explore UI-to-database mappings with zoom, pan, fit, and highlighting controls.
 
 ![PMT Diagram 2 viewer and field mapping](docs/screenshots/readme/diagram-2.jpg)
-
-</details>
 
 ## Stack
 
